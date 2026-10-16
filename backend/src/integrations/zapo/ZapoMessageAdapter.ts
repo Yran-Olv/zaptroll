@@ -31,15 +31,32 @@ export class ZapoMessageAdapter {
       headerText?: string;
       contentText: string;
       footerText?: string;
+      expirationSeconds?: number;
       buttons: Array<{ buttonId: string; displayText: string }>;
     }
   ) {
+    const sendOptions: any = {};
+    let ephemeralContext: any = undefined;
+    if (data.expirationSeconds && data.expirationSeconds > 0) {
+      const exp = Number(data.expirationSeconds);
+      const nowSec = Math.floor(Date.now() / 1000);
+      sendOptions.expirationSeconds = exp;
+      sendOptions.ephemeralSettingTimestamp = nowSec;
+      ephemeralContext = {
+        expiration: exp,
+        ephemeralSettingTimestamp: nowSec,
+        disappearingMode: { initiator: 0, trigger: 1 },
+      };
+      sendOptions.contextInfo = ephemeralContext;
+    }
+
     const payload = {
       buttonsMessage: {
         contentText: data.contentText,
         footerText: data.footerText,
         headerType: proto.Message.ButtonsMessage.HeaderType.TEXT,
         text: data.headerText || '',
+        contextInfo: ephemeralContext,
         buttons: data.buttons.map((b) => ({
           buttonId: b.buttonId,
           buttonText: { displayText: b.displayText },
@@ -48,7 +65,7 @@ export class ZapoMessageAdapter {
       },
     };
 
-    return client.message.send(jid, payload);
+    return client.message.send(jid, payload, Object.keys(sendOptions).length ? sendOptions : undefined);
   }
 
   // 3. List Menu Message
@@ -60,12 +77,28 @@ export class ZapoMessageAdapter {
       description: string;
       buttonText: string;
       footerText?: string;
+      expirationSeconds?: number;
       sections: Array<{
         title: string;
         rows: Array<{ rowId: string; title: string; description?: string }>;
       }>;
     }
   ) {
+    const sendOptions: any = {};
+    let ephemeralContext: any = undefined;
+    if (data.expirationSeconds && data.expirationSeconds > 0) {
+      const exp = Number(data.expirationSeconds);
+      const nowSec = Math.floor(Date.now() / 1000);
+      sendOptions.expirationSeconds = exp;
+      sendOptions.ephemeralSettingTimestamp = nowSec;
+      ephemeralContext = {
+        expiration: exp,
+        ephemeralSettingTimestamp: nowSec,
+        disappearingMode: { initiator: 0, trigger: 1 },
+      };
+      sendOptions.contextInfo = ephemeralContext;
+    }
+
     const payload = {
       listMessage: {
         title: data.title,
@@ -73,6 +106,7 @@ export class ZapoMessageAdapter {
         buttonText: data.buttonText,
         footerText: data.footerText,
         listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
+        contextInfo: ephemeralContext,
         sections: data.sections.map((s) => ({
           title: s.title,
           rows: s.rows.map((r) => ({
@@ -84,7 +118,7 @@ export class ZapoMessageAdapter {
       },
     };
 
-    return client.message.send(jid, payload);
+    return client.message.send(jid, payload, Object.keys(sendOptions).length ? sendOptions : undefined);
   }
 
   // 4. Webview / Native Flow CTA URL Message
@@ -96,12 +130,29 @@ export class ZapoMessageAdapter {
       footerText?: string;
       buttonText: string;
       url: string;
+      expirationSeconds?: number;
     }
   ) {
+    const sendOptions: any = {};
+    let ephemeralContext: any = undefined;
+    if (data.expirationSeconds && data.expirationSeconds > 0) {
+      const exp = Number(data.expirationSeconds);
+      const nowSec = Math.floor(Date.now() / 1000);
+      sendOptions.expirationSeconds = exp;
+      sendOptions.ephemeralSettingTimestamp = nowSec;
+      ephemeralContext = {
+        expiration: exp,
+        ephemeralSettingTimestamp: nowSec,
+        disappearingMode: { initiator: 0, trigger: 1 },
+      };
+      sendOptions.contextInfo = ephemeralContext;
+    }
+
     const payload = {
       interactiveMessage: {
         body: { text: data.bodyText },
         footer: data.footerText ? { text: data.footerText } : undefined,
+        contextInfo: ephemeralContext,
         nativeFlowMessage: {
           buttons: [
             {
@@ -117,7 +168,7 @@ export class ZapoMessageAdapter {
       },
     };
 
-    return client.message.send(jid, payload);
+    return client.message.send(jid, payload, Object.keys(sendOptions).length ? sendOptions : undefined);
   }
 
   // 5. Native Flow Interactive Carousel Cards
@@ -461,7 +512,17 @@ export class ZapoMessageAdapter {
   }
 
   // 9. Raw Proto Send
-  static async sendRawProto(client: WaClient, jid: string, rawPayload: any) {
-    return client.message.send(jid, rawPayload);
+  static async sendRawProto(client: WaClient, jid: string, rawPayload: any, expirationSeconds?: number) {
+    const sendOptions: any = {};
+    if (expirationSeconds && expirationSeconds > 0) {
+      sendOptions.expirationSeconds = Number(expirationSeconds);
+      sendOptions.ephemeralSettingTimestamp = Math.floor(Date.now() / 1000);
+      sendOptions.contextInfo = {
+        expiration: Number(expirationSeconds),
+        ephemeralSettingTimestamp: Math.floor(Date.now() / 1000),
+        disappearingMode: { initiator: 0, trigger: 1 },
+      };
+    }
+    return client.message.send(jid, rawPayload, Object.keys(sendOptions).length ? sendOptions : undefined);
   }
 }

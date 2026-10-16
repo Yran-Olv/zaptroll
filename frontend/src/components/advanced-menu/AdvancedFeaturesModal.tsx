@@ -43,6 +43,108 @@ interface AdvancedFeaturesModalProps {
   onSuccess?: () => void;
 }
 
+interface EphemeralOptionControlProps {
+  isEphemeral: boolean;
+  onToggle: (checked: boolean) => void;
+  expirationSeconds: number;
+  onChangeExpiration: (seconds: number) => void;
+  description?: string;
+}
+
+const EphemeralOptionControl: React.FC<EphemeralOptionControlProps> = ({
+  isEphemeral,
+  onToggle,
+  expirationSeconds,
+  onChangeExpiration,
+  description = 'A mensagem sumirá automaticamente do WhatsApp após o tempo selecionado',
+}) => {
+  return (
+    <div className="p-3 bg-[#161922] border border-[#2a3346] rounded-2xl space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+            <Clock className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+              Mensagem Temporária (Auto-destruição)
+              {isEphemeral && (
+                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded font-mono">
+                  Ativo
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {description}
+            </p>
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isEphemeral}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+        </label>
+      </div>
+
+      {isEphemeral && (
+        <div className="pt-2.5 border-t border-[#2a3346] space-y-2.5">
+          <div className="text-[11px] font-mono text-gray-300">
+            Tempo de expiração no WhatsApp:
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: '24 Horas', sec: 86400, desc: 'Padrão WhatsApp' },
+              { label: '7 Dias', sec: 604800, desc: '1 semana' },
+              { label: '90 Dias', sec: 7776000, desc: '3 meses' },
+              { label: '30 Segundos', sec: 30, desc: 'Teste Rápido' },
+            ].map((preset) => (
+              <button
+                key={preset.sec}
+                type="button"
+                onClick={() => onChangeExpiration(preset.sec)}
+                className={`p-2 rounded-lg text-left border transition text-xs font-mono ${
+                  expirationSeconds === preset.sec
+                    ? 'bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm'
+                    : 'bg-[#0e1118] border-[#2a3346] text-gray-400 hover:text-white hover:border-gray-500'
+                }`}
+              >
+                <div className="font-bold">{preset.label}</div>
+                <div className="text-[9px] text-gray-500">{preset.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-[11px] font-mono text-gray-400 whitespace-nowrap">
+              Segundos customizados:
+            </span>
+            <input
+              type="number"
+              min="1"
+              value={expirationSeconds}
+              onChange={(e) =>
+                onChangeExpiration(Math.max(1, parseInt(e.target.value) || 1))
+              }
+              className="w-32 px-2.5 py-1 bg-[#0e1118] border border-[#2a3346] rounded-lg text-xs font-mono text-amber-400 focus:border-amber-500"
+            />
+            <span className="text-[10px] text-gray-500 font-mono">
+              ({expirationSeconds >= 86400
+                ? `${(expirationSeconds / 86400).toFixed(1)} dias`
+                : expirationSeconds >= 3600
+                ? `${(expirationSeconds / 3600).toFixed(1)} horas`
+                : `${expirationSeconds}s`})
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   isOpen,
   onClose,
@@ -63,6 +165,8 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   const [btnHeader, setBtnHeader] = useState('Experimento Zaptroll Lab');
   const [btnContent, setBtnContent] = useState('Você foi selecionado para o teste do laboratório. Escolha sua resposta:');
   const [btnFooter, setBtnFooter] = useState('Selecione com responsabilidade');
+  const [buttonsIsEphemeral, setButtonsIsEphemeral] = useState(false);
+  const [buttonsExpirationSeconds, setButtonsExpirationSeconds] = useState(86400);
   const [buttonsList, setButtonsList] = useState([
     { buttonId: 'opt_1', displayText: 'Aceitar Desafio' },
     { buttonId: 'opt_2', displayText: 'Trollar Amigo' },
@@ -74,6 +178,8 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   const [listDesc, setListDesc] = useState('Selecione uma das experiências abaixo:');
   const [listBtnText, setListBtnText] = useState('Explorar Opções');
   const [listFooter, setListFooter] = useState('Zaptroll Meme Labs v2.0');
+  const [listIsEphemeral, setListIsEphemeral] = useState(false);
+  const [listExpirationSeconds, setListExpirationSeconds] = useState(86400);
   const [listSections, setListSections] = useState([
     {
       title: 'Trollagens Clássicas',
@@ -96,6 +202,8 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   const [webBtn, setWebBtn] = useState('Abrir Zaptroll Web');
   const [webUrl, setWebUrl] = useState('https://zapo.to/en/introduction');
   const [webFooter, setWebFooter] = useState('Zaptroll Developer Lab');
+  const [webIsEphemeral, setWebIsEphemeral] = useState(false);
+  const [webExpirationSeconds, setWebExpirationSeconds] = useState(86400);
 
   // 4. Carousel State ("Carrossel Interativo de Produtos / Cards")
   const [carouselBody, setCarouselBody] = useState('Hey there! 🙂 Great day to explore awesome products.');
@@ -336,6 +444,8 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   const [ephSingleSeconds, setEphSingleSeconds] = useState(10);
 
   // 6. Raw Code State ("Laboratório de Payloads")
+  const [rawIsEphemeral, setRawIsEphemeral] = useState(false);
+  const [rawExpirationSeconds, setRawExpirationSeconds] = useState(86400);
   const [rawJsonText, setRawJsonText] = useState(
     JSON.stringify(
       {
@@ -387,6 +497,11 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
       setResultSuccess('Payload executado e transmitido via WhatsApp!');
       setRawResponseData(res.data);
       if (onSuccess) onSuccess();
+
+      // Fechar o modal com sucesso e retornar à conversa ativa
+      setTimeout(() => {
+        onClose();
+      }, 500);
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Erro ao enviar mensagem.';
       setResultError(msg);
@@ -413,6 +528,11 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
       });
       setResultSuccess('Ordem de revogação enviada com sucesso para o WhatsApp!');
       if (onSuccess) onSuccess();
+
+      // Fechar o modal com sucesso e retornar à conversa ativa
+      setTimeout(() => {
+        onClose();
+      }, 500);
     } catch (err: any) {
       setResultError(err.response?.data?.error || 'Erro ao revogar mensagem.');
     } finally {
@@ -612,12 +732,22 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   </div>
                 </div>
 
+                {/* Ephemeral Option */}
+                <EphemeralOptionControl
+                  isEphemeral={buttonsIsEphemeral}
+                  onToggle={setButtonsIsEphemeral}
+                  expirationSeconds={buttonsExpirationSeconds}
+                  onChangeExpiration={setButtonsExpirationSeconds}
+                  description="Os botões sumirão automaticamente do WhatsApp após o tempo selecionado"
+                />
+
                 <button
                   onClick={() =>
                     handleSend('buttons', {
                       headerText: btnHeader,
                       contentText: btnContent,
                       footerText: btnFooter,
+                      expirationSeconds: buttonsIsEphemeral ? buttonsExpirationSeconds : undefined,
                       buttons: buttonsList.map((b) => ({
                         buttonId: b.buttonId,
                         buttonText: { displayText: b.displayText },
@@ -626,10 +756,23 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                     })
                   }
                   disabled={loading}
-                  className="w-full mt-4 py-2.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className={`w-full mt-4 py-2.5 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer ${
+                    buttonsIsEphemeral
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-amber-400/20'
+                      : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[#39ff14]/20'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Disparar Botões no WhatsApp
+                  {buttonsIsEphemeral ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-black animate-pulse" />
+                      Disparar Botões Temporários (⏳ {buttonsExpirationSeconds >= 86400 ? `${buttonsExpirationSeconds / 86400}d` : `${buttonsExpirationSeconds}s`})
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Disparar Botões no WhatsApp
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -738,6 +881,15 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   ))}
                 </div>
 
+                {/* Ephemeral Option */}
+                <EphemeralOptionControl
+                  isEphemeral={listIsEphemeral}
+                  onToggle={setListIsEphemeral}
+                  expirationSeconds={listExpirationSeconds}
+                  onChangeExpiration={setListExpirationSeconds}
+                  description="O menu de opções sumirá automaticamente do WhatsApp após o tempo selecionado"
+                />
+
                 <button
                   onClick={() =>
                     handleSend('list', {
@@ -745,14 +897,28 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                       description: listDesc,
                       buttonText: listBtnText,
                       footerText: listFooter,
+                      expirationSeconds: listIsEphemeral ? listExpirationSeconds : undefined,
                       sections: listSections,
                     })
                   }
                   disabled={loading}
-                  className="w-full mt-4 py-2.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className={`w-full mt-4 py-2.5 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer ${
+                    listIsEphemeral
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-amber-400/20'
+                      : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[#39ff14]/20'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Enviar Menu de Opções
+                  {listIsEphemeral ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-black animate-pulse" />
+                      Enviar Menu Temporário (⏳ {listExpirationSeconds >= 86400 ? `${listExpirationSeconds / 86400}d` : `${listExpirationSeconds}s`})
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Enviar Menu de Opções
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -813,6 +979,15 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   </span>
                 </div>
 
+                {/* Ephemeral Option */}
+                <EphemeralOptionControl
+                  isEphemeral={webIsEphemeral}
+                  onToggle={setWebIsEphemeral}
+                  expirationSeconds={webExpirationSeconds}
+                  onChangeExpiration={setWebExpirationSeconds}
+                  description="A mensagem com webview sumirá automaticamente do WhatsApp após o tempo selecionado"
+                />
+
                 <button
                   onClick={() =>
                     handleSend('webview', {
@@ -820,13 +995,27 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                       buttonText: webBtn,
                       url: webUrl,
                       footerText: webFooter,
+                      expirationSeconds: webIsEphemeral ? webExpirationSeconds : undefined,
                     })
                   }
                   disabled={loading}
-                  className="w-full mt-4 py-2.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className={`w-full mt-4 py-2.5 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer ${
+                    webIsEphemeral
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-amber-400/20'
+                      : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[#39ff14]/20'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Enviar Webview / CTA URL
+                  {webIsEphemeral ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-black animate-pulse" />
+                      Enviar Webview Temporário (⏳ {webExpirationSeconds >= 86400 ? `${webExpirationSeconds / 86400}d` : `${webExpirationSeconds}s`})
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Enviar Webview / CTA URL
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1176,89 +1365,13 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                 )}
 
                 {/* Ephemeral Message Configuration */}
-                <div className="p-3.5 bg-[#161922] border border-[#2a3346] rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
-                          Mensagem Temporária (Auto-destruição)
-                          {carouselIsEphemeral && (
-                            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded font-mono">
-                              Ativo
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-gray-400">
-                          O carrossel sumirá automaticamente do WhatsApp após o tempo selecionado
-                        </p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={carouselIsEphemeral}
-                        onChange={(e) => setCarouselIsEphemeral(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                    </label>
-                  </div>
-
-                  {carouselIsEphemeral && (
-                    <div className="pt-2.5 border-t border-[#2a3346] space-y-2.5">
-                      <div className="text-[11px] font-mono text-gray-300">
-                        Tempo de expiração dos cartões:
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {[
-                          { label: '24 Horas', sec: 86400, desc: 'Padrão WhatsApp' },
-                          { label: '7 Dias', sec: 604800, desc: '1 semana' },
-                          { label: '90 Dias', sec: 7776000, desc: '3 meses' },
-                          { label: '30 Segundos', sec: 30, desc: 'Teste Rápido' },
-                        ].map((preset) => (
-                          <button
-                            key={preset.sec}
-                            type="button"
-                            onClick={() => setCarouselExpirationSeconds(preset.sec)}
-                            className={`p-2 rounded-lg text-left border transition text-xs font-mono ${
-                              carouselExpirationSeconds === preset.sec
-                                ? 'bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm'
-                                : 'bg-[#0e1118] border-[#2a3346] text-gray-400 hover:text-white hover:border-gray-500'
-                            }`}
-                          >
-                            <div className="font-bold">{preset.label}</div>
-                            <div className="text-[9px] text-gray-500">{preset.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[11px] font-mono text-gray-400 whitespace-nowrap">
-                          Segundos customizados:
-                        </span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={carouselExpirationSeconds}
-                          onChange={(e) =>
-                            setCarouselExpirationSeconds(Math.max(1, parseInt(e.target.value) || 1))
-                          }
-                          className="w-32 px-2.5 py-1 bg-[#0e1118] border border-[#2a3346] rounded-lg text-xs font-mono text-amber-400 focus:border-amber-500"
-                        />
-                        <span className="text-[10px] text-gray-500 font-mono">
-                          ({carouselExpirationSeconds >= 86400
-                            ? `${(carouselExpirationSeconds / 86400).toFixed(1)} dias`
-                            : carouselExpirationSeconds >= 3600
-                            ? `${(carouselExpirationSeconds / 3600).toFixed(1)} horas`
-                            : `${carouselExpirationSeconds}s`})
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <EphemeralOptionControl
+                  isEphemeral={carouselIsEphemeral}
+                  onToggle={setCarouselIsEphemeral}
+                  expirationSeconds={carouselExpirationSeconds}
+                  onChangeExpiration={setCarouselExpirationSeconds}
+                  description="O carrossel sumirá automaticamente do WhatsApp após o tempo selecionado"
+                />
 
                 {/* Send Button */}
                 <button
@@ -1463,20 +1576,45 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   />
                 </div>
 
+                {/* Ephemeral Option */}
+                <EphemeralOptionControl
+                  isEphemeral={rawIsEphemeral}
+                  onToggle={setRawIsEphemeral}
+                  expirationSeconds={rawExpirationSeconds}
+                  onChangeExpiration={setRawExpirationSeconds}
+                  description="O payload proto sumirá automaticamente do WhatsApp após o tempo selecionado"
+                />
+
                 <button
                   onClick={() => {
                     try {
                       const parsed = JSON.parse(rawJsonText);
+                      if (rawIsEphemeral) {
+                        parsed.expirationSeconds = rawExpirationSeconds;
+                      }
                       handleSend('raw', parsed);
                     } catch (e: any) {
                       setResultError(`JSON Inválido: ${e.message}`);
                     }
                   }}
                   disabled={loading}
-                  className="w-full py-2.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className={`w-full py-2.5 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer ${
+                    rawIsEphemeral
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-amber-400/20'
+                      : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[#39ff14]/20'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Transmitir Payload Raw Protobuf
+                  {rawIsEphemeral ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-black animate-pulse" />
+                      Transmitir Proto Temporário (⏳ {rawExpirationSeconds >= 86400 ? `${rawExpirationSeconds / 86400}d` : `${rawExpirationSeconds}s`})
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Transmitir Payload Raw Protobuf
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1538,6 +1676,18 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   {/* Buttons Mockup */}
                   {activeTab === 'buttons' && (
                     <div className="space-y-1.5 font-sans">
+                      {buttonsIsEphemeral && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                          <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                          <span>
+                            Temporária (
+                            {buttonsExpirationSeconds >= 86400
+                              ? `${(buttonsExpirationSeconds / 86400).toFixed(0)}d`
+                              : `${buttonsExpirationSeconds}s`}
+                            )
+                          </span>
+                        </div>
+                      )}
                       {btnHeader && <div className="font-bold text-white font-mono text-[11px]">{btnHeader}</div>}
                       <div className="text-[12px] leading-relaxed">{btnContent}</div>
                       {btnFooter && <div className="text-[10px] text-gray-400 pt-1 font-mono">{btnFooter}</div>}
@@ -1547,6 +1697,18 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   {/* List Mockup */}
                   {activeTab === 'list' && (
                     <div className="space-y-1.5 font-sans">
+                      {listIsEphemeral && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                          <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                          <span>
+                            Temporária (
+                            {listExpirationSeconds >= 86400
+                              ? `${(listExpirationSeconds / 86400).toFixed(0)}d`
+                              : `${listExpirationSeconds}s`}
+                            )
+                          </span>
+                        </div>
+                      )}
                       <div className="font-bold text-white font-mono text-[11px]">{listTitle}</div>
                       <div className="text-[12px] leading-relaxed">{listDesc}</div>
                       {listFooter && <div className="text-[10px] text-gray-400 pt-1 font-mono">{listFooter}</div>}
@@ -1556,6 +1718,18 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   {/* Webview Mockup */}
                   {activeTab === 'webview' && (
                     <div className="space-y-1.5 font-sans">
+                      {webIsEphemeral && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                          <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                          <span>
+                            Temporária (
+                            {webExpirationSeconds >= 86400
+                              ? `${(webExpirationSeconds / 86400).toFixed(0)}d`
+                              : `${webExpirationSeconds}s`}
+                            )
+                          </span>
+                        </div>
+                      )}
                       <div className="text-[12px] leading-relaxed">{webBody}</div>
                       <div className="text-[10px] text-[#38bdf8] font-mono truncate">{webUrl}</div>
                       {webFooter && <div className="text-[10px] text-gray-400 pt-1 font-mono">{webFooter}</div>}
@@ -1595,6 +1769,18 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   {/* Raw Mockup */}
                   {activeTab === 'raw' && (
                     <div>
+                      {rawIsEphemeral && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                          <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                          <span>
+                            Temporária (
+                            {rawExpirationSeconds >= 86400
+                              ? `${(rawExpirationSeconds / 86400).toFixed(0)}d`
+                              : `${rawExpirationSeconds}s`}
+                            )
+                          </span>
+                        </div>
+                      )}
                       <span className="font-mono text-[11px] text-[#39ff14]">
                         [Payload Protobuf Raw Compilado]
                       </span>

@@ -220,22 +220,46 @@ export class MessagesController {
 
         case 'buttons': {
           const validated = buttonsMessageSchema.parse(payload);
+          const expSeconds = payload.expirationSeconds || payload.duration || payload.seconds
+            ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+            : undefined;
+          if (expSeconds && expSeconds > 0) {
+            validated.expirationSeconds = expSeconds;
+          }
           sendResult = await ZapoMessageAdapter.sendButtons(client, targetJid, validated);
-          storedContent = `[Botões: ${validated.contentText}]`;
+          storedContent = expSeconds && expSeconds > 0
+            ? `⏳ [Botões Temporários (${expSeconds}s): ${validated.contentText}]`
+            : `[Botões: ${validated.contentText}]`;
           break;
         }
 
         case 'list': {
           const validated = listMessageSchema.parse(payload);
+          const expSeconds = payload.expirationSeconds || payload.duration || payload.seconds
+            ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+            : undefined;
+          if (expSeconds && expSeconds > 0) {
+            validated.expirationSeconds = expSeconds;
+          }
           sendResult = await ZapoMessageAdapter.sendList(client, targetJid, validated);
-          storedContent = `[Menu: ${validated.title} - ${validated.description}]`;
+          storedContent = expSeconds && expSeconds > 0
+            ? `⏳ [Menu Temporário (${expSeconds}s): ${validated.title}]`
+            : `[Menu: ${validated.title} - ${validated.description}]`;
           break;
         }
 
         case 'webview': {
           const validated = webviewMessageSchema.parse(payload);
+          const expSeconds = payload.expirationSeconds || payload.duration || payload.seconds
+            ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+            : undefined;
+          if (expSeconds && expSeconds > 0) {
+            validated.expirationSeconds = expSeconds;
+          }
           sendResult = await ZapoMessageAdapter.sendWebview(client, targetJid, validated);
-          storedContent = `[Webview: ${validated.bodyText} -> ${validated.url}]`;
+          storedContent = expSeconds && expSeconds > 0
+            ? `⏳ [Webview Temporário (${expSeconds}s): ${validated.bodyText} -> ${validated.url}]`
+            : `[Webview: ${validated.bodyText} -> ${validated.url}]`;
           break;
         }
 
@@ -306,8 +330,16 @@ export class MessagesController {
 
         case 'raw': {
           const validated = rawProtoSchema.parse(payload);
-          sendResult = await ZapoMessageAdapter.sendRawProto(client, targetJid, validated.rawPayload);
-          storedContent = '[Envio de Código Raw Proto]';
+          const expSeconds = payload.expirationSeconds || payload.duration || payload.seconds
+            ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+            : undefined;
+          if (expSeconds && expSeconds > 0) {
+            validated.expirationSeconds = expSeconds;
+          }
+          sendResult = await ZapoMessageAdapter.sendRawProto(client, targetJid, validated.rawPayload, expSeconds);
+          storedContent = expSeconds && expSeconds > 0
+            ? `⏳ [Raw Proto Temporário (${expSeconds}s)]`
+            : '[Envio de Código Raw Proto]';
           break;
         }
 

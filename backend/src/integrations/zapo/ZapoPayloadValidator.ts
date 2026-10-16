@@ -11,6 +11,7 @@ export const buttonsMessageSchema = z.object({
   headerText: z.string().optional(),
   contentText: z.string().min(1, 'O texto principal é obrigatório'),
   footerText: z.string().optional(),
+  expirationSeconds: z.coerce.number().int().optional(),
   buttons: z
     .array(
       z.object({
@@ -28,6 +29,7 @@ export const listMessageSchema = z.object({
   description: z.string().min(1, 'A descrição da lista é obrigatória'),
   buttonText: z.string().min(1, 'O texto do botão que abre o menu é obrigatório').max(20, 'Texto do botão deve ter até 20 caracteres'),
   footerText: z.string().optional(),
+  expirationSeconds: z.coerce.number().int().optional(),
   sections: z
     .array(
       z.object({
@@ -53,6 +55,7 @@ export const webviewMessageSchema = z.object({
   bodyText: z.string().min(1, 'Texto da mensagem é obrigatório'),
   footerText: z.string().optional(),
   buttonText: z.string().min(1, 'Texto do botão é obrigatório').max(30),
+  expirationSeconds: z.coerce.number().int().optional(),
   url: z
     .string()
     .url('A URL deve ser válida')
@@ -132,4 +135,5 @@ export const carouselMessageSchema = z.object({
 // 8. Raw Proto Send Validator
 export const rawProtoSchema = z.object({
   rawPayload: z.record(z.any()),
+  expirationSeconds: z.coerce.number().int().optional(),
 });
