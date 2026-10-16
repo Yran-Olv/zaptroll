@@ -99,11 +99,18 @@ export const MainLayout: React.FC = () => {
       const conns: WhatsAppConnection[] = res.data.connections;
       setConnections(conns);
 
-      // Default to first connected or first connection
-      if (conns.length > 0 && !selectedConnection) {
-        const connected = conns.find((c) => c.status === 'connected') || conns[0];
-        setSelectedConnection(connected);
-        setActiveConnectionId(connected.id);
+      // Default to first connected or first connection, or update current
+      if (conns.length > 0) {
+        if (!selectedConnectionRef.current) {
+          const connected = conns.find((c) => c.status === 'connected') || conns[0];
+          setSelectedConnection(connected);
+          setActiveConnectionId(connected.id);
+        } else {
+          const updated = conns.find((c) => c.id === selectedConnectionRef.current?.id);
+          if (updated) {
+            setSelectedConnection(updated);
+          }
+        }
       }
     } catch (err) {
       console.error('Error fetching connections:', err);
@@ -240,11 +247,13 @@ export const MainLayout: React.FC = () => {
       }
     };
 
+    socket.on('connect', fetchConnections);
     socket.on('new_message', handleNewMessage);
     socket.on('connection_status', handleConnectionStatus);
     socket.on('conversations_synced', handleConversationsSynced);
 
     return () => {
+      socket.off('connect', fetchConnections);
       socket.off('new_message', handleNewMessage);
       socket.off('connection_status', handleConnectionStatus);
       socket.off('conversations_synced', handleConversationsSynced);
