@@ -120,17 +120,209 @@ export class ZapoMessageAdapter {
     return client.message.send(jid, payload);
   }
 
-  // 5. Native Flow Multi-Action / Carousel Cards
+  // 5. Native Flow Interactive Carousel Cards
   static async sendCarousel(
     client: WaClient,
     jid: string,
     data: {
       bodyText: string;
       footerText?: string;
-      buttons: Array<{ name: string; display_text: string; url?: string; id?: string }>;
+      cards?: Array<{
+        title: string;
+        text: string;
+        imageUrl?: string;
+        buttons: Array<{
+          type?: 'cta_url' | 'quick_reply' | 'cta_call' | 'cta_copy';
+          name?: string;
+          displayText?: string;
+          display_text?: string;
+          url?: string;
+          id?: string;
+          phoneNumber?: string;
+          code?: string;
+        }>;
+      }>;
+      buttons?: Array<{ name: string; display_text: string; url?: string; id?: string }>;
     }
   ) {
-    const nativeButtons = data.buttons.map((b) => {
+    // WhatsApp requires <biz><interactive type=native_flow v=1><native_flow v=9 name=mixed/></interactive></biz>
+    const bizMixedOpts = {
+      customNodes: [
+        {
+          tag: 'biz',
+          attrs: {},
+          content: [
+            {
+              tag: 'interactive',
+              attrs: { type: 'native_flow', v: '1' },
+              content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' }, content: undefined }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const fallback1x1Png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+
+    const uploadCardImage = async (
+      imageUrl?: string,
+      cacheMap?: Map<string, Promise<any>>
+    ): Promise<proto.Message.IImageMessage> => {
+      const targetUrl = imageUrl?.trim();
+
+      if (targetUrl && cacheMap?.has(targetUrl)) {
+        return cacheMap.get(targetUrl)!;
+      }
+
+      const uploadPromise = (async () => {
+        try {
+          let buffer: Buffer | null = null;
+          let mimetype = 'image/png';
+
+          if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            const res = await fetch(targetUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+            if (res.ok) {
+              buffer = Buffer.from(await res.arrayBuffer());
+              const ct = res.headers.get('content-type');
+              if (ct) {
+                mimetype = ct.includes('jpeg') || ct.includes('jpg') ? 'image/jpeg' : 'image/png';
+              }
+            }
+          } else if (targetUrl && targetUrl.startsWith('data:image/')) {
+            const parts = targetUrl.split(';base64,');
+            if (parts.length === 2) {
+              mimetype = parts[0].replace('data:', '');
+              buffer = Buffer.from(parts[1], 'base64');
+            }
+          }
+
+          if (!buffer || buffer.length === 0) {
+            buffer = fallback1x1Png;
+            mimetype = 'image/png';
+          }
+
+          const media = await client.message.upload(buffer, { type: 'image', mimetype });
+          return {
+            url: media.url,
+            directPath: media.directPath,
+            mediaKey: media.mediaKey,
+            fileSha256: media.fileSha256,
+            fileEncSha256: media.fileEncSha256,
+            fileLength: media.fileLength,
+            mediaKeyTimestamp: media.mediaKeyTimestamp || Math.floor(Date.now() / 1000),
+            mimetype: media.mimetype ?? mimetype,
+            width: 640,
+            height: 640,
+          };
+        } catch (err) {
+          console.error('[ZapoMessageAdapter] Error uploading card image, using fallback:', err);
+          const media = await client.message.upload(fallback1x1Png, { type: 'image', mimetype: 'image/png' });
+          return {
+            url: media.url,
+            directPath: media.directPath,
+            mediaKey: media.mediaKey,
+            fileSha256: media.fileSha256,
+            fileEncSha256: media.fileEncSha256,
+            fileLength: media.fileLength,
+            mediaKeyTimestamp: media.mediaKeyTimestamp || Math.floor(Date.now() / 1000),
+            mimetype: 'image/png',
+            width: 640,
+            height: 640,
+          };
+        }
+      })();
+
+      if (targetUrl && cacheMap) {
+        cacheMap.set(targetUrl, uploadPromise);
+      }
+
+      return uploadPromise;
+    };
+
+    if (data.cards && data.cards.length > 0) {
+      const cacheMap = new Map<string, Promise<any>>();
+      const processedCards = await Promise.all(
+        data.cards.map(async (c, cardIdx) => {
+          const imageMessage = await uploadCardImage(c.imageUrl, cacheMap);
+
+          const flowBtns = (c.buttons || []).map((b, btnIdx) => {
+            const btnText = b.displayText || b.display_text || `Ação ${btnIdx + 1}`;
+            const btnType = b.type || (b.url ? 'cta_url' : 'quick_reply');
+
+            if (btnType === 'cta_url' || b.url) {
+              return {
+                name: 'cta_url',
+                buttonParamsJson: JSON.stringify({
+                  display_text: btnText,
+                  url: b.url || 'https://zaptroll.multivus.com.br',
+                }),
+              };
+            }
+            if (btnType === 'cta_call' || b.phoneNumber) {
+              return {
+                name: 'cta_call',
+                buttonParamsJson: JSON.stringify({
+                  display_text: btnText,
+                  phone_number: b.phoneNumber || '',
+                }),
+              };
+            }
+            if (btnType === 'cta_copy' || b.code) {
+              return {
+                name: 'cta_copy',
+                buttonParamsJson: JSON.stringify({
+                  display_text: btnText,
+                  copy_code: b.code || '',
+                }),
+              };
+            }
+            return {
+              name: 'quick_reply',
+              buttonParamsJson: JSON.stringify({
+                display_text: btnText,
+                id: b.id || `card_${cardIdx + 1}_btn_${btnIdx + 1}`,
+              }),
+            };
+          });
+
+          return {
+            header: {
+              title: c.title,
+              hasMediaAttachment: true,
+              imageMessage,
+            },
+            body: { text: c.text },
+            nativeFlowMessage: {
+              messageVersion: 1,
+              buttons: flowBtns,
+            },
+          };
+        })
+      );
+
+      const content = {
+        interactiveMessage: {
+          body: { text: data.bodyText },
+          footer: data.footerText ? { text: data.footerText } : undefined,
+          carouselMessage: {
+            messageVersion: 1,
+            cards: processedCards,
+          },
+        },
+      };
+
+      return client.message.send(jid, content as any, bizMixedOpts as any);
+    }
+
+    // Legacy fallback
+    const fallbackImage = await uploadCardImage();
+    const legacyButtons = (data.buttons || []).map((b) => {
       if (b.url) {
         return {
           name: 'cta_url',
@@ -149,18 +341,32 @@ export class ZapoMessageAdapter {
       };
     });
 
-    const payload = {
+    const fallbackCards = [
+      {
+        header: {
+          title: 'Zaptroll Interativo',
+          hasMediaAttachment: true,
+          imageMessage: fallbackImage,
+        },
+        body: { text: data.bodyText },
+        nativeFlowMessage: {
+          messageVersion: 1,
+          buttons: legacyButtons,
+        },
+      },
+    ];
+
+    const content = {
       interactiveMessage: {
         body: { text: data.bodyText },
-        footer: data.footerText ? { text: data.footerText } : undefined,
-        nativeFlowMessage: {
-          buttons: nativeButtons,
+        carouselMessage: {
           messageVersion: 1,
+          cards: fallbackCards,
         },
       },
     };
 
-    return client.message.send(jid, payload);
+    return client.message.send(jid, content as any, bizMixedOpts as any);
   }
 
   // 6. Chat-wide Ephemeral Toggle

@@ -12,6 +12,7 @@ import {
   singleMessageEphemeralSchema,
   revokeMessageSchema,
   rawProtoSchema,
+  carouselMessageSchema,
 } from '../../integrations/zapo/ZapoPayloadValidator.js';
 import { emitToConnection } from '../realtime/socket.js';
 import { MailboxSyncService } from '../../integrations/zapo/MailboxSyncService.js';
@@ -239,8 +240,15 @@ export class MessagesController {
         }
 
         case 'carousel': {
-          sendResult = await ZapoMessageAdapter.sendCarousel(client, targetJid, payload);
-          storedContent = `[Carrossel: ${payload.bodyText || 'Ações'}]`;
+          let validated: any = payload;
+          if (payload.cards && Array.isArray(payload.cards)) {
+            validated = carouselMessageSchema.parse(payload);
+          }
+          sendResult = await ZapoMessageAdapter.sendCarousel(client, targetJid, validated);
+          const cardCount = validated.cards?.length || 0;
+          storedContent = cardCount > 0 
+            ? `[Carrossel: ${validated.bodyText || 'Destaques'} — ${cardCount} ${cardCount === 1 ? 'cartão' : 'cartões'}]`
+            : `[Carrossel: ${payload.bodyText || 'Ações'}]`;
           break;
         }
 

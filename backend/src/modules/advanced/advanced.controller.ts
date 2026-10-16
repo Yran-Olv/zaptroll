@@ -111,14 +111,39 @@ export class AdvancedController {
         },
       },
       carousel: {
-        name: 'Carrossel / Multi-Ação',
+        name: 'Carrossel de Produtos / Cards Interativos',
         type: 'carousel',
         payload: {
-          bodyText: 'Escolha uma das ações abaixo:',
-          footerText: 'Interatividade nativa WhatsApp',
-          buttons: [
-            { name: 'cta_url', display_text: 'Documentação Zapo', url: 'https://zapo.to' },
-            { name: 'quick_reply', display_text: 'Confirmar Pedido', id: 'confirm_order' },
+          bodyText: 'Hey there! 🙂 Great day to explore awesome products.',
+          footerText: 'Expo Shoes Official Store',
+          cards: [
+            {
+              title: 'Expo Shoes Classic',
+              text: 'Experience timeless style with iconic model, designed for all-day ease and durability.',
+              imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=640&q=80',
+              buttons: [
+                { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+                { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_1' },
+              ],
+            },
+            {
+              title: 'Speed Runner Pro',
+              text: 'Elevate your game with sleek, high-performance model, built for speed and precision.',
+              imageUrl: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=640&q=80',
+              buttons: [
+                { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+                { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_2' },
+              ],
+            },
+            {
+              title: 'Urban Adventure Air',
+              text: 'Stay trendy and comfortable with sporty model, perfect for your daily adventures.',
+              imageUrl: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=640&q=80',
+              buttons: [
+                { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+                { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_3' },
+              ],
+            },
           ],
         },
       },

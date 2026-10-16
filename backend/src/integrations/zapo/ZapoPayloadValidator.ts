@@ -94,7 +94,36 @@ export const revokeMessageSchema = z.object({
   fromMe: z.boolean().default(true),
 });
 
-// 7. Raw Proto Send Validator
+// 7. Carousel Message Validator
+export const carouselMessageSchema = z.object({
+  bodyText: z.string().min(1, 'Texto principal do carrossel é obrigatório'),
+  footerText: z.string().optional(),
+  cards: z
+    .array(
+      z.object({
+        title: z.string().min(1, 'Título do cartão é obrigatório'),
+        text: z.string().min(1, 'Descrição do cartão é obrigatória'),
+        imageUrl: z.string().optional(),
+        buttons: z
+          .array(
+            z.object({
+              type: z.enum(['cta_url', 'quick_reply', 'cta_call', 'cta_copy']).default('quick_reply'),
+              displayText: z.string().min(1, 'Nome do botão é obrigatório').max(40),
+              url: z.string().optional(),
+              id: z.string().optional(),
+              phoneNumber: z.string().optional(),
+              code: z.string().optional(),
+            })
+          )
+          .min(1, 'Cada cartão deve ter ao menos 1 botão')
+          .max(3, 'No máximo 3 botões por cartão são permitidos'),
+      })
+    )
+    .min(1, 'Ao menos 1 cartão é obrigatório')
+    .max(10, 'No máximo 10 cartões são permitidos'),
+});
+
+// 8. Raw Proto Send Validator
 export const rawProtoSchema = z.object({
   rawPayload: z.record(z.any()),
 });

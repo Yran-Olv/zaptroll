@@ -80,3 +80,20 @@ export interface MessageTemplate {
   category: 'buttons' | 'list' | 'carousel' | 'webview' | 'raw' | 'ephemeral';
   payload: any;
 }
+
+export interface CarouselButton {
+  type: 'cta_url' | 'quick_reply' | 'cta_call' | 'cta_copy';
+  displayText: string;
+  url?: string;
+  id?: string;
+  phoneNumber?: string;
+  code?: string;
+}
+
+export interface CarouselCard {
+  id: string;
+  title: string;
+  text: string;
+  imageUrl?: string;
+  buttons: CarouselButton[];
+}

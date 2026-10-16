@@ -22,8 +22,15 @@ import {
   Terminal,
   Ghost,
   Skull,
+  Image as ImageIcon,
+  Phone,
+  CornerDownLeft,
+  ChevronLeft,
+  ChevronRight,
+  ShoppingBag,
 } from 'lucide-react';
 import api from '../../services/api.js';
+import { CarouselCard, CarouselButton } from '../../types/index.js';
 
 interface AdvancedFeaturesModalProps {
   isOpen: boolean;
@@ -88,13 +95,186 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   const [webUrl, setWebUrl] = useState('https://zapo.to/en/introduction');
   const [webFooter, setWebFooter] = useState('Zaptroll Developer Lab');
 
-  // 4. Carousel State ("Carrossel da Humilhação")
-  const [carouselBody, setCarouselBody] = useState('Confira as novidades do laboratório de testes:');
-  const [carouselFooter, setCarouselFooter] = useState('Zaptroll Interatividade WhatsApp');
-  const [carouselButtons, setCarouselButtons] = useState([
-    { name: 'cta_url', display_text: 'Documentação Zapo', url: 'https://zapo.to' },
-    { name: 'quick_reply', display_text: 'Confirmar Teste', id: 'confirm_action' },
+  // 4. Carousel State ("Carrossel Interativo de Produtos / Cards")
+  const [carouselBody, setCarouselBody] = useState('Hey there! 🙂 Great day to explore awesome products.');
+  const [carouselFooter, setCarouselFooter] = useState('Expo Shoes Official Store');
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [carouselCards, setCarouselCards] = useState<CarouselCard[]>([
+    {
+      id: '1',
+      title: 'Expo Shoes Classic',
+      text: 'Experience timeless style with iconic model, designed for all-day ease and durability.',
+      imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=640&q=80',
+      buttons: [
+        { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+        { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_1' },
+      ],
+    },
+    {
+      id: '2',
+      title: 'Speed Runner Pro',
+      text: 'Elevate your game with sleek, high-performance model, built for speed and precision.',
+      imageUrl: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=640&q=80',
+      buttons: [
+        { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+        { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_2' },
+      ],
+    },
+    {
+      id: '3',
+      title: 'Urban Adventure Air',
+      text: 'Stay trendy and comfortable with sporty model, perfect for your daily adventures.',
+      imageUrl: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=640&q=80',
+      buttons: [
+        { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+        { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_3' },
+      ],
+    },
   ]);
+
+  const handleAddCard = () => {
+    if (carouselCards.length >= 10) return;
+    const newIdx = carouselCards.length + 1;
+    const newCard: CarouselCard = {
+      id: String(Date.now()),
+      title: `Card ${newIdx}`,
+      text: `Descrição personalizada do cartão ${newIdx}`,
+      imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=640&q=80',
+      buttons: [
+        { type: 'cta_url', displayText: 'Ver Detalhes', url: 'https://zaptroll.multivus.com.br' },
+        { type: 'quick_reply', displayText: `Opção ${newIdx}`, id: `card_${newIdx}` },
+      ],
+    };
+    setCarouselCards([...carouselCards, newCard]);
+    setActiveCardIndex(carouselCards.length);
+  };
+
+  const handleRemoveCard = (index: number) => {
+    if (carouselCards.length <= 1) return;
+    const updated = carouselCards.filter((_, i) => i !== index);
+    setCarouselCards(updated);
+    if (activeCardIndex >= updated.length) {
+      setActiveCardIndex(updated.length - 1);
+    }
+  };
+
+  const handleUpdateCard = (index: number, field: keyof CarouselCard, value: any) => {
+    setCarouselCards((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleAddCardButton = (cardIdx: number) => {
+    const card = carouselCards[cardIdx];
+    if (!card || card.buttons.length >= 3) return;
+    const newBtn: CarouselButton = {
+      type: 'quick_reply',
+      displayText: `Ação ${card.buttons.length + 1}`,
+      id: `btn_${Date.now()}`,
+    };
+    handleUpdateCard(cardIdx, 'buttons', [...card.buttons, newBtn]);
+  };
+
+  const handleRemoveCardButton = (cardIdx: number, btnIdx: number) => {
+    const card = carouselCards[cardIdx];
+    if (!card || card.buttons.length <= 1) return;
+    handleUpdateCard(
+      cardIdx,
+      'buttons',
+      card.buttons.filter((_, i) => i !== btnIdx)
+    );
+  };
+
+  const handleUpdateCardButton = (
+    cardIdx: number,
+    btnIdx: number,
+    field: keyof CarouselButton,
+    value: string
+  ) => {
+    const card = carouselCards[cardIdx];
+    if (!card) return;
+    const updatedButtons = [...card.buttons];
+    updatedButtons[btnIdx] = { ...updatedButtons[btnIdx], [field]: value };
+    handleUpdateCard(cardIdx, 'buttons', updatedButtons);
+  };
+
+  const handleLoadEcommercePreset = () => {
+    setCarouselBody('Hey there! 🙂 Great day to explore awesome products.');
+    setCarouselFooter('Expo Shoes Official Store');
+    setCarouselCards([
+      {
+        id: '1',
+        title: 'Expo Shoes Classic',
+        text: 'Experience timeless style with iconic model, designed for all-day ease and durability.',
+        imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=640&q=80',
+        buttons: [
+          { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+          { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_1' },
+        ],
+      },
+      {
+        id: '2',
+        title: 'Speed Runner Pro',
+        text: 'Elevate your game with sleek, high-performance model, built for speed and precision.',
+        imageUrl: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=640&q=80',
+        buttons: [
+          { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+          { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_2' },
+        ],
+      },
+      {
+        id: '3',
+        title: 'Urban Adventure Air',
+        text: 'Stay trendy and comfortable with sporty model, perfect for your daily adventures.',
+        imageUrl: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=640&q=80',
+        buttons: [
+          { type: 'cta_url', displayText: 'Buy now', url: 'https://zaptroll.multivus.com.br' },
+          { type: 'quick_reply', displayText: 'Send more like this', id: 'more_shoes_3' },
+        ],
+      },
+    ]);
+    setActiveCardIndex(0);
+  };
+
+  const handleLoadMemePreset = () => {
+    setCarouselBody('⚡ Escolha seu Meme do Laboratório Zaptroll:');
+    setCarouselFooter('Rage Comics 2010 Edition');
+    setCarouselCards([
+      {
+        id: '1',
+        title: 'Problem, WhatsApp?',
+        text: 'Trollface clássico: quando o código funciona de primeira e ninguém acredita.',
+        imageUrl: 'https://i.kym-cdn.com/entries/icons/original/000/000/091/TrollFace.jpg',
+        buttons: [
+          { type: 'quick_reply', displayText: 'Trollar Amigo', id: 'troll_friend' },
+          { type: 'cta_url', displayText: 'Abrir Meme Lab', url: 'https://zaptroll.multivus.com.br' },
+        ],
+      },
+      {
+        id: '2',
+        title: 'Challenge Accepted',
+        text: 'Desafio aceito! Enviando carrosséis interativos avançados nativamente via Zapo.',
+        imageUrl: 'https://i.kym-cdn.com/entries/icons/original/000/003/619/ChallangeAccepted.png',
+        buttons: [
+          { type: 'quick_reply', displayText: 'Aceitar Desafio', id: 'accept_challenge' },
+          { type: 'cta_url', displayText: 'Ver Código', url: 'https://github.com/Yran-Olv/zaptroll' },
+        ],
+      },
+      {
+        id: '3',
+        title: 'Cereal Guy Facts',
+        text: 'Ele nunca vai conseguir revogar aquela mensagem... ou será que vai?',
+        imageUrl: 'https://i.kym-cdn.com/entries/icons/original/000/003/750/cereal_guy.jpg',
+        buttons: [
+          { type: 'quick_reply', displayText: 'Cereal Guy Facts', id: 'cereal_facts' },
+          { type: 'cta_url', displayText: 'Zaptroll Lab', url: 'https://zaptroll.multivus.com.br' },
+        ],
+      },
+    ]);
+    setActiveCardIndex(0);
+  };
 
   // 5. Ephemeral State ("Modo Fantasma")
   const [ephMode, setEphMode] = useState<'chat' | 'single'>('single');
@@ -227,7 +407,7 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 select-none">
-      <div className="bg-[#12151c] rounded-3xl w-full max-w-4xl h-[92vh] max-h-[780px] flex flex-col shadow-2xl border border-[#2a3346] overflow-hidden">
+      <div className="bg-[#12151c] rounded-3xl w-full max-w-5xl h-[92vh] max-h-[820px] flex flex-col shadow-2xl border border-[#2a3346] overflow-hidden">
         {/* Modal Header */}
         <div className="bg-[#161922] border-b border-[#2a3346] px-3.5 sm:px-5 py-3 sm:py-4 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -600,51 +780,324 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
 
             {/* TAB 4: CARROSSEL */}
             {activeTab === 'carousel' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-mono font-semibold text-gray-300 mb-1">
-                    Texto do Carrossel *
-                  </label>
-                  <input
-                    type="text"
-                    value={carouselBody}
-                    onChange={(e) => setCarouselBody(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-mono font-semibold text-gray-300 mb-1">
-                    Rodapé
-                  </label>
-                  <input
-                    type="text"
-                    value={carouselFooter}
-                    onChange={(e) => setCarouselFooter(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
-                  />
-                </div>
-
-                <div className="p-3 bg-[#161922] border border-[#2a3346] rounded-xl space-y-2 text-xs font-mono">
-                  <span className="text-gray-400 block font-bold">Botões do Carrossel:</span>
-                  <div className="text-[11px] text-gray-300 space-y-1">
-                    <div>1. Link URL: Documentação Zapo (https://zapo.to)</div>
-                    <div>2. Resposta Rápida: Confirmar Teste</div>
+              <div className="space-y-4">
+                {/* Presets Bar */}
+                <div className="p-3 bg-[#161922] border border-[#2a3346] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <span className="text-[11px] font-mono text-gray-400 font-semibold flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#39ff14]" /> Modelos Prontos:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleLoadEcommercePreset}
+                      className="px-2.5 py-1 bg-[#1a2130] hover:bg-[#232c3f] border border-[#2a3346] rounded-lg text-[10px] font-mono text-[#38bdf8] flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <ShoppingBag className="w-3 h-3" />
+                      Loja / Tênis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLoadMemePreset}
+                      className="px-2.5 py-1 bg-[#1a2130] hover:bg-[#232c3f] border border-[#2a3346] rounded-lg text-[10px] font-mono text-[#39ff14] flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Skull className="w-3 h-3" />
+                      Memes Rage Lab
+                    </button>
                   </div>
                 </div>
 
+                {/* Global Carousel Message Text */}
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-xs font-mono font-semibold text-gray-300 mb-1">
+                      Texto da Mensagem (Introdução do Carrossel) *
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={carouselBody}
+                      onChange={(e) => setCarouselBody(e.target.value)}
+                      placeholder="Ex: Hey there! 🙂 Confira nossa nova coleção de calçados..."
+                      className="w-full px-3 py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14] placeholder-gray-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono font-semibold text-gray-300 mb-1">
+                      Rodapé da Mensagem (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={carouselFooter}
+                      onChange={(e) => setCarouselFooter(e.target.value)}
+                      placeholder="Ex: Expo Shoes Store"
+                      className="w-full px-3 py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14] placeholder-gray-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Cards Management Tabs */}
+                <div className="pt-2 border-t border-[#2a3346]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono font-bold text-gray-300 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-[#39ff14]" />
+                      Cartões do Carrossel ({carouselCards.length}/10)
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handleAddCard}
+                        disabled={carouselCards.length >= 10}
+                        className="px-2 py-1 bg-[#39ff14]/15 hover:bg-[#39ff14]/25 border border-[#39ff14]/30 rounded-lg text-[10px] font-mono font-bold text-[#39ff14] flex items-center gap-1 transition cursor-pointer disabled:opacity-40"
+                      >
+                        <Plus className="w-3 h-3" /> Adicionar Card
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCard(activeCardIndex)}
+                        disabled={carouselCards.length <= 1}
+                        className="p-1 bg-red-950/30 hover:bg-red-950/60 border border-red-500/30 rounded-lg text-red-400 transition cursor-pointer disabled:opacity-30"
+                        title="Excluir este card"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Horizontal Card Select Tabs */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+                    {carouselCards.map((card, i) => (
+                      <button
+                        key={card.id || i}
+                        type="button"
+                        onClick={() => setActiveCardIndex(i)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold shrink-0 transition flex items-center gap-1.5 ${
+                          activeCardIndex === i
+                            ? 'bg-[#39ff14] text-black shadow-md'
+                            : 'bg-[#161922] text-gray-400 hover:text-white border border-[#2a3346]'
+                        }`}
+                      >
+                        <span>Card #{i + 1}</span>
+                        {card.title && <span className="opacity-75 max-w-[80px] truncate text-[10px]">({card.title})</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Active Card Form */}
+                {carouselCards[activeCardIndex] && (
+                  <div className="p-3.5 bg-[#161922] border border-[#2a3346] rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#2a3346] pb-2">
+                      <span className="text-xs font-mono font-bold text-[#38bdf8]">
+                        Editando Card #{activeCardIndex + 1}
+                      </span>
+                      <span className="text-[10px] font-mono text-gray-400">
+                        {carouselCards[activeCardIndex].buttons.length} botões configurados
+                      </span>
+                    </div>
+
+                    {/* Image URL & Thumbnail */}
+                    <div>
+                      <label className="block text-[11px] font-mono font-semibold text-gray-300 mb-1">
+                        URL da Imagem do Card (PNG, JPG, WebP)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={carouselCards[activeCardIndex].imageUrl || ''}
+                          onChange={(e) => handleUpdateCard(activeCardIndex, 'imageUrl', e.target.value)}
+                          placeholder="https://... ou cole link direto da imagem"
+                          className="flex-1 px-3 py-1.5 bg-[#0e1118] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
+                        />
+                        <div className="w-9 h-9 rounded-lg bg-[#0e1118] border border-[#2a3346] overflow-hidden shrink-0 flex items-center justify-center">
+                          {carouselCards[activeCardIndex].imageUrl ? (
+                            <img
+                              src={carouselCards[activeCardIndex].imageUrl}
+                              alt="thumb"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as any).src = 'https://placehold.co/100x100/1a202c/39ff14?text=Img';
+                              }}
+                            />
+                          ) : (
+                            <ImageIcon className="w-4 h-4 text-gray-500" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Title */}
+                    <div>
+                      <label className="block text-[11px] font-mono font-semibold text-gray-300 mb-1">
+                        Título do Card *
+                      </label>
+                      <input
+                        type="text"
+                        value={carouselCards[activeCardIndex].title}
+                        onChange={(e) => handleUpdateCard(activeCardIndex, 'title', e.target.value)}
+                        placeholder="Ex: Expo Shoes Classic"
+                        className="w-full px-3 py-1.5 bg-[#0e1118] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
+                      />
+                    </div>
+
+                    {/* Card Description */}
+                    <div>
+                      <label className="block text-[11px] font-mono font-semibold text-gray-300 mb-1">
+                        Descrição do Card *
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={carouselCards[activeCardIndex].text}
+                        onChange={(e) => handleUpdateCard(activeCardIndex, 'text', e.target.value)}
+                        placeholder="Ex: Experience timeless style with iconic model..."
+                        className="w-full px-3 py-1.5 bg-[#0e1118] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
+                      />
+                    </div>
+
+                    {/* Card Buttons */}
+                    <div className="space-y-2 pt-2 border-t border-[#2a3346]">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-mono font-semibold text-gray-300">
+                          Botões de Ação do Card ({carouselCards[activeCardIndex].buttons.length}/3)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAddCardButton(activeCardIndex)}
+                          disabled={carouselCards[activeCardIndex].buttons.length >= 3}
+                          className="px-2 py-0.5 bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 border border-[#38bdf8]/30 rounded text-[10px] font-mono text-[#38bdf8] flex items-center gap-1 transition cursor-pointer disabled:opacity-30"
+                        >
+                          <Plus className="w-3 h-3" /> Botão
+                        </button>
+                      </div>
+
+                      {carouselCards[activeCardIndex].buttons.map((btn, btnIdx) => (
+                        <div
+                          key={btnIdx}
+                          className="p-2.5 bg-[#0e1118] border border-[#2a3346] rounded-xl space-y-2 text-xs font-mono"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-gray-400 font-bold">Botão #{btnIdx + 1}</span>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={btn.type}
+                                onChange={(e) =>
+                                  handleUpdateCardButton(
+                                    activeCardIndex,
+                                    btnIdx,
+                                    'type',
+                                    e.target.value as any
+                                  )
+                                }
+                                className="px-2 py-1 bg-[#161922] border border-[#2a3346] rounded text-[10px] text-[#38bdf8] focus:border-[#39ff14]"
+                              >
+                                <option value="cta_url">🔗 Link URL</option>
+                                <option value="quick_reply">↩️ Resposta Rápida</option>
+                                <option value="cta_call">📞 Ligar Telefone</option>
+                                <option value="cta_copy">📋 Copiar Cupom</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCardButton(activeCardIndex, btnIdx)}
+                                disabled={carouselCards[activeCardIndex].buttons.length <= 1}
+                                className="p-1 text-red-400 hover:text-red-300 disabled:opacity-20 cursor-pointer"
+                                title="Remover botão"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <input
+                                type="text"
+                                value={btn.displayText}
+                                onChange={(e) =>
+                                  handleUpdateCardButton(
+                                    activeCardIndex,
+                                    btnIdx,
+                                    'displayText',
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Nome do botão (ex: Buy now)"
+                                className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14]"
+                              />
+                            </div>
+                            <div>
+                              {btn.type === 'cta_url' ? (
+                                <input
+                                  type="url"
+                                  value={btn.url || ''}
+                                  onChange={(e) =>
+                                    handleUpdateCardButton(activeCardIndex, btnIdx, 'url', e.target.value)
+                                  }
+                                  placeholder="https://..."
+                                  className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14]"
+                                />
+                              ) : btn.type === 'cta_call' ? (
+                                <input
+                                  type="text"
+                                  value={btn.phoneNumber || ''}
+                                  onChange={(e) =>
+                                    handleUpdateCardButton(activeCardIndex, btnIdx, 'phoneNumber', e.target.value)
+                                  }
+                                  placeholder="+55..."
+                                  className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14]"
+                                />
+                              ) : btn.type === 'cta_copy' ? (
+                                <input
+                                  type="text"
+                                  value={btn.code || ''}
+                                  onChange={(e) =>
+                                    handleUpdateCardButton(activeCardIndex, btnIdx, 'code', e.target.value)
+                                  }
+                                  placeholder="Código ou Cupom"
+                                  className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14]"
+                                />
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={btn.id || ''}
+                                  onChange={(e) =>
+                                    handleUpdateCardButton(activeCardIndex, btnIdx, 'id', e.target.value)
+                                  }
+                                  placeholder="ID (ex: card_btn_1)"
+                                  className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14]"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Send Button */}
                 <button
                   onClick={() =>
                     handleSend('carousel', {
                       bodyText: carouselBody,
                       footerText: carouselFooter,
-                      buttons: carouselButtons,
+                      cards: carouselCards.map((c) => ({
+                        title: c.title,
+                        text: c.text,
+                        imageUrl: c.imageUrl,
+                        buttons: c.buttons.map((b) => ({
+                          type: b.type,
+                          displayText: b.displayText,
+                          url: b.url,
+                          id: b.id,
+                          phoneNumber: b.phoneNumber,
+                          code: b.code,
+                        })),
+                      })),
                     })
                   }
                   disabled={loading}
-                  className="w-full mt-4 py-2.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className="w-full mt-4 py-3 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  Enviar Carrossel Interativo
+                  Enviar Carrossel Interativo ({carouselCards.length} {carouselCards.length === 1 ? 'Cartão' : 'Cartões'})
                 </button>
               </div>
             )}
@@ -878,7 +1331,7 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
               </div>
 
               {/* Chat Bubble Mockup */}
-              <div className="max-w-xs ml-auto space-y-2">
+              <div className={activeTab === 'carousel' ? 'w-full space-y-3' : 'max-w-xs ml-auto space-y-2'}>
                 <div className="bg-[#14382d] p-3.5 rounded-2xl rounded-tr-none border border-[#10b981]/30 text-white text-xs shadow-lg">
                   {/* Buttons Mockup */}
                   {activeTab === 'buttons' && (
@@ -948,6 +1401,76 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   </div>
                 </div>
 
+                {/* Carousel Horizontal Scrollable Cards */}
+                {activeTab === 'carousel' && (
+                  <div className="w-full">
+                    <div className="text-[10px] font-mono text-gray-400 mb-1 flex items-center justify-between">
+                      <span>Deslize horizontalmente nos cards:</span>
+                      <span className="text-[#39ff14] font-bold">{carouselCards.length} cards</span>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-[#2a3346] w-full snap-x">
+                      {carouselCards.map((card, i) => (
+                        <div
+                          key={card.id || i}
+                          className="w-[200px] flex-shrink-0 bg-[#161922] border border-[#2a3346] rounded-2xl overflow-hidden shadow-xl flex flex-col snap-start"
+                        >
+                          {/* Card Header Image */}
+                          <div className="h-28 w-full bg-[#0e1118] relative overflow-hidden flex items-center justify-center">
+                            {card.imageUrl ? (
+                              <img
+                                src={card.imageUrl}
+                                alt={card.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as any).src = 'https://placehold.co/640x360/1a202c/39ff14?text=Card+Image';
+                                }}
+                              />
+                            ) : (
+                              <div className="text-[10px] text-gray-500 font-mono flex items-center gap-1">
+                                <ImageIcon className="w-4 h-4" /> Sem Imagem
+                              </div>
+                            )}
+                            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/75 backdrop-blur rounded text-[9px] font-mono text-[#39ff14] font-bold">
+                              #{i + 1}
+                            </span>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="p-3 flex-1 flex flex-col justify-between">
+                            <div>
+                              <h4 className="text-xs font-bold text-white leading-tight mb-1 truncate">
+                                {card.title || 'Título do Card'}
+                              </h4>
+                              <p className="text-[11px] text-gray-300 leading-snug line-clamp-3 mb-2 font-sans">
+                                {card.text || 'Descrição do produto ou item...'}
+                              </p>
+                            </div>
+
+                            {/* Card Buttons */}
+                            <div className="space-y-1.5 pt-2 border-t border-[#2a3346]/70">
+                              {card.buttons.map((b, bIdx) => (
+                                <div
+                                  key={bIdx}
+                                  className="w-full py-1.5 px-2 bg-[#1f2637]/80 hover:bg-[#1f2637] border border-[#2a3346] rounded-lg text-center text-[10px] font-mono font-semibold text-[#38bdf8] flex items-center justify-center gap-1.5 shadow-sm truncate"
+                                >
+                                  {b.type === 'cta_url' || b.url ? (
+                                    <ExternalLink className="w-3 h-3 text-[#38bdf8] flex-shrink-0" />
+                                  ) : b.type === 'cta_call' ? (
+                                    <Phone className="w-3 h-3 text-[#39ff14] flex-shrink-0" />
+                                  ) : (
+                                    <CornerDownLeft className="w-3 h-3 text-[#39ff14] flex-shrink-0" />
+                                  )}
+                                  <span className="truncate">{b.displayText || 'Botão'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Interactive Action Buttons Attached Below Bubble */}
                 {activeTab === 'buttons' && (
                   <div className="space-y-1">
@@ -973,18 +1496,6 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   <div className="w-full py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-center text-xs font-mono font-semibold text-[#38bdf8] shadow-sm flex items-center justify-center gap-1.5">
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>{webBtn || 'Abrir'}</span>
-                  </div>
-                )}
-
-                {activeTab === 'carousel' && (
-                  <div className="space-y-1">
-                    <div className="w-full py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-center text-xs font-mono font-semibold text-[#38bdf8] shadow-sm flex items-center justify-center gap-1.5">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Documentação Zapo</span>
-                    </div>
-                    <div className="w-full py-2 bg-[#161922] border border-[#2a3346] rounded-xl text-center text-xs font-mono font-semibold text-[#39ff14] shadow-sm">
-                      Confirmar Teste
-                    </div>
                   </div>
                 )}
               </div>
