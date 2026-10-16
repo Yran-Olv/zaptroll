@@ -665,6 +665,7 @@ export const MainLayout: React.FC = () => {
                     >
                       {/* Meme Avatar with Deterministic Fallback */}
                       <MemeAvatar
+                        src={conv.profilePicUrl}
                         seed={conv.jid || conv.name || 'zaptroll'}
                         name={conv.name}
                         size="md"
@@ -728,6 +729,14 @@ export const MainLayout: React.FC = () => {
             conversation={selectedConversation}
             connection={selectedConnection}
             onBack={() => setSelectedConversation(null)}
+            onConversationUpdated={(updatedConv) => {
+              setConversations((prev) =>
+                prev.map((c) => (c.id === updatedConv.id ? { ...c, ...updatedConv } : c))
+              );
+              setSelectedConversation((prev) =>
+                prev && prev.id === updatedConv.id ? { ...prev, ...updatedConv } : prev
+              );
+            }}
           />
         ) : (
           /* Lab Splash Screen */

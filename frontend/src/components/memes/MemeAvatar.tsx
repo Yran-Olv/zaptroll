@@ -24,6 +24,10 @@ export const MemeAvatar: React.FC<MemeAvatarProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
+  React.useEffect(() => {
+    setImageError(false);
+  }, [src]);
+
   // Pick meme
   let meme: MemeItem;
   if (memeId) {
@@ -68,6 +72,7 @@ export const MemeAvatar: React.FC<MemeAvatarProps> = ({
         <img
           src={src}
           alt={name || 'Avatar'}
+          referrerPolicy="no-referrer"
           onError={() => setImageError(true)}
           className={`w-full h-full rounded-2xl object-cover border border-[#2a3346] bg-[#1a202c] shadow-sm`}
         />

@@ -27,12 +27,13 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import api from '../../services/api.js';
-import { Conversation, Message, WhatsAppConnection } from '../../types/index.js';
+import { Conversation, Message, WhatsAppConnection, ContactProfile } from '../../types/index.js';
 import { useSocket } from '../../contexts/SocketContext.js';
 import { AdvancedFeaturesModal } from '../advanced-menu/AdvancedFeaturesModal.js';
 import { MemeAvatar } from '../memes/MemeAvatar.js';
 import { MemeBackground } from '../memes/MemeBackground.js';
 import { EmptyConversationState } from '../memes/EmptyConversationState.js';
+import { UserProfileModal } from '../profile/UserProfileModal.js';
 
 interface CarouselExtractedCard {
   title: string;
@@ -126,17 +127,56 @@ interface ChatViewProps {
   conversation: Conversation;
   connection: WhatsAppConnection;
   onBack?: () => void;
+  onConversationUpdated?: (updated: Partial<Conversation> & { id: string }) => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, onBack }) => {
+export const ChatView: React.FC<ChatViewProps> = ({
+  conversation,
+  connection,
+  onBack,
+  onConversationUpdated,
+}) => {
   const { socket } = useSocket();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [textInput, setTextInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showAdvancedModal, setShowAdvancedModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [contactProfilePic, setContactProfilePic] = useState<string | null>(
+    conversation.profilePicUrl || null
+  );
   const [revokeModalMsg, setRevokeModalMsg] = useState<Message | null>(null);
   const [selectedMediaPreview, setSelectedMediaPreview] = useState<string | null>(null);
+
+  // Background fetch of contact profile and real picture
+  useEffect(() => {
+    setContactProfilePic(conversation.profilePicUrl || null);
+
+    if (conversation.jid && connection.id) {
+      api
+        .get('/contacts/profile', {
+          params: {
+            connectionId: connection.id,
+            jid: conversation.jid,
+            conversationId: conversation.id,
+          },
+        })
+        .then((res) => {
+          if (res.data?.profilePicUrl) {
+            setContactProfilePic(res.data.profilePicUrl);
+            if (onConversationUpdated && res.data.profilePicUrl !== conversation.profilePicUrl) {
+              onConversationUpdated({
+                id: conversation.id,
+                profilePicUrl: res.data.profilePicUrl,
+                name: res.data.name || conversation.name,
+              });
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [conversation.id, conversation.jid, connection.id]);
 
   // Message Quoting / Reply
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -445,27 +485,36 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, on
             </button>
           )}
 
-          {/* Contact Meme Avatar */}
-          <div className="shrink-0">
-            <MemeAvatar
-              seed={conversation.jid || conversation.name || 'zaptroll'}
-              name={conversation.name}
-              size="sm"
-              statusOnline={connection.status === 'connected'}
-            />
-          </div>
+          {/* Contact Header clickable to view profile & real photo */}
+          <div
+            onClick={() => setShowProfileModal(true)}
+            className="flex items-center gap-2.5 min-w-0 flex-1 mr-2 cursor-pointer group hover:opacity-95 transition"
+            title="Clique para ver perfil e foto real do contato"
+          >
+            {/* Contact Avatar with real picture if available */}
+            <div className="shrink-0 relative">
+              <MemeAvatar
+                src={contactProfilePic || conversation.profilePicUrl}
+                seed={conversation.jid || conversation.name || 'zaptroll'}
+                name={conversation.name}
+                size="sm"
+                statusOnline={connection.status === 'connected'}
+                className="group-hover:scale-105 group-hover:ring-2 group-hover:ring-[#39ff14] transition rounded-2xl"
+              />
+            </div>
 
-          <div className="min-w-0 flex-1">
-            <h2 className="text-xs sm:text-sm font-bold text-white leading-tight font-sans truncate">
-              {conversation.name || conversation.jid}
-            </h2>
-            <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1 truncate">
-              <span className="truncate max-w-[120px] sm:max-w-[200px]">{conversation.jid}</span>
-              <span>•</span>
-              <span className={`shrink-0 ${connection.status === 'connected' ? 'text-[#10b981]' : 'text-amber-400'}`}>
-                {connection.status === 'connected' ? 'Conectado' : 'Desconectado'}
-              </span>
-            </p>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs sm:text-sm font-bold text-white leading-tight font-sans truncate group-hover:text-[#39ff14] transition flex items-center gap-1.5">
+                <span>{conversation.name || conversation.jid}</span>
+              </h2>
+              <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1 truncate">
+                <span className="truncate max-w-[120px] sm:max-w-[200px]">{conversation.jid}</span>
+                <span>•</span>
+                <span className={`shrink-0 ${connection.status === 'connected' ? 'text-[#10b981]' : 'text-amber-400'}`}>
+                  {connection.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                </span>
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1215,6 +1264,26 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, on
           </div>
         </div>
       )}
+
+      {/* User Profile & Real Photo Modal */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        connectionId={connection.id}
+        conversation={conversation}
+        onProfileUpdated={(prof) => {
+          if (prof.profilePicUrl) {
+            setContactProfilePic(prof.profilePicUrl);
+            if (onConversationUpdated) {
+              onConversationUpdated({
+                id: conversation.id,
+                profilePicUrl: prof.profilePicUrl,
+                name: prof.name || conversation.name,
+              });
+            }
+          }
+        }}
+      />
     </div>
   );
 };

@@ -31,6 +31,18 @@ export interface Conversation {
   unreadCount: number;
   lastMessageText: string | null;
   lastMessageTimestamp: string | null;
+  profilePicUrl?: string | null;
+}
+
+export interface ContactProfile {
+  name: string;
+  phoneNumber?: string | null;
+  jid: string;
+  phoneJid?: string | null;
+  lid?: string | null;
+  profilePicUrl?: string | null;
+  previewUrl?: string | null;
+  about?: string | null;
 }
 
 export interface Message {

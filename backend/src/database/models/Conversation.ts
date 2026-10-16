@@ -10,13 +10,14 @@ export interface ConversationAttributes {
   unreadCount: number;
   lastMessageText: string | null;
   lastMessageTimestamp: Date | null;
+  profilePicUrl?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export type ConversationCreationAttributes = Optional<
   ConversationAttributes,
-  'id' | 'chatType' | 'name' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp'
+  'id' | 'chatType' | 'name' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp' | 'profilePicUrl'
 >;
 
 export class Conversation
@@ -31,6 +32,7 @@ export class Conversation
   declare unreadCount: number;
   declare lastMessageText: string | null;
   declare lastMessageTimestamp: Date | null;
+  declare profilePicUrl?: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -75,6 +77,10 @@ Conversation.init(
     },
     lastMessageTimestamp: {
       type: DataTypes.DATE,
+      allowNull: true,
+    },
+    profilePicUrl: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
   },
