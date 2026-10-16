@@ -686,27 +686,31 @@ export class ZapoEventHandler {
           },
         });
 
-        // Gatilho Inteligente via WhatsApp no Celular:
-        // Se você mandar 🐊 de qualquer lugar (inclusive do app do WhatsApp no celular),
+        // Gatilho Inteligente via WhatsApp (de Contato ou do Celular):
+        // Quando QUALQUER pessoa manda 🐊 ou "jacare" (seja o contato ou você mesmo),
         // o Zaptroll detecta e dispara automaticamente o Combo do Jacaré (áudio + figurinha)!
+        const msgText = (message.content || '').toLowerCase().trim();
+        const isJacareTrigger =
+          msgText.includes('🐊') ||
+          msgText === 'jacare' ||
+          msgText === 'jacaré';
+
         if (
           created &&
-          fromMe &&
           message.messageType === 'text' &&
-          message.content &&
-          message.content.includes('🐊')
+          isJacareTrigger
         ) {
           if (MemeFlowService.shouldTrigger(message.stanzaId)) {
             setTimeout(async () => {
               try {
-                console.log(`[ZapoEventHandler] 🐊 Gatilho do Jacaré detectado via celular (${message.stanzaId})! Disparando combo...`);
+                console.log(`[ZapoEventHandler] 🐊 Gatilho do Jacaré detectado (${fromMe ? 'fromMe' : 'de contato'} - ${message.stanzaId})! Disparando combo...`);
                 await MemeFlowService.triggerJacareFlow({
                   connectionId,
                   conversationId: conversation.id,
                   recipientJid: remoteJid,
                 });
               } catch (flowErr) {
-                console.error('[MemeFlow] Erro ao disparar fluxo via sync do celular:', flowErr);
+                console.error('[MemeFlow] Erro ao disparar fluxo via sync:', flowErr);
               }
             }, 500);
           }

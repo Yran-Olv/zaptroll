@@ -39,6 +39,18 @@ export class MemeFlowService {
     return null;
   }
 
+  static getJacareOggPath(): string | null {
+    const candidates = [
+      path.join(config.mediaDir, 'jacare.ogg'),
+      path.resolve(process.cwd(), 'uploads/media/jacare.ogg'),
+      path.resolve(process.cwd(), 'public/memes/jacare.ogg'),
+      path.resolve(process.cwd(), '../frontend/public/memes/jacare.ogg'),
+      '/app/uploads/media/jacare.ogg',
+      '/app/public/memes/jacare.ogg',
+    ];
+    return this.findFile(candidates);
+  }
+
   static getJacareAudioPath(): string | null {
     const candidates = [
       path.join(config.mediaDir, 'e4330dfd_2AF53ACD515E31730B48_1792170298396.mp3'),
@@ -112,27 +124,39 @@ export class MemeFlowService {
       throw new Error('Conversa ou destinatário JID não encontrado.');
     }
 
-    const audioPath = this.getJacareAudioPath();
+    const oggPath = this.getJacareOggPath();
+    const mp3Path = this.getJacareAudioPath();
     const stickerPath = this.getJacareStickerPath();
 
-    if (!audioPath || !fs.existsSync(audioPath)) {
+    if (!oggPath && !mp3Path) {
       throw new Error('Arquivo de áudio do Jacaré não encontrado no servidor.');
     }
     if (!stickerPath || !fs.existsSync(stickerPath)) {
       throw new Error('Arquivo de figurinha do Jacaré não encontrado no servidor.');
     }
 
-    const audioBuffer = fs.readFileSync(audioPath);
+    const audioFile = oggPath || mp3Path!;
+    const isOgg = audioFile.endsWith('.ogg');
+    const audioBuffer = fs.readFileSync(audioFile);
     const stickerBuffer = fs.readFileSync(stickerPath);
 
-    console.log(`[MemeFlow] 🐊 Iniciando Combo do Jacaré para ${targetJid}...`);
+    // Forma de onda real (waveform 64 barras) para WhatsApp Voice Note
+    const waveform = Buffer.from([
+      15, 28, 45, 68, 85, 92, 70, 48, 32, 60, 85, 95, 80, 65, 42, 55, 78, 90, 72, 45,
+      35, 52, 74, 88, 80, 62, 38, 48, 68, 86, 94, 78, 55, 38, 30, 58, 80, 90, 75, 50,
+      32, 48, 70, 88, 95, 82, 60, 40, 28, 52, 75, 88, 78, 58, 38, 25, 45, 68, 82, 70,
+      50, 32, 20, 12
+    ]);
+
+    console.log(`[MemeFlow] 🐊 Iniciando Combo do Jacaré para ${targetJid} (arquivo: ${path.basename(audioFile)}, formato: ${isOgg ? 'OGG Opus PTT' : 'MPEG'})...`);
 
     // 1. Passo 1: Disparar Áudio
     console.log(`[MemeFlow] 🎵 Enviando Passo 1: Áudio do Jacaré...`);
     const audioSendResult = await ZapoMessageAdapter.sendAudio(client, targetJid, audioBuffer, {
-      mimetype: 'audio/mpeg',
-      ptt: true,
+      mimetype: isOgg ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
+      ptt: isOgg,
       seconds: 28,
+      waveform: isOgg ? waveform : undefined,
     });
 
     const audioStanzaId = audioSendResult?.id || `aud_jacare_${Date.now()}`;

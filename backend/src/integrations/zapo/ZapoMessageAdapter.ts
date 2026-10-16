@@ -531,14 +531,15 @@ export class ZapoMessageAdapter {
     client: WaClient,
     jid: string,
     media: Buffer | string,
-    options?: { mimetype?: string; ptt?: boolean; seconds?: number }
+    options?: { mimetype?: string; ptt?: boolean; seconds?: number; waveform?: Uint8Array | Buffer }
   ) {
     return client.message.send(jid, {
       type: 'audio',
       media,
-      mimetype: options?.mimetype || 'audio/mpeg',
+      mimetype: options?.mimetype || 'audio/ogg; codecs=opus',
       ptt: options?.ptt ?? true,
       ...(options?.seconds ? { seconds: options.seconds } : {}),
+      ...(options?.waveform ? { waveform: options.waveform } : {}),
     } as any);
   }
 
