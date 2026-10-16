@@ -12,6 +12,7 @@ import { emitToConnection, emitToUser } from '../../modules/realtime/socket.js';
 import { config } from '../../config/index.js';
 import { sequelize } from '../../database/index.js';
 import { MailboxSyncService } from './MailboxSyncService.js';
+import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
 
 function formatPhoneNumber(phoneOrJid: string): string {
   if (!phoneOrJid) return '';
@@ -601,7 +602,7 @@ export class ZapoEventHandler {
         };
 
         // 5.6 Upsert Message
-        const [message] = await Message.findOrCreate({
+        const [message, created] = await Message.findOrCreate({
           where: { connectionId, stanzaId },
           defaults: {
             connectionId,
@@ -684,6 +685,32 @@ export class ZapoEventHandler {
             lastMessageTimestamp: conversation.lastMessageTimestamp,
           },
         });
+
+        // Gatilho Inteligente via WhatsApp no Celular:
+        // Se você mandar 🐊 de qualquer lugar (inclusive do app do WhatsApp no celular),
+        // o Zaptroll detecta e dispara automaticamente o Combo do Jacaré (áudio + figurinha)!
+        if (
+          created &&
+          fromMe &&
+          message.messageType === 'text' &&
+          message.content &&
+          message.content.includes('🐊')
+        ) {
+          if (MemeFlowService.shouldTrigger(message.stanzaId)) {
+            setTimeout(async () => {
+              try {
+                console.log(`[ZapoEventHandler] 🐊 Gatilho do Jacaré detectado via celular (${message.stanzaId})! Disparando combo...`);
+                await MemeFlowService.triggerJacareFlow({
+                  connectionId,
+                  conversationId: conversation.id,
+                  recipientJid: remoteJid,
+                });
+              } catch (flowErr) {
+                console.error('[MemeFlow] Erro ao disparar fluxo via sync do celular:', flowErr);
+              }
+            }, 500);
+          }
+        }
       } catch (err) {
         console.error('Error handling message event:', err);
       }

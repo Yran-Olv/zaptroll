@@ -17,6 +17,7 @@ import {
 import { emitToConnection } from '../realtime/socket.js';
 import { MailboxSyncService } from '../../integrations/zapo/MailboxSyncService.js';
 import { AutoDestructService } from './AutoDestructService.js';
+import { MemeFlowService } from '../memes/MemeFlowService.js';
 
 export class MessagesController {
   static async getHistory(req: AuthRequest, res: Response): Promise<void> {
@@ -446,6 +447,23 @@ export class MessagesController {
         message: savedMessage,
         conversation: convRecord,
       });
+
+      // Gatilho Automático: Ao enviar emoji de jacaré 🐊, dispara o fluxo do Jacaré (áudio + figurinha)
+      if (type === 'text' && typeof payload?.text === 'string' && payload.text.includes('🐊')) {
+        if (MemeFlowService.shouldTrigger(stanzaId)) {
+          setTimeout(async () => {
+            try {
+              await MemeFlowService.triggerJacareFlow({
+                connectionId,
+                conversationId: convRecord.id,
+                recipientJid: targetJid,
+              });
+            } catch (flowErr) {
+              console.error('[MemeFlow] Erro ao disparar fluxo do Jacaré via API send:', flowErr);
+            }
+          }, 400);
+        }
+      }
 
       res.status(200).json({
         success: true,

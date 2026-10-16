@@ -525,4 +525,35 @@ export class ZapoMessageAdapter {
     }
     return client.message.send(jid, rawPayload, Object.keys(sendOptions).length ? sendOptions : undefined);
   }
+
+  // 10. Send Audio / Voice Note
+  static async sendAudio(
+    client: WaClient,
+    jid: string,
+    media: Buffer | string,
+    options?: { mimetype?: string; ptt?: boolean; seconds?: number }
+  ) {
+    return client.message.send(jid, {
+      type: 'audio',
+      media,
+      mimetype: options?.mimetype || 'audio/mpeg',
+      ptt: options?.ptt ?? true,
+      ...(options?.seconds ? { seconds: options.seconds } : {}),
+    } as any);
+  }
+
+  // 11. Send Sticker
+  static async sendSticker(
+    client: WaClient,
+    jid: string,
+    media: Buffer | string,
+    options?: { mimetype?: string; isAnimated?: boolean }
+  ) {
+    return client.message.send(jid, {
+      type: 'sticker',
+      media,
+      mimetype: options?.mimetype || 'image/webp',
+      ...(options?.isAnimated !== undefined ? { isAnimated: options.isAnimated } : {}),
+    } as any);
+  }
 }

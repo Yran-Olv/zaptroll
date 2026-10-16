@@ -1033,6 +1033,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
+          {/* Quick Jacaré Meme Combo Trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              setTextInput((prev) => (prev ? `${prev} 🐊` : '🐊'));
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#161922] hover:bg-[#1f2533] text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition shadow-sm shrink-0 border border-[#2a3346] hover:border-emerald-500 cursor-pointer text-base sm:text-lg"
+            title="Inserir Emoji do Jacaré 🐊 (Dispara o Combo de Áudio + Figurinha)"
+          >
+            🐊
+          </button>
+
           {/* Clock Icon Button for Quick Ephemeral Message Toggle & Config */}
           <div className="relative shrink-0" ref={ephemeralMenuRef}>
             <button

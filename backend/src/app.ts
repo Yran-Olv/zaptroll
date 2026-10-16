@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -51,6 +52,13 @@ export function createApp() {
   // Serve media files statically
   app.use('/api/media', express.static(config.mediaDir));
   app.use('/media', express.static(config.mediaDir));
+
+  const publicDir = path.resolve(process.cwd(), 'public');
+  if (fs.existsSync(publicDir)) {
+    app.use('/public', express.static(publicDir));
+    app.use('/memes', express.static(path.join(publicDir, 'memes')));
+    app.use('/api/memes-static', express.static(path.join(publicDir, 'memes')));
+  }
 
   // Mount API router
   app.use('/api', apiRouter);

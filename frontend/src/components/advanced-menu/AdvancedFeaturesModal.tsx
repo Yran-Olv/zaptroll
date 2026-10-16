@@ -30,6 +30,10 @@ import {
   ShoppingBag,
   Camera,
   Upload,
+  Zap,
+  Play,
+  Pause,
+  Volume2,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { CarouselCard, CarouselButton } from '../../types/index.js';
@@ -154,12 +158,17 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   onSuccess,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'buttons' | 'list' | 'webview' | 'carousel' | 'ephemeral' | 'raw' | 'revoke'
+    'buttons' | 'list' | 'webview' | 'carousel' | 'ephemeral' | 'raw' | 'revoke' | 'memeflow'
   >('buttons');
 
   const [loading, setLoading] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<string | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
+
+  // Meme Flow State ("Fluxo de Memes 🐊")
+  const [memeFlowLoading, setMemeFlowLoading] = useState(false);
+  const [memeFlowStatus, setMemeFlowStatus] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   // 1. Buttons State ("Botões do Caos")
   const [btnHeader, setBtnHeader] = useState('Experimento Zaptroll Lab');
@@ -540,6 +549,37 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
     }
   };
 
+  const handleTriggerJacareFlow = async () => {
+    setLoading(true);
+    setMemeFlowLoading(true);
+    setResultSuccess(null);
+    setResultError(null);
+    setMemeFlowStatus('🎵 Enviando áudio do Jacaré (28s)...');
+
+    try {
+      await api.post('/memes/flows/trigger', {
+        connectionId,
+        conversationId,
+        recipientJid,
+        flowId: 'jacare',
+      });
+
+      setMemeFlowStatus('🐊 Áudio entregue! Figurinha enviada com sucesso!');
+      setResultSuccess('🎉 Combo do Jacaré disparado com sucesso! Áudio e figurinha enviados.');
+      if (onSuccess) onSuccess();
+
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      setResultError(err.response?.data?.error || 'Erro ao disparar fluxo do Jacaré.');
+      setMemeFlowStatus(null);
+    } finally {
+      setLoading(false);
+      setMemeFlowLoading(false);
+    }
+  };
+
   const handleAddButton = () => {
     if (buttonsList.length >= 3) return;
     setButtonsList([
@@ -569,6 +609,7 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   };
 
   const categories = [
+    { id: 'memeflow', label: 'Fluxo de Memes 🐊', icon: Zap, desc: 'Combo Jacaré (Áudio + Figurinha)' },
     { id: 'buttons', label: 'Botões do Caos', icon: MousePointerClick, desc: 'Botões de resposta rápida' },
     { id: 'list', label: 'Menu do Trote', icon: List, desc: 'Menus e listas de opções' },
     { id: 'carousel', label: 'Carrossel', icon: Layers, desc: 'Cartões horizontais' },
@@ -1656,6 +1697,152 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                 </button>
               </div>
             )}
+
+            {/* TAB 8: FLUXO DE MEMES (JACARÉ COMBO) */}
+            {activeTab === 'memeflow' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-gradient-to-r from-emerald-950/40 to-green-950/20 border border-emerald-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-300 font-mono">
+                  <span className="text-xl">🐊</span>
+                  <div className="space-y-1">
+                    <div className="font-bold text-white flex items-center gap-2">
+                      Fluxo de Memes: O Jacaré Dançarino
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
+                        COMBO ATIVO
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      Este fluxo dispara o famoso áudio de 28 segundos e, assim que confirmado o envio,
+                      dispara imediatamente a figurinha animada do Jacaré dançando para o destinatário!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Steps Visual Pipeline */}
+                <div className="space-y-3 bg-[#161922] p-3.5 border border-[#2a3346] rounded-2xl font-mono">
+                  <div className="text-[11px] uppercase tracking-wider text-gray-400 font-bold flex items-center justify-between">
+                    <span>Etapas da Sequência</span>
+                    <span className="text-[10px] text-[#39ff14]">2 Passos Encadeados</span>
+                  </div>
+
+                  {/* Step 1: Audio */}
+                  <div className="p-3 bg-[#0e1118] border border-[#2a3346] rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                        <Volume2 className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>Passo 1: Áudio do Jacaré</span>
+                          <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                            28s • MPEG
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                          Transmitido como áudio de voz do WhatsApp
+                        </div>
+                      </div>
+                    </div>
+                    <audio id="jacare-audio-player" src="/memes/jacare.mp3" preload="auto" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('jacare-audio-player') as HTMLAudioElement;
+                        if (el) {
+                          if (el.paused) {
+                            el.play();
+                            setIsPlayingAudio(true);
+                            el.onended = () => setIsPlayingAudio(false);
+                          } else {
+                            el.pause();
+                            setIsPlayingAudio(false);
+                          }
+                        }
+                      }}
+                      className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 transition"
+                    >
+                      {isPlayingAudio ? (
+                        <>
+                          <Pause className="w-3 h-3 text-emerald-300" />
+                          <span>Pausar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 text-emerald-300" />
+                          <span>Ouvir</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Pipeline Arrow */}
+                  <div className="flex items-center justify-center gap-2 text-gray-500 text-[10px]">
+                    <div className="h-px bg-[#2a3346] flex-1" />
+                    <span>⬇️ Aguarda envio do áudio...</span>
+                    <div className="h-px bg-[#2a3346] flex-1" />
+                  </div>
+
+                  {/* Step 2: Sticker */}
+                  <div className="p-3 bg-[#0e1118] border border-[#2a3346] rounded-xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-[#161922] border border-[#2a3346] overflow-hidden flex items-center justify-center shrink-0">
+                        <img
+                          src="/memes/jacare.webp"
+                          alt="Jacaré Dançarino"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>Passo 2: Figurinha Animada</span>
+                          <span className="text-[9px] text-[#39ff14] bg-[#39ff14]/10 px-1.5 py-0.2 rounded">
+                            WEBP
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                          Sticker do jacaré dançando com a galera
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-bold px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/30">
+                      Sequencial
+                    </span>
+                  </div>
+                </div>
+
+                {/* Info Box about Chat Trigger */}
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-amber-300 font-mono">
+                  <Zap className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-white">Gatilho de Chat Habilitado:</div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      Toda vez que você enviar o emoji{' '}
+                      <span className="px-1.5 py-0.5 bg-amber-400/20 text-white rounded font-bold">🐊</span>{' '}
+                      no chat (seja aqui pelo painel ou pelo WhatsApp no celular), o Zaptroll dispara essa mesma sequência automaticamente!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Big Action Button */}
+                <button
+                  type="button"
+                  onClick={handleTriggerJacareFlow}
+                  disabled={loading || memeFlowLoading}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 via-[#39ff14] to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(57,255,20,0.3)] transition disabled:opacity-50 cursor-pointer"
+                >
+                  {memeFlowLoading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      <span>{memeFlowStatus || 'Executando Fluxo do Jacaré...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-black" />
+                      <span>🚀 Disparar Combo do Jacaré Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Column 2: Live WhatsApp Simulator */}
@@ -1794,6 +1981,56 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                       <span className="font-mono text-[11px] text-red-300">
                         [Ordem de Revogação Remota]
                       </span>
+                    </div>
+                  )}
+
+                  {/* Meme Flow Jacaré Mockup */}
+                  {activeTab === 'memeflow' && (
+                    <div className="space-y-3 font-sans w-full">
+                      <div className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1.5 mb-1">
+                        <Zap className="w-3.5 h-3.5 fill-emerald-400" /> Sequência Automatizada (2 Mensagens):
+                      </div>
+
+                      {/* Bubble 1: Voice Audio Note */}
+                      <div className="p-2.5 bg-[#005c4b]/80 border border-[#00a884]/30 rounded-2xl rounded-tr-none text-white space-y-1.5 shadow-md">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full bg-[#00a884] flex items-center justify-center text-white shrink-0 shadow">
+                            <Play className="w-4 h-4 fill-white ml-0.5" />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-0.5 h-4">
+                              {[30, 60, 40, 80, 100, 70, 45, 90, 65, 40, 85, 95, 60, 30, 75, 50, 80, 40, 60, 35].map((h, idx) => (
+                                <div
+                                  key={idx}
+                                  className="w-1 bg-[#39ff14] rounded-full opacity-80"
+                                  style={{ height: `${h}%` }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-emerald-200 font-mono">
+                              <span>0:28</span>
+                              <span>MPEG • Áudio de Voz</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[9px] text-gray-300 text-right font-mono">
+                          14:04 ✓✓
+                        </div>
+                      </div>
+
+                      {/* Bubble 2: Dancing Alligator Sticker */}
+                      <div className="flex flex-col items-end">
+                        <div className="w-36 h-36 rounded-2xl overflow-hidden bg-transparent p-1 flex items-center justify-center relative">
+                          <img
+                            src="/memes/jacare.webp"
+                            alt="Sticker Jacaré"
+                            className="w-full h-full object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
+                          />
+                        </div>
+                        <div className="text-[9px] text-gray-400 font-mono pr-2">
+                          14:04 ✓✓
+                        </div>
+                      </div>
                     </div>
                   )}
 
