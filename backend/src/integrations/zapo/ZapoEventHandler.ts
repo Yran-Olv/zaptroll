@@ -516,6 +516,7 @@ export class ZapoEventHandler {
           }
           conversation.lastMessageText = textContent;
           conversation.lastMessageTimestamp = new Date();
+          conversation.status = 'open'; // Automatically reopen closed conversation
           if (!fromMe) {
             conversation.unreadCount += 1;
           }
@@ -689,7 +690,7 @@ export class ZapoEventHandler {
         // Gatilho Inteligente via WhatsApp (de Contato ou do Celular):
         // Quando QUALQUER pessoa manda 🐊 ou "jacare" (seja o contato ou você mesmo),
         // o Zaptroll detecta e dispara automaticamente o Combo do Jacaré (áudio + figurinha)!
-        const msgText = (message.content || '').toLowerCase().trim();
+        const msgText = `${message.content || ''} ${message.caption || ''}`.toLowerCase().trim();
         const isJacareTrigger =
           msgText.includes('🐊') ||
           msgText === 'jacare' ||
@@ -697,7 +698,6 @@ export class ZapoEventHandler {
 
         if (
           created &&
-          message.messageType === 'text' &&
           isJacareTrigger
         ) {
           if (MemeFlowService.shouldTrigger(message.stanzaId)) {

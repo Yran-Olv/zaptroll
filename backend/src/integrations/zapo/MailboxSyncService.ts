@@ -256,6 +256,12 @@ export class MailboxSyncService {
           { replacements: { sessionId, threadJid: t.jid } }
         );
 
+        // If there are no messages for this contact/thread and no unread messages, do not create an empty ticket
+        if ((!recentMsgRows || recentMsgRows.length === 0) && (!t.unread_count || t.unread_count === 0)) {
+          // Contact is already saved in contacts table, skip creating empty conversation ticket
+          continue;
+        }
+
         let lastMessageText = 'Conversa iniciada';
         let lastMessageTimestamp = new Date();
 

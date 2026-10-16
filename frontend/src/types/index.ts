@@ -32,17 +32,51 @@ export interface Conversation {
   lastMessageText: string | null;
   lastMessageTimestamp: string | null;
   profilePicUrl?: string | null;
+  status?: 'open' | 'closed';
+  connection?: {
+    id: string;
+    name: string;
+    phoneNumber?: string | null;
+    status?: string;
+  };
+}
+
+export interface GroupParticipant {
+  id: string;
+  lid?: string | null;
+  admin?: 'admin' | 'superadmin' | null;
+  phoneNumber?: string | null;
+  cleanNumber?: string | null;
+  waMeLink?: string | null;
+}
+
+export interface GroupDetails {
+  groupId: string;
+  groupJid: string;
+  owner?: string | null;
+  creation?: number | null;
+  creationDate?: string | null;
+  participantCount?: number;
+  restrict?: boolean;
+  announce?: boolean;
+  description?: string | null;
+  participants?: GroupParticipant[];
 }
 
 export interface ContactProfile {
   name: string;
   phoneNumber?: string | null;
+  cleanNumber?: string | null;
+  waMeLink?: string | null;
   jid: string;
   phoneJid?: string | null;
   lid?: string | null;
   profilePicUrl?: string | null;
   previewUrl?: string | null;
   about?: string | null;
+  isGroup?: boolean;
+  groupId?: string | null;
+  groupDetails?: GroupDetails | null;
 }
 
 export interface Message {

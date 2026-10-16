@@ -383,6 +383,7 @@ export class MessagesController {
       } else {
         convRecord.lastMessageText = storedContent;
         convRecord.lastMessageTimestamp = new Date();
+        convRecord.status = 'open'; // Reopen closed conversation if sending message
         await convRecord.save();
       }
 

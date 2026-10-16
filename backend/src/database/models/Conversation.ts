@@ -11,13 +11,14 @@ export interface ConversationAttributes {
   lastMessageText: string | null;
   lastMessageTimestamp: Date | null;
   profilePicUrl?: string | null;
+  status: 'open' | 'closed';
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export type ConversationCreationAttributes = Optional<
   ConversationAttributes,
-  'id' | 'chatType' | 'name' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp' | 'profilePicUrl'
+  'id' | 'chatType' | 'name' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp' | 'profilePicUrl' | 'status'
 >;
 
 export class Conversation
@@ -33,6 +34,7 @@ export class Conversation
   declare lastMessageText: string | null;
   declare lastMessageTimestamp: Date | null;
   declare profilePicUrl?: string | null;
+  declare status: 'open' | 'closed';
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -82,6 +84,11 @@ Conversation.init(
     profilePicUrl: {
       type: DataTypes.TEXT,
       allowNull: true,
+    },
+    status: {
+      type: DataTypes.STRING(20),
+      defaultValue: 'open',
+      allowNull: false,
     },
   },
   {

@@ -16,6 +16,13 @@ import {
   Terminal,
   Bell,
   RefreshCw,
+  CheckCircle2,
+  CheckSquare,
+  Square,
+  RotateCcw,
+  Lock,
+  X,
+  Check,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, WhatsAppConnection, Contact, Group } from '../../types/index.js';
@@ -33,6 +40,7 @@ import { TrollModeBadge } from '../memes/TrollModeBadge.js';
 import { EmptyConversationState } from '../memes/EmptyConversationState.js';
 import { MemeGalleryModal } from '../memes/MemeGalleryModal.js';
 import { TrollNotificationToast, TrollNotification, playTrollSound } from '../notifications/TrollNotificationToast.js';
+import { DevToolsModal } from '../dev/DevToolsModal.js';
 
 export const MainLayout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -41,6 +49,7 @@ export const MainLayout: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>('conversations');
   const [connections, setConnections] = useState<WhatsAppConnection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<WhatsAppConnection | null>(null);
+  const [selectedConnectionFilterId, setSelectedConnectionFilterId] = useState<string>('all');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -50,9 +59,11 @@ export const MainLayout: React.FC = () => {
   }, [selectedConversation]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'unread' | 'groups' | 'direct'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'unread' | 'groups' | 'direct' | 'closed'>('all');
   const [loadingChats, setLoadingChats] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
+  const [showDevToolsModal, setShowDevToolsModal] = useState(false);
+  const [devToolsInitialQuery, setDevToolsInitialQuery] = useState('');
   const [easterEggActive, setEasterEggActive] = useState(false);
   const [activeNotification, setActiveNotification] = useState<TrollNotification | null>(null);
   const [syncingMailbox, setSyncingMailbox] = useState(false);
@@ -60,10 +71,22 @@ export const MainLayout: React.FC = () => {
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
 
+  // Bulk ticket selection & close modal states
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [selectedConvIds, setSelectedConvIds] = useState<string[]>([]);
+  const [showCloseAllModal, setShowCloseAllModal] = useState<boolean>(false);
+  const [showReopenAllModal, setShowReopenAllModal] = useState<boolean>(false);
+  const [closingBulk, setClosingBulk] = useState<boolean>(false);
+
   const selectedConnectionRef = React.useRef(selectedConnection);
   useEffect(() => {
     selectedConnectionRef.current = selectedConnection;
   }, [selectedConnection]);
+
+  const selectedConnectionFilterIdRef = React.useRef(selectedConnectionFilterId);
+  useEffect(() => {
+    selectedConnectionFilterIdRef.current = selectedConnectionFilterId;
+  }, [selectedConnectionFilterId]);
 
   // Request browser notification permission
   const requestNotificationPermission = async () => {
@@ -96,7 +119,7 @@ export const MainLayout: React.FC = () => {
   const fetchConnections = async () => {
     try {
       const res = await api.get('/connections');
-      const conns: WhatsAppConnection[] = res.data.connections;
+      const conns: WhatsAppConnection[] = res.data.connections || [];
       setConnections(conns);
 
       // Default to first connected or first connection, or update current
@@ -121,17 +144,17 @@ export const MainLayout: React.FC = () => {
     fetchConnections();
   }, []);
 
-  // Fetch conversations whenever selected connection, search or filter changes
+  // Fetch conversations whenever selected connection filter, search or filter changes
   const fetchConversations = async () => {
-    if (!selectedConnection) return;
     setLoadingChats(true);
     try {
+      const targetConnId = selectedConnectionFilterId || 'all';
       const res = await api.get(
-        `/conversations/connection/${selectedConnection.id}?search=${encodeURIComponent(
+        `/conversations/connection/${targetConnId}?search=${encodeURIComponent(
           searchQuery
         )}&filter=${filterType}`
       );
-      setConversations(res.data.conversations);
+      setConversations(res.data.conversations || []);
     } catch (err) {
       console.error('Error fetching conversations:', err);
     } finally {
@@ -141,14 +164,20 @@ export const MainLayout: React.FC = () => {
 
   useEffect(() => {
     fetchConversations();
-  }, [selectedConnection?.id, searchQuery, filterType]);
+  }, [selectedConnectionFilterId, searchQuery, filterType]);
 
   // Manual trigger to sync mailbox from Zapo (WhatsApp Web style)
   const handleSyncMailbox = async () => {
-    if (!selectedConnection || syncingMailbox) return;
+    if (syncingMailbox) return;
     setSyncingMailbox(true);
     try {
-      await api.post(`/conversations/sync/${selectedConnection.id}`);
+      if (selectedConnectionFilterId === 'all') {
+        for (const c of connections) {
+          await api.post(`/conversations/sync/${c.id}`).catch(() => {});
+        }
+      } else if (selectedConnection) {
+        await api.post(`/conversations/sync/${selectedConnection.id}`);
+      }
       await fetchConversations();
     } catch (err: any) {
       console.error('Error syncing mailbox:', err);
@@ -157,13 +186,131 @@ export const MainLayout: React.FC = () => {
     }
   };
 
+  // Close / Reopen single conversation
+  const handleCloseConversation = async (convId: string) => {
+    try {
+      await api.put(`/conversations/${convId}/close`);
+      setConversations((prev) => {
+        if (filterType !== 'closed') {
+          return prev.filter((c) => c.id !== convId);
+        }
+        return prev.map((c) => (c.id === convId ? { ...c, status: 'closed' } : c));
+      });
+      if (selectedConversation?.id === convId) {
+        setSelectedConversation((prev) => (prev ? { ...prev, status: 'closed' } : null));
+      }
+    } catch (err: any) {
+      console.error('Error closing conversation:', err);
+    }
+  };
+
+  const handleReopenConversation = async (convId: string) => {
+    try {
+      await api.put(`/conversations/${convId}/reopen`);
+      setConversations((prev) => {
+        if (filterType === 'closed') {
+          return prev.filter((c) => c.id !== convId);
+        }
+        return prev.map((c) => (c.id === convId ? { ...c, status: 'open' } : c));
+      });
+      if (selectedConversation?.id === convId) {
+        setSelectedConversation((prev) => (prev ? { ...prev, status: 'open' } : null));
+      }
+    } catch (err: any) {
+      console.error('Error reopening conversation:', err);
+    }
+  };
+
+  // Bulk actions: Close all / Reopen all / Close selected
+  const handleCloseAll = async () => {
+    setClosingBulk(true);
+    try {
+      await api.post('/conversations/close-all', {
+        connectionId: selectedConnectionFilterId,
+      });
+      setShowCloseAllModal(false);
+      setIsSelectMode(false);
+      setSelectedConvIds([]);
+      await fetchConversations();
+    } catch (err: any) {
+      console.error('Error closing all conversations:', err);
+    } finally {
+      setClosingBulk(false);
+    }
+  };
+
+  const handleReopenAll = async () => {
+    setClosingBulk(true);
+    try {
+      await api.post('/conversations/reopen-all', {
+        connectionId: selectedConnectionFilterId,
+      });
+      setShowReopenAllModal(false);
+      setIsSelectMode(false);
+      setSelectedConvIds([]);
+      await fetchConversations();
+    } catch (err: any) {
+      console.error('Error reopening all conversations:', err);
+    } finally {
+      setClosingBulk(false);
+    }
+  };
+
+  const handleCloseSelected = async () => {
+    if (selectedConvIds.length === 0) return;
+    setClosingBulk(true);
+    try {
+      await api.post('/conversations/close-selected', {
+        conversationIds: selectedConvIds,
+      });
+      setIsSelectMode(false);
+      setSelectedConvIds([]);
+      await fetchConversations();
+    } catch (err: any) {
+      console.error('Error closing selected conversations:', err);
+    } finally {
+      setClosingBulk(false);
+    }
+  };
+
+  const handleReopenSelected = async () => {
+    if (selectedConvIds.length === 0) return;
+    setClosingBulk(true);
+    try {
+      for (const id of selectedConvIds) {
+        await api.put(`/conversations/${id}/reopen`).catch(() => {});
+      }
+      setIsSelectMode(false);
+      setSelectedConvIds([]);
+      await fetchConversations();
+    } catch (err: any) {
+      console.error('Error reopening selected conversations:', err);
+    } finally {
+      setClosingBulk(false);
+    }
+  };
+
+  const toggleSelectConv = (id: string) => {
+    setSelectedConvIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllVisible = () => {
+    if (selectedConvIds.length === conversations.length) {
+      setSelectedConvIds([]);
+    } else {
+      setSelectedConvIds(conversations.map((c) => c.id));
+    }
+  };
+
   // Real-time socket events for updating conversation list
   useEffect(() => {
-    if (!socket || !selectedConnection) return;
+    if (!socket) return;
 
     const handleNewMessage = (data: { connectionId: string; message: any; conversation: any }) => {
-      const currentConn = selectedConnectionRef.current;
-      if (currentConn && data.connectionId === currentConn.id) {
+      const currentFilter = selectedConnectionFilterIdRef.current;
+      if (currentFilter === 'all' || currentFilter === data.connectionId) {
         const isCurrentActive =
           selectedConversationRef.current?.id === data.conversation.id ||
           selectedConversationRef.current?.jid === data.conversation.jid ||
@@ -183,25 +330,28 @@ export const MainLayout: React.FC = () => {
               lastMessageText: data.conversation.lastMessageText || data.message?.content,
               lastMessageTimestamp: data.conversation.lastMessageTimestamp || new Date().toISOString(),
               unreadCount: effectiveUnread,
+              status: 'open',
+              connection: data.conversation.connection || updated[idx].connection,
             };
-            // Move to top
             const [item] = updated.splice(idx, 1);
+            if (filterType === 'closed') {
+              return updated;
+            }
             return [item, ...updated];
           }
-          return [{ ...data.conversation, unreadCount: effectiveUnread }, ...prev];
+          if (filterType !== 'closed') {
+            return [{ ...data.conversation, status: 'open', unreadCount: effectiveUnread }, ...prev];
+          }
+          return prev;
         });
 
         if (isCurrentActive) {
           api.post(`/conversations/${data.conversation.id}/read`).catch(() => {});
         } else if (!data.message?.fromMe) {
-          // 1. Play laboratory chime sound
           playTrollSound();
-
-          // 2. Set tab title with notification
           const sender = data.conversation.name || 'Nova Mensagem';
           document.title = `(1) ${sender} — Zaptroll`;
 
-          // 3. Trigger native browser/mobile OS notification
           if ('Notification' in window && Notification.permission === 'granted') {
             try {
               const notif = new Notification(sender, {
@@ -216,7 +366,6 @@ export const MainLayout: React.FC = () => {
             } catch (err) {}
           }
 
-          // 4. In-app troll toast
           setActiveNotification({
             id: data.message?.id || String(Date.now()),
             senderName: data.conversation.name || 'Contato WhatsApp',
@@ -241,67 +390,97 @@ export const MainLayout: React.FC = () => {
     };
 
     const handleConversationsSynced = (data: { connectionId: string; count: number }) => {
-      const currentConn = selectedConnectionRef.current;
-      if (currentConn && data.connectionId === currentConn.id) {
-        fetchConversations();
-      }
+      fetchConversations();
     };
 
-    socket.on('connect', fetchConnections);
+    const handleConversationUpdated = (data: any) => {
+      setConversations((prev) => {
+        if (filterType !== 'closed' && data.status === 'closed') {
+          return prev.filter((c) => c.id !== data.id);
+        }
+        if (filterType === 'closed' && data.status === 'open') {
+          return prev.filter((c) => c.id !== data.id);
+        }
+        return prev.map((c) => (c.id === data.id ? { ...c, ...data } : c));
+      });
+      setSelectedConversation((prev) => (prev && prev.id === data.id ? { ...prev, ...data } : prev));
+    };
+
+    const handleBulkClosed = () => {
+      fetchConversations();
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('connection_status', handleConnectionStatus);
     socket.on('conversations_synced', handleConversationsSynced);
+    socket.on('conversation_updated', handleConversationUpdated);
+    socket.on('conversations_bulk_closed', handleBulkClosed);
+    socket.on('conversations_bulk_reopened', handleBulkClosed);
+    socket.on('connect', fetchConnections);
 
     return () => {
-      socket.off('connect', fetchConnections);
       socket.off('new_message', handleNewMessage);
       socket.off('connection_status', handleConnectionStatus);
       socket.off('conversations_synced', handleConversationsSynced);
+      socket.off('conversation_updated', handleConversationUpdated);
+      socket.off('conversations_bulk_closed', handleBulkClosed);
+      socket.off('conversations_bulk_reopened', handleBulkClosed);
+      socket.off('connect', fetchConnections);
     };
-  }, [socket, selectedConnection?.id]);
-
-  const handleOpenConversation = async (conv: Conversation) => {
-    setSelectedConversation(conv);
-    if (conv.unreadCount > 0) {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
-      );
-      try {
-        await api.post(`/conversations/${conv.id}/read`);
-      } catch (err) {}
-    }
-  };
-
-  const handleOpenConversationById = (conversationId: string) => {
-    const target = conversations.find((c) => c.id === conversationId);
-    if (target) {
-      handleOpenConversation(target);
-    }
-    setActiveNotification(null);
-  };
+  }, [socket, filterType]);
 
   const handleSelectConnection = (conn: WhatsAppConnection) => {
     setSelectedConnection(conn);
     setActiveConnectionId(conn.id);
     setSelectedConversation(null);
-    setCurrentTab('conversations');
+  };
+
+  const handleOpenConversation = (conv: Conversation) => {
+    setSelectedConversation(conv);
+    if (conv.connection) {
+      const matched = connections.find((c) => c.id === conv.connectionId);
+      if (matched) setSelectedConnection(matched);
+    }
+    if (conv.unreadCount > 0) {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
+      );
+      api.post(`/conversations/${conv.id}/read`).catch(() => {});
+    }
+  };
+
+  const handleOpenConversationById = async (convId: string) => {
+    try {
+      const res = await api.get(`/conversations/${convId}`);
+      if (res.data?.conversation) {
+        handleOpenConversation(res.data.conversation);
+        setCurrentTab('conversations');
+      }
+    } catch {}
   };
 
   const handleStartChatWithContact = (contact: Contact) => {
-    const jid = contact.jid;
+    const jid = contact.jid || `${contact.phoneNumber}@s.whatsapp.net`;
     const existing = conversations.find((c) => c.jid === jid);
     if (existing) {
       handleOpenConversation(existing);
     } else {
+      const activeConn = selectedConnection || connections[0];
       const mockConv: Conversation = {
         id: `temp_${Date.now()}`,
-        connectionId: selectedConnection!.id,
+        connectionId: activeConn?.id || '',
         jid,
         chatType: 'direct',
         name: contact.name || contact.phoneNumber || jid.split('@')[0],
         unreadCount: 0,
         lastMessageText: null,
         lastMessageTimestamp: new Date().toISOString(),
+        status: 'open',
+        connection: activeConn ? {
+          id: activeConn.id,
+          name: activeConn.name,
+          phoneNumber: activeConn.phoneNumber,
+        } : undefined,
       };
       setSelectedConversation(mockConv);
     }
@@ -313,15 +492,22 @@ export const MainLayout: React.FC = () => {
     if (existing) {
       handleOpenConversation(existing);
     } else {
+      const activeConn = selectedConnection || connections[0];
       const mockConv: Conversation = {
         id: `temp_${Date.now()}`,
-        connectionId: selectedConnection!.id,
+        connectionId: activeConn?.id || '',
         jid: group.jid,
         chatType: 'group',
         name: group.name,
         unreadCount: 0,
         lastMessageText: null,
         lastMessageTimestamp: new Date().toISOString(),
+        status: 'open',
+        connection: activeConn ? {
+          id: activeConn.id,
+          name: activeConn.name,
+          phoneNumber: activeConn.phoneNumber,
+        } : undefined,
       };
       setSelectedConversation(mockConv);
     }
@@ -381,6 +567,20 @@ export const MainLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Dev Tools Shortcut Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setDevToolsInitialQuery('');
+                setShowDevToolsModal(true);
+              }}
+              className="px-2.5 py-1.5 text-gray-300 hover:text-[#39ff14] bg-[#141824] hover:bg-[#1e2535] rounded-xl transition border border-[#2a3346] hover:border-[#39ff14]/50 flex items-center gap-1.5 shadow-sm"
+              title="Ferramentas de Desenvolvedor (JID, LID, Resolver, Grupos)"
+            >
+              <Terminal className="w-4 h-4 text-[#39ff14]" />
+              <span className="hidden sm:inline text-xs font-mono font-bold text-gray-200">Dev Tools</span>
+            </button>
+
             {/* Meme Gallery Shortcut Button */}
             <button
               type="button"
@@ -430,16 +630,27 @@ export const MainLayout: React.FC = () => {
           <div>
             {connections.length > 0 ? (
               <select
-                value={selectedConnection?.id || ''}
+                value={selectedConnectionFilterId}
                 onChange={(e) => {
-                  const conn = connections.find((c) => c.id === e.target.value);
-                  if (conn) handleSelectConnection(conn);
+                  const val = e.target.value;
+                  setSelectedConnectionFilterId(val);
+                  if (val === 'all') {
+                    if (connections.length > 0 && !selectedConnection) {
+                      setSelectedConnection(connections[0]);
+                    }
+                  } else {
+                    const conn = connections.find((c) => c.id === val);
+                    if (conn) handleSelectConnection(conn);
+                  }
                 }}
                 className="w-full py-1.5 px-2.5 bg-[#161922] border border-[#2a3346] rounded-xl text-xs font-mono font-medium text-white shadow-sm focus:outline-none focus:border-[#39ff14]"
               >
+                <option value="all" className="bg-[#161922] text-[#39ff14] font-bold">
+                  🌐 Todas as Sessões ({connections.length} números)
+                </option>
                 {connections.map((c) => (
                   <option key={c.id} value={c.id} className="bg-[#161922] text-white">
-                    {c.name} ({c.status === 'connected' ? `Conectado ${c.phoneNumber ? `+${c.phoneNumber}` : ''}` : c.status})
+                    📱 {c.name} ({c.status === 'connected' ? `Conectado ${c.phoneNumber ? `+${c.phoneNumber}` : ''}` : c.status})
                   </option>
                 ))}
               </select>
@@ -542,7 +753,6 @@ export const MainLayout: React.FC = () => {
         ) : currentTab === 'admin' ? (
           <AdminView />
         ) : currentTab === 'memes' ? (
-          /* Mobile memes tab triggers gallery view directly */
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#1a202c] border border-[#2a3346] flex items-center justify-center p-2 mb-3">
               <TrollfaceSvg className="w-full h-full object-contain" />
@@ -559,7 +769,7 @@ export const MainLayout: React.FC = () => {
         ) : (
           /* CONVERSATIONS TAB */
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Search and Filters */}
+            {/* Search and Sync Controls */}
             <div className="p-3 border-b border-[#2a3346] space-y-2 shrink-0 bg-[#0e121a]">
               <div className="relative flex items-center gap-2">
                 <div className="relative flex-1">
@@ -573,17 +783,15 @@ export const MainLayout: React.FC = () => {
                   />
                 </div>
 
-                {selectedConnection && (
-                  <button
-                    type="button"
-                    onClick={handleSyncMailbox}
-                    disabled={syncingMailbox}
-                    title="Sincronizar histórico e contatos do WhatsApp"
-                    className="p-2 bg-[#161922] hover:bg-[#1f2737] border border-[#2a3346] hover:border-[#39ff14] rounded-xl text-gray-400 hover:text-[#39ff14] transition shrink-0 flex items-center justify-center shadow-sm"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${syncingMailbox ? 'animate-spin text-[#39ff14]' : ''}`} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleSyncMailbox}
+                  disabled={syncingMailbox}
+                  title="Sincronizar histórico do WhatsApp"
+                  className="p-2 bg-[#161922] hover:bg-[#1f2737] border border-[#2a3346] hover:border-[#39ff14] rounded-xl text-gray-400 hover:text-[#39ff14] transition shrink-0 flex items-center justify-center shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncingMailbox ? 'animate-spin text-[#39ff14]' : ''}`} />
+                </button>
 
                 {notificationPermission === 'default' && (
                   <button
@@ -597,7 +805,7 @@ export const MainLayout: React.FC = () => {
                 )}
               </div>
 
-              {/* Filter Pills */}
+              {/* Filter Pills with Fechados beside Individuais */}
               <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold overflow-x-auto pb-0.5 scrollbar-none">
                 <button
                   onClick={() => setFilterType('all')}
@@ -639,7 +847,105 @@ export const MainLayout: React.FC = () => {
                 >
                   Individuais
                 </button>
+                <button
+                  onClick={() => setFilterType('closed')}
+                  className={`px-2.5 py-1 rounded-full whitespace-nowrap transition ${
+                    filterType === 'closed'
+                      ? 'bg-red-500 text-white font-bold shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                      : 'bg-[#161922] text-gray-400 hover:text-red-400 border border-[#2a3346]'
+                  }`}
+                >
+                  Fechados
+                </button>
               </div>
+            </div>
+
+            {/* Quick Action Bar for Closing & Multi-Selecting Tickets */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#10141e] border-b border-[#2a3346]/60 text-[11px] font-mono shrink-0">
+              {!isSelectMode ? (
+                <>
+                  <span className="text-gray-400 text-[10px]">
+                    {conversations.length} {conversations.length === 1 ? 'conversa' : 'conversas'}
+                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => {
+                        setIsSelectMode(true);
+                        setSelectedConvIds([]);
+                      }}
+                      className="text-gray-400 hover:text-white text-[10px] flex items-center gap-1 transition"
+                      title="Selecionar múltiplas conversas"
+                    >
+                      <CheckSquare className="w-3 h-3 text-[#39ff14]" />
+                      <span>Selecionar</span>
+                    </button>
+
+                    {filterType === 'closed' ? (
+                      <button
+                        onClick={() => setShowReopenAllModal(true)}
+                        disabled={conversations.length === 0}
+                        className="text-emerald-400 hover:text-emerald-300 font-bold text-[10px] flex items-center gap-1 transition disabled:opacity-40"
+                        title="Reabrir todas as conversas fechadas"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reabrir Todas</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowCloseAllModal(true)}
+                        disabled={conversations.length === 0}
+                        className="text-red-400 hover:text-red-300 font-bold text-[10px] flex items-center gap-1 transition disabled:opacity-40"
+                        title="Fechar todas as conversas abertas"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Fechar Todas</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSelectAllVisible}
+                      className="text-[#39ff14] hover:underline text-[10px] font-semibold"
+                    >
+                      {selectedConvIds.length === conversations.length ? 'Desmarcar' : 'Marcar Todas'}
+                    </button>
+                    <span className="text-gray-400 text-[10px]">({selectedConvIds.length})</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {filterType === 'closed' ? (
+                      <button
+                        onClick={handleReopenSelected}
+                        disabled={selectedConvIds.length === 0 || closingBulk}
+                        className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg font-bold text-[10px] hover:bg-emerald-500/30 disabled:opacity-40 transition flex items-center gap-1"
+                      >
+                        {closingBulk && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
+                        <span>Reabrir ({selectedConvIds.length})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleCloseSelected}
+                        disabled={selectedConvIds.length === 0 || closingBulk}
+                        className="px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg font-bold text-[10px] hover:bg-red-500/30 disabled:opacity-40 transition flex items-center gap-1"
+                      >
+                        {closingBulk && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
+                        <span>Fechar ({selectedConvIds.length})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setIsSelectMode(false);
+                        setSelectedConvIds([]);
+                      }}
+                      className="px-2 py-0.5 text-gray-400 hover:text-white text-[10px] transition"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Conversation List */}
@@ -653,16 +959,41 @@ export const MainLayout: React.FC = () => {
               ) : (
                 conversations.map((conv) => {
                   const isSelected = selectedConversation?.id === conv.id;
+                  const isChecked = selectedConvIds.includes(conv.id);
+
                   return (
                     <div
                       key={conv.id}
-                      onClick={() => handleOpenConversation(conv)}
-                      className={`flex items-center gap-3 p-3 cursor-pointer transition relative group ${
+                      onClick={() => {
+                        if (isSelectMode) {
+                          toggleSelectConv(conv.id);
+                        } else {
+                          handleOpenConversation(conv);
+                        }
+                      }}
+                      className={`flex items-center gap-2.5 p-3 cursor-pointer transition relative group ${
                         isSelected
                           ? 'bg-[#1e2535] border-l-4 border-l-[#39ff14]'
                           : 'hover:bg-[#161b26]'
                       }`}
                     >
+                      {/* Checkbox in selection mode */}
+                      {isSelectMode && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectConv(conv.id);
+                          }}
+                          className="p-1 cursor-pointer shrink-0"
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-[#39ff14]" />
+                          ) : (
+                            <Square className="w-4 h-4 text-gray-500 hover:text-gray-300" />
+                          )}
+                        </div>
+                      )}
+
                       {/* Meme Avatar with Deterministic Fallback */}
                       <MemeAvatar
                         src={conv.profilePicUrl}
@@ -694,7 +1025,60 @@ export const MainLayout: React.FC = () => {
                             </span>
                           )}
                         </div>
+
+                        {/* Connection & Status Badges */}
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {conv.connection && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300">
+                              <Smartphone className="w-2.5 h-2.5 text-cyan-400" />
+                              <span className="font-semibold">{conv.connection.name}</span>
+                              {conv.connection.phoneNumber && (
+                                <span className="text-gray-400">
+                                  • {conv.connection.phoneNumber.slice(-4)}
+                                </span>
+                              )}
+                            </span>
+                          )}
+
+                          {conv.status === 'closed' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-red-950/60 border border-red-500/40 text-[9px] font-mono text-red-400 font-bold">
+                              <Lock className="w-2.5 h-2.5" />
+                              Fechado
+                            </span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Quick close/reopen action button on card hover */}
+                      {!isSelectMode && (
+                        <div className="shrink-0 flex items-center opacity-0 group-hover:opacity-100 transition ml-1">
+                          {conv.status === 'closed' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReopenConversation(conv.id);
+                              }}
+                              className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition shadow-sm"
+                              title="Reabrir conversa"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCloseConversation(conv.id);
+                              }}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition shadow-sm"
+                              title="Fechar conversa"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -724,15 +1108,29 @@ export const MainLayout: React.FC = () => {
           selectedConversation ? 'flex' : 'hidden md:flex'
         }`}
       >
-        {selectedConversation && selectedConnection ? (
+        {selectedConversation ? (
           <ChatView
             conversation={selectedConversation}
-            connection={selectedConnection}
+            connection={
+              connections.find((c) => c.id === selectedConversation.connectionId) ||
+              selectedConnection ||
+              connections[0]
+            }
             onBack={() => setSelectedConversation(null)}
+            onOpenDevTools={(initialQuery) => {
+              setDevToolsInitialQuery(initialQuery || '');
+              setShowDevToolsModal(true);
+            }}
             onConversationUpdated={(updatedConv) => {
-              setConversations((prev) =>
-                prev.map((c) => (c.id === updatedConv.id ? { ...c, ...updatedConv } : c))
-              );
+              setConversations((prev) => {
+                if (filterType !== 'closed' && updatedConv.status === 'closed') {
+                  return prev.filter((c) => c.id !== updatedConv.id);
+                }
+                if (filterType === 'closed' && updatedConv.status === 'open') {
+                  return prev.filter((c) => c.id !== updatedConv.id);
+                }
+                return prev.map((c) => (c.id === updatedConv.id ? { ...c, ...updatedConv } : c));
+              });
               setSelectedConversation((prev) =>
                 prev && prev.id === updatedConv.id ? { ...prev, ...updatedConv } : prev
               );
@@ -743,23 +1141,113 @@ export const MainLayout: React.FC = () => {
           <EmptyConversationState
             type="no_selection"
             onOpenTools={() => setCurrentTab('connections')}
-            onOpenGallery={() => setShowGalleryModal(true)}
           />
         )}
       </div>
 
-      {/* Meme Gallery Modal */}
+      {/* Meme & Troll Gallery Modal */}
       <MemeGalleryModal
         isOpen={showGalleryModal}
         onClose={() => setShowGalleryModal(false)}
       />
 
-      {/* Cyber Trollface Realtime Notification Toast */}
-      <TrollNotificationToast
-        notification={activeNotification}
-        onClose={() => setActiveNotification(null)}
-        onOpenConversation={handleOpenConversationById}
+      {/* Developer Tools Modal */}
+      <DevToolsModal
+        isOpen={showDevToolsModal}
+        onClose={() => setShowDevToolsModal(false)}
+        connections={connections}
+        activeConnectionId={selectedConversation?.connectionId || selectedConnection?.id}
+        initialQuery={devToolsInitialQuery}
       />
+
+      {/* Modal: Confirm Close All Conversations */}
+      {showCloseAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#131722] border border-red-500/40 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">Fechar Todas as Conversas?</h3>
+                <p className="text-[11px] text-gray-400 font-mono">
+                  {conversations.length} conversas serão movidas para "Fechados".
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed font-sans">
+              As conversas não serão apagadas. Elas ficarão na aba <strong>Fechados</strong> e serão reabertas automaticamente caso o contato envie uma nova mensagem.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCloseAllModal(false)}
+                className="px-3 py-1.5 rounded-xl bg-[#1a202c] hover:bg-[#252d3d] text-gray-300 text-xs font-mono font-medium transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseAll}
+                disabled={closingBulk}
+                className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono transition shadow-lg flex items-center gap-1.5"
+              >
+                {closingBulk && <RefreshCw className="w-3 h-3 animate-spin" />}
+                <span>Sim, Fechar Todas</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirm Reopen All Conversations */}
+      {showReopenAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#131722] border border-emerald-500/40 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-emerald-400">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">Reabrir Todas as Conversas?</h3>
+                <p className="text-[11px] text-gray-400 font-mono">
+                  Todas as conversas fechadas voltarão para as abas ativas.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowReopenAllModal(false)}
+                className="px-3 py-1.5 rounded-xl bg-[#1a202c] hover:bg-[#252d3d] text-gray-300 text-xs font-mono font-medium transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleReopenAll}
+                disabled={closingBulk}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono transition shadow-lg flex items-center gap-1.5"
+              >
+                {closingBulk && <RefreshCw className="w-3 h-3 animate-spin" />}
+                <span>Sim, Reabrir Todas</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Troll Notification Toast */}
+      {activeNotification && (
+        <TrollNotificationToast
+          notification={activeNotification}
+          onClose={() => setActiveNotification(null)}
+          onOpenConversation={(convId: string) => {
+            handleOpenConversationById(convId);
+            setActiveNotification(null);
+          }}
+        />
+      )}
     </div>
   );
 };

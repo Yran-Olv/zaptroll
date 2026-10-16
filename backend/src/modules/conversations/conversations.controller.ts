@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth.js';
 import { Conversation, WhatsAppConnection, Message, Group, Contact } from '../../database/models/index.js';
 import { sequelize } from '../../database/index.js';
 import { MailboxSyncService } from '../../integrations/zapo/MailboxSyncService.js';
+import { emitToConnection, emitToUser } from '../realtime/socket.js';
 
 function formatPhoneNumber(phoneOrJid: string): string {
   if (!phoneOrJid) return '';
@@ -29,19 +30,43 @@ export class ConversationsController {
       const { connectionId } = req.params;
       const { search, filter } = req.query;
 
-      // Ensure connection belongs to current user
-      const connection = await WhatsAppConnection.findOne({
-        where: { id: connectionId, userId: req.user!.id },
+      // Find user connections to validate access
+      const userConnections = await WhatsAppConnection.findAll({
+        where: { userId: req.user!.id },
+        attributes: ['id', 'name', 'phoneNumber', 'status'],
       });
 
-      if (!connection) {
-        res.status(404).json({ error: 'Conexão não encontrada ou não autorizada.' });
+      if (!userConnections || userConnections.length === 0) {
+        res.json({ conversations: [] });
         return;
       }
 
-      const cleanUserPhone = connection.phoneNumber ? connection.phoneNumber.replace(/\D/g, '') : '';
+      const validConnIds = userConnections.map((c) => c.id);
+      const whereClause: any = {};
 
-      const whereClause: any = { connectionId };
+      if (connectionId && connectionId !== 'all') {
+        if (!validConnIds.includes(connectionId)) {
+          res.status(404).json({ error: 'Conexão não encontrada ou não autorizada.' });
+          return;
+        }
+        whereClause.connectionId = connectionId;
+      } else {
+        // "all" connections
+        whereClause.connectionId = { [Op.in]: validConnIds };
+      }
+
+      // Filter by open / closed status
+      if (filter === 'closed') {
+        whereClause.status = 'closed';
+      } else {
+        // Open conversations (active inbox/tickets)
+        whereClause.status = { [Op.or]: ['open', null, ''] };
+      }
+
+      // Exclude empty contact sync items that never had messages
+      whereClause.lastMessageText = {
+        [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: 'Conversa iniciada' }],
+      };
 
       if (search && typeof search === 'string') {
         whereClause[Op.or] = [
@@ -61,25 +86,23 @@ export class ConversationsController {
 
       let conversations = await Conversation.findAll({
         where: whereClause,
+        include: [
+          {
+            model: WhatsAppConnection,
+            as: 'connection',
+            attributes: ['id', 'name', 'phoneNumber', 'status'],
+          },
+        ],
         order: [['lastMessageTimestamp', 'DESC']],
       });
-
-      // If no conversations found yet but mailbox has threads, auto-sync immediately
-      if (conversations.length === 0 && !search && filter === 'all') {
-        const syncRes = await MailboxSyncService.syncConnection(connectionId, req.user!.id);
-        if (syncRes.syncedConversations > 0) {
-          conversations = await Conversation.findAll({
-            where: whereClause,
-            order: [['lastMessageTimestamp', 'DESC']],
-          });
-        }
-      }
 
       // Self-heal conversation names with accurate contact info
       for (const conv of conversations) {
         const rawJidId = conv.jid.split('@')[0];
         const isGroup = conv.chatType === 'group' || conv.jid.endsWith('@g.us');
         const isNewsletter = conv.jid.includes('@newsletter');
+        const conn = userConnections.find((c) => c.id === conv.connectionId);
+        const cleanUserPhone = conn?.phoneNumber ? conn.phoneNumber.replace(/\D/g, '') : '';
         const isSelf = cleanUserPhone && (conv.jid.includes(cleanUserPhone) || rawJidId === cleanUserPhone);
 
         if (isSelf) {
@@ -92,7 +115,7 @@ export class ConversationsController {
 
         if (isGroup) {
           if (!conv.name || conv.name.includes('@') || conv.name.startsWith('Grupo 12036')) {
-            const group = await Group.findOne({ where: { connectionId, jid: conv.jid } });
+            const group = await Group.findOne({ where: { connectionId: conv.connectionId, jid: conv.jid } });
             if (group && group.name && !group.name.startsWith('Grupo 12036')) {
               conv.name = group.name;
               await conv.save();
@@ -141,7 +164,7 @@ export class ConversationsController {
           } catch {}
 
           // 2. Check Contact model
-          const contact = await Contact.findOne({ where: { connectionId, jid: conv.jid } });
+          const contact = await Contact.findOne({ where: { connectionId: conv.connectionId, jid: conv.jid } });
           if (contact && (contact.name || contact.notifyName)) {
             conv.name = contact.name || contact.notifyName!;
             await conv.save();
@@ -215,6 +238,172 @@ export class ConversationsController {
       await conversation.save();
 
       res.json({ success: true, conversationId: id, unreadCount: 0 });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async closeConversation(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const conversation = await Conversation.findByPk(id, {
+        include: [
+          {
+            model: WhatsAppConnection,
+            as: 'connection',
+            where: { userId: req.user!.id },
+          },
+        ],
+      });
+
+      if (!conversation) {
+        res.status(404).json({ error: 'Conversa não encontrada.' });
+        return;
+      }
+
+      conversation.status = 'closed';
+      await conversation.save();
+
+      emitToConnection(conversation.connectionId, 'conversation_updated', {
+        id: conversation.id,
+        status: 'closed',
+      });
+      emitToUser(req.user!.id, 'conversation_updated', {
+        id: conversation.id,
+        status: 'closed',
+      });
+
+      res.json({ success: true, conversation });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async reopenConversation(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const conversation = await Conversation.findByPk(id, {
+        include: [
+          {
+            model: WhatsAppConnection,
+            as: 'connection',
+            where: { userId: req.user!.id },
+          },
+        ],
+      });
+
+      if (!conversation) {
+        res.status(404).json({ error: 'Conversa não encontrada.' });
+        return;
+      }
+
+      conversation.status = 'open';
+      await conversation.save();
+
+      emitToConnection(conversation.connectionId, 'conversation_updated', {
+        id: conversation.id,
+        status: 'open',
+      });
+      emitToUser(req.user!.id, 'conversation_updated', {
+        id: conversation.id,
+        status: 'open',
+      });
+
+      res.json({ success: true, conversation });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async closeAllConversations(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { connectionId } = req.body;
+      const userConnections = await WhatsAppConnection.findAll({
+        where: { userId: req.user!.id },
+        attributes: ['id'],
+      });
+      const validConnIds = userConnections.map((c) => c.id);
+
+      const targetConnIds = connectionId && connectionId !== 'all'
+        ? validConnIds.filter((id) => id === connectionId)
+        : validConnIds;
+
+      const [updatedCount] = await Conversation.update(
+        { status: 'closed' },
+        {
+          where: {
+            connectionId: { [Op.in]: targetConnIds },
+            status: { [Op.ne]: 'closed' },
+          },
+        }
+      );
+
+      emitToUser(req.user!.id, 'conversations_bulk_closed', { count: updatedCount });
+
+      res.json({ success: true, closedCount: updatedCount });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async closeSelectedConversations(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { conversationIds } = req.body;
+      if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
+        res.status(400).json({ error: 'Nenhuma conversa selecionada.' });
+        return;
+      }
+
+      const userConnections = await WhatsAppConnection.findAll({
+        where: { userId: req.user!.id },
+        attributes: ['id'],
+      });
+      const validConnIds = userConnections.map((c) => c.id);
+
+      const [updatedCount] = await Conversation.update(
+        { status: 'closed' },
+        {
+          where: {
+            id: { [Op.in]: conversationIds },
+            connectionId: { [Op.in]: validConnIds },
+          },
+        }
+      );
+
+      emitToUser(req.user!.id, 'conversations_bulk_closed', { count: updatedCount, ids: conversationIds });
+
+      res.json({ success: true, closedCount: updatedCount });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async reopenAllConversations(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { connectionId } = req.body;
+      const userConnections = await WhatsAppConnection.findAll({
+        where: { userId: req.user!.id },
+        attributes: ['id'],
+      });
+      const validConnIds = userConnections.map((c) => c.id);
+
+      const targetConnIds = connectionId && connectionId !== 'all'
+        ? validConnIds.filter((id) => id === connectionId)
+        : validConnIds;
+
+      const [updatedCount] = await Conversation.update(
+        { status: 'open' },
+        {
+          where: {
+            connectionId: { [Op.in]: targetConnIds },
+            status: 'closed',
+          },
+        }
+      );
+
+      emitToUser(req.user!.id, 'conversations_bulk_reopened', { count: updatedCount });
+
+      res.json({ success: true, reopenedCount: updatedCount });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

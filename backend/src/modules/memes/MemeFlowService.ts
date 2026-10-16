@@ -168,15 +168,15 @@ export class MemeFlowService {
       fromMe: true,
       messageType: 'audio',
       content: '🎵 Áudio',
-      mediaUrl: '/api/media/e4330dfd_2AF53ACD515E31730B48_1792170298396.mp3',
-      mediaMimetype: 'audio/mpeg',
-      mediaFilename: 'e4330dfd_2AF53ACD515E31730B48_1792170298396.mp3',
+      mediaUrl: isOgg ? '/api/media/jacare.ogg' : '/api/media/e4330dfd_2AF53ACD515E31730B48_1792170298396.mp3',
+      mediaMimetype: isOgg ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
+      mediaFilename: isOgg ? 'jacare.ogg' : 'e4330dfd_2AF53ACD515E31730B48_1792170298396.mp3',
       status: 'sent',
       timestamp: new Date(),
       isRevoked: false,
     });
 
-    convRecord.lastMessageText = '🎵 Áudio';
+    convRecord.lastMessageText = '🎤 Mensagem de Voz';
     convRecord.lastMessageTimestamp = new Date();
     await convRecord.save();
 

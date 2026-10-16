@@ -25,6 +25,10 @@ import {
   CornerDownLeft,
   Phone,
   ShoppingBag,
+  CheckCircle2,
+  RotateCcw,
+  Lock,
+  Smartphone,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, Message, WhatsAppConnection, ContactProfile } from '../../types/index.js';
@@ -128,6 +132,7 @@ interface ChatViewProps {
   connection: WhatsAppConnection;
   onBack?: () => void;
   onConversationUpdated?: (updated: Partial<Conversation> & { id: string }) => void;
+  onOpenDevTools?: (initialQuery?: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -135,6 +140,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   connection,
   onBack,
   onConversationUpdated,
+  onOpenDevTools,
 }) => {
   const { socket } = useSocket();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -233,6 +239,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const [closing, setClosing] = useState(false);
+  const handleToggleClose = async () => {
+    if (closing) return;
+    setClosing(true);
+    try {
+      const isClosed = conversation.status === 'closed';
+      const endpoint = isClosed ? `/conversations/${conversation.id}/reopen` : `/conversations/${conversation.id}/close`;
+      await api.put(endpoint);
+      if (onConversationUpdated) {
+        onConversationUpdated({
+          id: conversation.id,
+          status: isClosed ? 'open' : 'closed',
+        });
+      }
+    } catch (err: any) {
+      console.error('Error toggling conversation status:', err);
+    } finally {
+      setClosing(false);
+    }
+  };
 
   // Cancel reply with Esc key
   useEffect(() => {
@@ -507,19 +534,75 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <h2 className="text-xs sm:text-sm font-bold text-white leading-tight font-sans truncate group-hover:text-[#39ff14] transition flex items-center gap-1.5">
                 <span>{conversation.name || conversation.jid}</span>
               </h2>
-              <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1 truncate">
-                <span className="truncate max-w-[120px] sm:max-w-[200px]">{conversation.jid}</span>
-                <span>•</span>
-                <span className={`shrink-0 ${connection.status === 'connected' ? 'text-[#10b981]' : 'text-amber-400'}`}>
-                  {connection.status === 'connected' ? 'Conectado' : 'Desconectado'}
+              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                <span className="text-[10px] text-gray-400 font-mono truncate max-w-[100px] sm:max-w-[160px]">
+                  {conversation.jid}
                 </span>
-              </p>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300">
+                  <Smartphone className="w-2.5 h-2.5 text-cyan-400" />
+                  <span className="font-semibold">{conversation.connection?.name || connection.name}</span>
+                  {(conversation.connection?.phoneNumber || connection.phoneNumber) && (
+                    <span className="text-gray-400">
+                      • +{(conversation.connection?.phoneNumber || connection.phoneNumber)?.replace(/\D/g, '')}
+                    </span>
+                  )}
+                </span>
+                {conversation.status === 'closed' ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-red-950/60 border border-red-500/40 text-[9px] font-mono text-red-400 font-bold">
+                    <Lock className="w-2.5 h-2.5" />
+                    Fechado
+                  </span>
+                ) : (
+                  <span className={`text-[9px] font-mono ${connection.status === 'connected' ? 'text-[#10b981]' : 'text-amber-400'}`}>
+                    • {connection.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Header Right Action: Zapo Tools */}
+        {/* Header Right Actions: Close/Reopen Ticket, Dev Tools & Zapo Tools */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Dev Tools Quick Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenDevTools) {
+                onOpenDevTools(conversation.jid);
+              } else {
+                setShowProfileModal(true);
+              }
+            }}
+            className="p-1.5 sm:px-2.5 sm:py-1.5 bg-[#141824] hover:bg-[#1e2535] text-gray-300 hover:text-[#39ff14] border border-[#2a3346] hover:border-[#39ff14]/50 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shrink-0"
+            title="Abrir Ferramentas do Desenvolvedor (JID, LID, Grupos)"
+          >
+            <Terminal className="w-3.5 h-3.5 text-[#39ff14]" />
+            <span className="hidden sm:inline">Dev Tools</span>
+          </button>
+
+          {conversation.status === 'closed' ? (
+            <button
+              onClick={handleToggleClose}
+              disabled={closing}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 transition shrink-0"
+              title="Reabrir conversa"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${closing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Reabrir Conversa</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleToggleClose}
+              disabled={closing}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/30 hover:border-red-500/60 text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 transition shrink-0"
+              title="Fechar conversa"
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${closing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Fechar Conversa</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowAdvancedModal(true)}
             className="p-1.5 sm:px-3 sm:py-1.5 bg-[#161922] hover:bg-[#1f2533] text-[#39ff14] border border-[#39ff14]/40 hover:border-[#39ff14] text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 shadow-[0_0_12px_rgba(57,255,20,0.2)] transition shrink-0"
@@ -530,6 +613,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Closed Banner Notification */}
+      {conversation.status === 'closed' && (
+        <div className="bg-red-950/50 border-b border-red-500/30 px-3 py-1.5 text-[11px] font-mono text-red-300 flex items-center justify-between z-10 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span>Esta conversa está fechada. Enviar uma mensagem irá reabri-la automaticamente.</span>
+          </div>
+          <button
+            onClick={handleToggleClose}
+            className="text-[#39ff14] hover:underline font-bold text-[10px] uppercase ml-2 shrink-0 cursor-pointer"
+          >
+            Reabrir Agora
+          </button>
+        </div>
+      )}
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 space-y-3 relative z-10 w-full max-w-full min-w-0">
@@ -1283,6 +1382,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onClose={() => setShowProfileModal(false)}
         connectionId={connection.id}
         conversation={conversation}
+        onOpenDevTools={onOpenDevTools}
         onProfileUpdated={(prof) => {
           if (prof.profilePicUrl) {
             setContactProfilePic(prof.profilePicUrl);

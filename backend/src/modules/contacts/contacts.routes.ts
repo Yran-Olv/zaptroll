@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/profile', ContactsController.getProfile);
+router.post('/resolve-dev', ContactsController.resolveDev);
 router.get('/download-picture', ContactsController.downloadProfilePicture);
 router.get('/picture-proxy', ContactsController.pictureProxy);
 router.get('/connection/:connectionId', ContactsController.list);
