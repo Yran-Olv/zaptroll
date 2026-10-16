@@ -4,6 +4,7 @@ import { config } from './config/index.js';
 import { initDatabase } from './database/models/index.js';
 import { initSocket } from './modules/realtime/socket.js';
 import { zapoManager } from './integrations/zapo/ZapoConnectionManager.js';
+import { AutoDestructService } from './modules/messages/AutoDestructService.js';
 
 async function bootstrap() {
   try {
@@ -22,6 +23,9 @@ async function bootstrap() {
 
     // 4. Restore any existing connected sessions
     await zapoManager.restoreConnectedSessions();
+
+    // 5. Initialize AutoDestruct recovery for temporary messages
+    await AutoDestructService.init();
 
     // 5. Start listening
     server.listen(config.port, () => {

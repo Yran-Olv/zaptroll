@@ -16,6 +16,7 @@ import {
 } from '../../integrations/zapo/ZapoPayloadValidator.js';
 import { emitToConnection } from '../realtime/socket.js';
 import { MailboxSyncService } from '../../integrations/zapo/MailboxSyncService.js';
+import { AutoDestructService } from './AutoDestructService.js';
 
 export class MessagesController {
   static async getHistory(req: AuthRequest, res: Response): Promise<void> {
@@ -185,6 +186,13 @@ export class MessagesController {
       let sendResult: any;
       let storedContent = '';
       let msgType = type || 'text';
+      let scheduledExpirationSeconds: number | undefined =
+        payload?.expirationSeconds || payload?.duration || payload?.seconds
+          ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+          : undefined;
+      if (scheduledExpirationSeconds && (isNaN(scheduledExpirationSeconds) || scheduledExpirationSeconds <= 0)) {
+        scheduledExpirationSeconds = undefined;
+      }
 
       switch (type) {
         case 'text': {
@@ -194,6 +202,7 @@ export class MessagesController {
             : undefined;
 
           if (ephemeralSeconds && ephemeralSeconds > 0) {
+            scheduledExpirationSeconds = ephemeralSeconds;
             sendResult = await ZapoMessageAdapter.sendEphemeralMessage(
               client,
               targetJid,
@@ -225,6 +234,7 @@ export class MessagesController {
             : undefined;
           if (expSeconds && expSeconds > 0) {
             validated.expirationSeconds = expSeconds;
+            scheduledExpirationSeconds = expSeconds;
           }
           sendResult = await ZapoMessageAdapter.sendButtons(client, targetJid, validated);
           storedContent = expSeconds && expSeconds > 0
@@ -240,6 +250,7 @@ export class MessagesController {
             : undefined;
           if (expSeconds && expSeconds > 0) {
             validated.expirationSeconds = expSeconds;
+            scheduledExpirationSeconds = expSeconds;
           }
           sendResult = await ZapoMessageAdapter.sendList(client, targetJid, validated);
           storedContent = expSeconds && expSeconds > 0
@@ -255,6 +266,7 @@ export class MessagesController {
             : undefined;
           if (expSeconds && expSeconds > 0) {
             validated.expirationSeconds = expSeconds;
+            scheduledExpirationSeconds = expSeconds;
           }
           sendResult = await ZapoMessageAdapter.sendWebview(client, targetJid, validated);
           storedContent = expSeconds && expSeconds > 0
@@ -275,6 +287,7 @@ export class MessagesController {
 
           if (expSeconds && expSeconds > 0) {
             validated.expirationSeconds = expSeconds;
+            scheduledExpirationSeconds = expSeconds;
           }
 
           sendResult = await ZapoMessageAdapter.sendCarousel(client, targetJid, validated);
@@ -313,6 +326,7 @@ export class MessagesController {
             experimentalAfterRead: payload.experimentalAfterRead ?? Boolean(payload.afterReadDuration),
             afterReadDuration: payload.afterReadDuration ?? exp,
           });
+          scheduledExpirationSeconds = validated.expirationSeconds;
           sendResult = await ZapoMessageAdapter.sendEphemeralMessage(
             client,
             targetJid,
@@ -335,6 +349,7 @@ export class MessagesController {
             : undefined;
           if (expSeconds && expSeconds > 0) {
             validated.expirationSeconds = expSeconds;
+            scheduledExpirationSeconds = expSeconds;
           }
           sendResult = await ZapoMessageAdapter.sendRawProto(client, targetJid, validated.rawPayload, expSeconds);
           storedContent = expSeconds && expSeconds > 0
@@ -385,6 +400,9 @@ export class MessagesController {
 
       const savedPayload = {
         ...(typeof payload === 'object' ? payload : { text: payload }),
+        ...(scheduledExpirationSeconds && scheduledExpirationSeconds > 0
+          ? { expirationSeconds: scheduledExpirationSeconds }
+          : {}),
         ...(quotedMsg
           ? {
               contextInfo: {
@@ -412,6 +430,17 @@ export class MessagesController {
         isRevoked: false,
       });
 
+      // Se a mensagem possui expiração/duração temporária, agenda autodestruição real no WhatsApp (apagar para todos)
+      if (scheduledExpirationSeconds && scheduledExpirationSeconds > 0) {
+        AutoDestructService.scheduleAutoDestruct({
+          connectionId,
+          conversationId: convRecord.id,
+          targetJid,
+          stanzaId,
+          delaySeconds: scheduledExpirationSeconds,
+        });
+      }
+
       emitToConnection(connectionId, 'new_message', {
         connectionId,
         message: savedMessage,
@@ -434,6 +463,9 @@ export class MessagesController {
     try {
       const { connectionId, stanzaId, conversationId } = req.body;
       const validated = revokeMessageSchema.parse({ stanzaId });
+
+      // Cancela qualquer timer pendente para evitar execução duplicada
+      AutoDestructService.cancel(validated.stanzaId);
 
       const connection = await WhatsAppConnection.findOne({
         where: { id: connectionId, userId: req.user!.id },
