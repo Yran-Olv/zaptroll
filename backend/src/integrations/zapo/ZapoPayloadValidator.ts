@@ -16,8 +16,12 @@ export const buttonsMessageSchema = z.object({
     .array(
       z.object({
         buttonId: z.string().min(1, 'Identificador do botão é obrigatório'),
-        displayText: z.string().min(1, 'Texto do botão é obrigatório').max(25, 'Texto do botão muito longo (máx 25 caracteres)'),
-      })
+        displayText: z.string().optional(),
+        buttonText: z.object({ displayText: z.string().optional() }).optional(),
+      }).transform((b) => ({
+        buttonId: b.buttonId,
+        displayText: b.displayText || b.buttonText?.displayText || 'Opção',
+      }))
     )
     .min(1, 'Ao menos 1 botão é necessário')
     .max(3, 'No máximo 3 botões são permitidos pelo WhatsApp'),

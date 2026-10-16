@@ -750,6 +750,7 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                       expirationSeconds: buttonsIsEphemeral ? buttonsExpirationSeconds : undefined,
                       buttons: buttonsList.map((b) => ({
                         buttonId: b.buttonId,
+                        displayText: b.displayText,
                         buttonText: { displayText: b.displayText },
                         type: 1,
                       })),
