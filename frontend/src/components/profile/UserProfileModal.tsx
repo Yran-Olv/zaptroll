@@ -287,7 +287,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       {/* Lightbox / Zoom da Foto de Perfil */}
       {showLightbox && photoUrl && (
         <div
-          className="fixed inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowLightbox(false)}
         >
           <div className="absolute top-4 right-4 flex items-center gap-3">
