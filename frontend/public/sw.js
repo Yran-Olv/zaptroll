@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zaptroll-v1-static';
+const CACHE_NAME = 'zaptroll-v2-static';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

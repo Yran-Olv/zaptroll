@@ -28,6 +28,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShoppingBag,
+  Camera,
+  Upload,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { CarouselCard, CarouselButton } from '../../types/index.js';
@@ -274,6 +276,55 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
       },
     ]);
     setActiveCardIndex(0);
+  };
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleDeviceImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) return;
+
+      // Scale to max 800px so it's ultra crisp for WhatsApp while tiny in transfer size (~100-200KB)
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const isPng = file.type === 'image/png';
+          const optimizedDataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.88);
+          handleUpdateCard(activeCardIndex, 'imageUrl', optimizedDataUrl);
+        } else {
+          handleUpdateCard(activeCardIndex, 'imageUrl', dataUrl);
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input value so re-selecting same file works
+    e.target.value = '';
   };
 
   // 5. Ephemeral State ("Modo Fantasma")
@@ -894,32 +945,82 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                       </span>
                     </div>
 
-                    {/* Image URL & Thumbnail */}
+                    {/* Image Upload from Device or URL */}
                     <div>
-                      <label className="block text-[11px] font-mono font-semibold text-gray-300 mb-1">
-                        URL da Imagem do Card (PNG, JPG, WebP)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="url"
-                          value={carouselCards[activeCardIndex].imageUrl || ''}
-                          onChange={(e) => handleUpdateCard(activeCardIndex, 'imageUrl', e.target.value)}
-                          placeholder="https://... ou cole link direto da imagem"
-                          className="flex-1 px-3 py-1.5 bg-[#0e1118] border border-[#2a3346] rounded-xl text-xs text-white focus:border-[#39ff14]"
-                        />
-                        <div className="w-9 h-9 rounded-lg bg-[#0e1118] border border-[#2a3346] overflow-hidden shrink-0 flex items-center justify-center">
-                          {carouselCards[activeCardIndex].imageUrl ? (
-                            <img
-                              src={carouselCards[activeCardIndex].imageUrl}
-                              alt="thumb"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as any).src = 'https://placehold.co/100x100/1a202c/39ff14?text=Img';
-                              }}
-                            />
-                          ) : (
-                            <ImageIcon className="w-4 h-4 text-gray-500" />
-                          )}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-mono font-semibold text-gray-300">
+                          Imagem do Card (Foto do Aparelho ou Link)
+                        </label>
+                        {carouselCards[activeCardIndex].imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCard(activeCardIndex, 'imageUrl', '')}
+                            className="text-[10px] font-mono text-red-400 hover:text-red-300 cursor-pointer"
+                          >
+                            Limpar Foto
+                          </button>
+                        )}
+                      </div>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={handleDeviceImageSelect}
+                        className="hidden"
+                      />
+
+                      <div className="p-3 bg-[#0e1118] border border-[#2a3346] rounded-xl space-y-2.5">
+                        <div className="flex items-center gap-3">
+                          {/* Thumbnail / Preview */}
+                          <div className="w-16 h-16 rounded-xl bg-[#161922] border border-[#2a3346] overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
+                            {carouselCards[activeCardIndex].imageUrl ? (
+                              <img
+                                src={carouselCards[activeCardIndex].imageUrl}
+                                alt="thumb"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as any).src = 'https://placehold.co/100x100/1a202c/39ff14?text=Img';
+                                }}
+                              />
+                            ) : (
+                              <ImageIcon className="w-6 h-6 text-gray-600" />
+                            )}
+                          </div>
+
+                          {/* Upload Action Button */}
+                          <div className="flex-1 space-y-1.5">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full py-2 px-3 bg-[#39ff14]/15 hover:bg-[#39ff14]/25 border border-[#39ff14]/40 rounded-xl text-xs font-mono font-bold text-[#39ff14] flex items-center justify-center gap-2 transition cursor-pointer shadow-sm active:scale-95"
+                            >
+                              <Camera className="w-4 h-4" />
+                              <span>Escolher Foto do Aparelho (Celular / PC)</span>
+                            </button>
+                            <p className="text-[10px] text-gray-400 font-mono">
+                              Abra a Galeria, Câmera ou Arquivos do seu dispositivo
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Optional URL input toggle */}
+                        <div className="pt-2 border-t border-[#2a3346]/60">
+                          <input
+                            type="text"
+                            value={
+                              carouselCards[activeCardIndex].imageUrl?.startsWith('data:')
+                                ? '✓ Foto carregada do seu aparelho'
+                                : carouselCards[activeCardIndex].imageUrl || ''
+                            }
+                            onChange={(e) => {
+                              if (!e.target.value.startsWith('✓')) {
+                                handleUpdateCard(activeCardIndex, 'imageUrl', e.target.value);
+                              }
+                            }}
+                            placeholder="Ou se preferir, cole uma URL direta (https://...)"
+                            className="w-full px-2.5 py-1.5 bg-[#161922] border border-[#2a3346] rounded-lg text-xs text-white focus:border-[#39ff14] placeholder-gray-500 font-mono"
+                          />
                         </div>
                       </div>
                     </div>

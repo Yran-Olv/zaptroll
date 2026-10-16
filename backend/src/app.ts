@@ -32,9 +32,9 @@ export function createApp() {
     })
   );
 
-  // Body Parsers
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Body Parsers (support device camera/gallery high-res photo uploads)
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Health check endpoint
   app.get('/health', (req, res) => {

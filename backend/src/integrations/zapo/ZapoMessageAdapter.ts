@@ -194,11 +194,17 @@ export class ZapoMessageAdapter {
                 mimetype = ct.includes('jpeg') || ct.includes('jpg') ? 'image/jpeg' : 'image/png';
               }
             }
-          } else if (targetUrl && targetUrl.startsWith('data:image/')) {
-            const parts = targetUrl.split(';base64,');
-            if (parts.length === 2) {
-              mimetype = parts[0].replace('data:', '');
-              buffer = Buffer.from(parts[1], 'base64');
+          } else if (targetUrl && (targetUrl.startsWith('data:image/') || targetUrl.includes(';base64,'))) {
+            const match = targetUrl.match(/^data:([^;]+);base64,(.+)$/s);
+            if (match) {
+              mimetype = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
+              buffer = Buffer.from(match[2].trim(), 'base64');
+            } else {
+              const parts = targetUrl.split(';base64,');
+              if (parts.length === 2) {
+                mimetype = parts[0].replace('data:', '');
+                buffer = Buffer.from(parts[1].trim(), 'base64');
+              }
             }
           }
 
@@ -245,13 +251,15 @@ export class ZapoMessageAdapter {
       return uploadPromise;
     };
 
-    if (data.cards && data.cards.length > 0) {
+    const cardsList = Array.isArray(data.cards) ? data.cards : [];
+    if (cardsList.length > 0) {
       const cacheMap = new Map<string, Promise<any>>();
       const processedCards = await Promise.all(
-        data.cards.map(async (c, cardIdx) => {
+        cardsList.map(async (c, cardIdx) => {
           const imageMessage = await uploadCardImage(c.imageUrl, cacheMap);
 
-          const flowBtns = (c.buttons || []).map((b, btnIdx) => {
+          const btnList = Array.isArray(c.buttons) ? c.buttons : [];
+          const flowBtns = btnList.map((b: any, btnIdx: number) => {
             const btnText = b.displayText || b.display_text || `Ação ${btnIdx + 1}`;
             const btnType = b.type || (b.url ? 'cta_url' : 'quick_reply');
 
