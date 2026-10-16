@@ -22,6 +22,9 @@ import {
   X,
   Reply,
   CornerDownRight,
+  CornerDownLeft,
+  Phone,
+  ShoppingBag,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, Message, WhatsAppConnection } from '../../types/index.js';
@@ -30,6 +33,94 @@ import { AdvancedFeaturesModal } from '../advanced-menu/AdvancedFeaturesModal.js
 import { MemeAvatar } from '../memes/MemeAvatar.js';
 import { MemeBackground } from '../memes/MemeBackground.js';
 import { EmptyConversationState } from '../memes/EmptyConversationState.js';
+
+interface CarouselExtractedCard {
+  title: string;
+  text: string;
+  imageUrl?: string;
+  buttons: Array<{
+    type?: string;
+    displayText: string;
+    url?: string;
+    id?: string;
+    phoneNumber?: string;
+  }>;
+}
+
+const getCarouselData = (msg: Message): {
+  bodyText: string;
+  footerText: string;
+  cards: CarouselExtractedCard[];
+} => {
+  const p = (msg.rawPayload || {}) as any;
+  let bodyText = p.bodyText || p.interactiveMessage?.body?.text || '';
+  let footerText = p.footerText || p.interactiveMessage?.footer?.text || '';
+  let cards: CarouselExtractedCard[] = [];
+
+  if (Array.isArray(p.cards)) {
+    cards = p.cards.map((c: any) => ({
+      title: c.title || '',
+      text: c.text || '',
+      imageUrl: c.imageUrl,
+      buttons: (Array.isArray(c.buttons) ? c.buttons : []).map((b: any) => ({
+        type: b.type || b.name,
+        displayText: b.displayText || b.display_text || b.name || 'Ação',
+        url: b.url,
+        id: b.id,
+        phoneNumber: b.phoneNumber || b.phone_number,
+      })),
+    }));
+  } else if (Array.isArray(p.interactiveMessage?.carouselMessage?.cards)) {
+    cards = p.interactiveMessage.carouselMessage.cards.map((c: any, i: number) => {
+      let img = undefined;
+      const imgMsg = c.header?.imageMessage;
+      if (imgMsg?.jpegThumbnail) {
+        try {
+          const t = imgMsg.jpegThumbnail;
+          if (typeof t === 'string') {
+            img = t.startsWith('data:') ? t : `data:image/jpeg;base64,${t}`;
+          } else {
+            const rawBytes = t.data ? t.data : (Array.isArray(t) ? t : Object.values(t));
+            const binString = Array.from(new Uint8Array(rawBytes), (byte) => String.fromCharCode(byte)).join('');
+            img = 'data:image/jpeg;base64,' + btoa(binString);
+          }
+        } catch {}
+      } else if (imgMsg?.url) {
+        img = imgMsg.url;
+      }
+
+      const flowBtns = (c.nativeFlowMessage?.buttons || []).map((b: any) => {
+        let params: any = {};
+        try {
+          params = typeof b.buttonParamsJson === 'string' ? JSON.parse(b.buttonParamsJson) : (b.buttonParamsJson || {});
+        } catch {}
+        return {
+          type: b.name,
+          displayText: params.display_text || params.displayText || b.name || 'Ação',
+          url: params.url,
+          id: params.id,
+          phoneNumber: params.phone_number,
+        };
+      });
+
+      return {
+        title: c.header?.title || `Cartão ${i + 1}`,
+        text: c.body?.text || '',
+        imageUrl: img,
+        buttons: flowBtns,
+      };
+    });
+  }
+
+  if (!bodyText && msg.content?.includes('[Carrossel:')) {
+    const match = msg.content.match(/\[Carrossel:\s*([^—\]]+)/);
+    if (match) {
+      bodyText = match[1].trim();
+    }
+  }
+
+  return { bodyText, footerText, cards };
+};
 
 interface ChatViewProps {
   conversation: Conversation;
@@ -405,6 +496,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, on
         ) : (
           messages.map((msg) => {
             const isOutgoing = msg.fromMe;
+            const isCarousel =
+              msg.messageType === 'carousel' ||
+              Boolean((msg.rawPayload as any)?.cards) ||
+              Boolean((msg.rawPayload as any)?.interactiveMessage?.carouselMessage?.cards) ||
+              Boolean(msg.content?.includes('[Carrossel:'));
+            const carouselData = isCarousel ? getCarouselData(msg) : null;
+            const hasCarouselCards = Boolean(carouselData && carouselData.cards && carouselData.cards.length > 0);
+
             return (
               <div
                 key={msg.id || msg.stanzaId}
@@ -413,7 +512,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, on
               >
                 <div
                   onDoubleClick={() => handleStartReply(msg)}
-                  className={`max-w-[85%] sm:max-w-md p-2.5 sm:p-3 rounded-2xl text-xs relative transition duration-200 shadow-md break-words overflow-hidden ${
+                  className={`${
+                    hasCarouselCards
+                      ? 'max-w-[96%] sm:max-w-xl md:max-w-2xl'
+                      : 'max-w-[85%] sm:max-w-md'
+                  } p-2.5 sm:p-3 rounded-2xl text-xs relative transition duration-200 shadow-md break-words overflow-hidden ${
                     isOutgoing
                       ? 'bg-[#14382d] text-white border border-[#10b981]/30 rounded-tr-none'
                       : 'bg-[#1c2230] text-gray-100 border border-[#2a3346] rounded-tl-none'
@@ -554,24 +657,166 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, connection, on
                   {/* Ephemeral Message Badge */}
                   {(msg.messageType === 'ephemeral_message' ||
                     msg.messageType === 'ephemeral' ||
+                    (msg.rawPayload as any)?.expirationSeconds ||
                     msg.content?.startsWith('⏳')) && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1.5 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                    <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-2 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
                       <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
-                      <span>Mensagem Temporária</span>
+                      <span>
+                        {hasCarouselCards ? 'Carrossel Temporário' : 'Mensagem Temporária'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 6. Native Flow Carousel Gallery */}
+                  {hasCarouselCards && carouselData && (
+                    <div className="w-full my-1.5 min-w-0">
+                      {/* Carousel Body Text */}
+                      {carouselData.bodyText && (
+                        <div className="text-[13px] font-sans font-medium text-white mb-2 leading-relaxed whitespace-pre-wrap">
+                          {carouselData.bodyText}
+                        </div>
+                      )}
+
+                      {/* Header hint */}
+                      <div className="flex items-center justify-between text-[10px] font-mono text-gray-400 mb-2 px-0.5">
+                        <span className="flex items-center gap-1 text-gray-300">
+                          <Sparkles className="w-3 h-3 text-[#39ff14]" />
+                          Deslize horizontalmente nos cartões:
+                        </span>
+                        <span className="text-[#39ff14] font-bold">
+                          {carouselData.cards.length} {carouselData.cards.length === 1 ? 'cartão' : 'cartões'}
+                        </span>
+                      </div>
+
+                      {/* Horizontal scroll cards */}
+                      <div className="flex gap-2.5 overflow-x-auto pb-2.5 pt-0.5 scrollbar-thin scrollbar-thumb-white/20 snap-x w-full">
+                        {carouselData.cards.map((card, cIdx) => (
+                          <div
+                            key={cIdx}
+                            className="w-[210px] sm:w-[220px] flex-shrink-0 bg-[#0e1219] border border-white/10 rounded-2xl overflow-hidden shadow-xl flex flex-col snap-start justify-between"
+                          >
+                            {/* Card Image */}
+                            <div
+                              className={`h-28 w-full bg-black/50 relative overflow-hidden flex items-center justify-center ${
+                                card.imageUrl ? 'cursor-pointer group/cardimg' : ''
+                              }`}
+                              onClick={() => card.imageUrl && setSelectedMediaPreview(card.imageUrl)}
+                              title={card.imageUrl ? 'Clique para expandir a imagem' : undefined}
+                            >
+                              {card.imageUrl ? (
+                                <img
+                                  src={card.imageUrl}
+                                  alt={card.title}
+                                  className="w-full h-full object-cover group-hover/cardimg:scale-105 transition duration-300"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.target as any).src =
+                                      'https://placehold.co/640x360/1a202c/39ff14?text=Card+Image';
+                                  }}
+                                />
+                              ) : (
+                                <div className="text-[10px] text-gray-500 font-mono flex items-center gap-1">
+                                  <ImageIcon className="w-4 h-4 text-gray-500" /> Sem Imagem
+                                </div>
+                              )}
+                              <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/75 backdrop-blur rounded text-[9px] font-mono text-[#39ff14] font-bold">
+                                #{cIdx + 1}
+                              </span>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-2.5 flex-1 flex flex-col justify-between">
+                              <div>
+                                <h4
+                                  className="text-xs font-bold text-white leading-tight mb-1 truncate"
+                                  title={card.title}
+                                >
+                                  {card.title || 'Título'}
+                                </h4>
+                                <p className="text-[11px] text-gray-300 leading-snug line-clamp-3 mb-2 font-sans">
+                                  {card.text || ''}
+                                </p>
+                              </div>
+
+                              {/* Card Buttons */}
+                              {card.buttons && card.buttons.length > 0 && (
+                                <div className="space-y-1.5 pt-2 border-t border-white/10">
+                                  {card.buttons.map((b, bIdx) => {
+                                    const isUrl = b.type === 'cta_url' || Boolean(b.url);
+                                    const isCall = b.type === 'cta_call' || Boolean(b.phoneNumber);
+
+                                    if (isUrl && b.url) {
+                                      return (
+                                        <a
+                                          key={bIdx}
+                                          href={b.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="w-full py-1.5 px-2 bg-[#1b2230] hover:bg-[#253045] border border-sky-500/30 rounded-lg text-center text-[10px] font-mono font-semibold text-sky-400 flex items-center justify-center gap-1.5 transition truncate shadow-sm cursor-pointer"
+                                          title={`Abrir link: ${b.url}`}
+                                        >
+                                          <ExternalLink className="w-3 h-3 text-sky-400 shrink-0" />
+                                          <span className="truncate">{b.displayText}</span>
+                                        </a>
+                                      );
+                                    }
+
+                                    if (isCall && b.phoneNumber) {
+                                      return (
+                                        <a
+                                          key={bIdx}
+                                          href={`tel:${b.phoneNumber}`}
+                                          className="w-full py-1.5 px-2 bg-[#14291f] hover:bg-[#1a382b] border border-emerald-500/30 rounded-lg text-center text-[10px] font-mono font-semibold text-[#39ff14] flex items-center justify-center gap-1.5 transition truncate shadow-sm cursor-pointer"
+                                        >
+                                          <Phone className="w-3 h-3 text-[#39ff14] shrink-0" />
+                                          <span className="truncate">{b.displayText}</span>
+                                        </a>
+                                      );
+                                    }
+
+                                    return (
+                                      <button
+                                        key={bIdx}
+                                        type="button"
+                                        onClick={() => setTextInput(b.displayText)}
+                                        className="w-full py-1.5 px-2 bg-[#1a202c] hover:bg-[#232b3b] border border-white/10 hover:border-[#39ff14]/40 rounded-lg text-center text-[10px] font-mono font-semibold text-gray-200 hover:text-[#39ff14] flex items-center justify-center gap-1.5 transition truncate shadow-sm cursor-pointer"
+                                        title="Clique para preencher resposta no chat"
+                                      >
+                                        <CornerDownLeft className="w-3 h-3 text-[#39ff14] shrink-0" />
+                                        <span className="truncate">{b.displayText}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Carousel Footer Text */}
+                      {carouselData.footerText && (
+                        <div className="text-[10px] text-gray-400 italic px-1 mt-1 font-mono">
+                          {carouselData.footerText}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Message Content / Text / Caption */}
                   {(() => {
-                    const isGenericFallback = [
-                      '📷 Imagem',
-                      '🎥 Vídeo',
-                      '🎵 Áudio',
-                      '🎤 Mensagem de Voz',
-                      'Sticker',
-                    ].includes(msg.content || '');
+                    const isGenericFallback =
+                      [
+                        '📷 Imagem',
+                        '🎥 Vídeo',
+                        '🎵 Áudio',
+                        '🎤 Mensagem de Voz',
+                        'Sticker',
+                        '🎠 Carrossel Interativo',
+                      ].includes(msg.content || '') ||
+                      (hasCarouselCards && Boolean(msg.content?.includes('[Carrossel:')));
 
-                    const hasRenderedMedia = Boolean(msg.mediaUrl || msg.thumbnailUrl);
+                    const hasRenderedMedia = Boolean(msg.mediaUrl || msg.thumbnailUrl || hasCarouselCards);
                     const displayContent =
                       msg.caption ||
                       (!isGenericFallback || !hasRenderedMedia ? msg.content : null);

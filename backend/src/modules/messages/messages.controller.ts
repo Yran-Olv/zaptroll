@@ -244,11 +244,26 @@ export class MessagesController {
           if (payload.cards && Array.isArray(payload.cards)) {
             validated = carouselMessageSchema.parse(payload);
           }
+
+          const expSeconds = payload.expirationSeconds || payload.duration || payload.seconds
+            ? Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds)
+            : undefined;
+
+          if (expSeconds && expSeconds > 0) {
+            validated.expirationSeconds = expSeconds;
+          }
+
           sendResult = await ZapoMessageAdapter.sendCarousel(client, targetJid, validated);
           const cardCount = validated.cards?.length || 0;
-          storedContent = cardCount > 0 
-            ? `[Carrossel: ${validated.bodyText || 'Destaques'} — ${cardCount} ${cardCount === 1 ? 'cartão' : 'cartões'}]`
-            : `[Carrossel: ${payload.bodyText || 'Ações'}]`;
+          if (expSeconds && expSeconds > 0) {
+            storedContent = cardCount > 0 
+              ? `⏳ [Carrossel Temporário (${expSeconds}s): ${validated.bodyText || 'Destaques'} — ${cardCount} ${cardCount === 1 ? 'cartão' : 'cartões'}]`
+              : `⏳ [Carrossel Temporário (${expSeconds}s): ${payload.bodyText || 'Ações'}]`;
+          } else {
+            storedContent = cardCount > 0 
+              ? `[Carrossel: ${validated.bodyText || 'Destaques'} — ${cardCount} ${cardCount === 1 ? 'cartão' : 'cartões'}]`
+              : `[Carrossel: ${payload.bodyText || 'Ações'}]`;
+          }
           break;
         }
 

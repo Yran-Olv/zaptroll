@@ -418,7 +418,9 @@ export class ZapoEventHandler {
         else if (stk) messageType = 'sticker';
         else if (msgPayload?.buttonsMessage) messageType = 'buttons';
         else if (msgPayload?.listMessage) messageType = 'list';
-        else if (msgPayload?.interactiveMessage) messageType = 'interactive';
+        else if (msgPayload?.interactiveMessage) {
+          messageType = msgPayload.interactiveMessage?.carouselMessage ? 'carousel' : 'interactive';
+        }
 
         if (hasMedia) {
           let ext = 'bin';
@@ -482,6 +484,7 @@ export class ZapoEventHandler {
           (stk ? 'Sticker' : null) ||
           (msgPayload?.buttonsMessage ? '🔘 Mensagem com Botões' : null) ||
           (msgPayload?.listMessage ? '📋 Menu de Opções' : null) ||
+          (msgPayload?.interactiveMessage?.carouselMessage ? '🎠 Carrossel Interativo' : null) ||
           (msgPayload?.interactiveMessage ? '⚡ Mensagem Interativa' : null) ||
           '[Mensagem não suportada ou formato especial]';
 

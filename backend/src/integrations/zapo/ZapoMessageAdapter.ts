@@ -127,6 +127,7 @@ export class ZapoMessageAdapter {
     data: {
       bodyText: string;
       footerText?: string;
+      expirationSeconds?: number;
       cards?: Array<{
         title: string;
         text: string;
@@ -161,6 +162,24 @@ export class ZapoMessageAdapter {
         },
       ],
     };
+
+    const sendOptions: any = {
+      ...bizMixedOpts,
+    };
+
+    let ephemeralContext: any = undefined;
+    if (data.expirationSeconds && data.expirationSeconds > 0) {
+      const exp = Number(data.expirationSeconds);
+      const nowSec = Math.floor(Date.now() / 1000);
+      sendOptions.expirationSeconds = exp;
+      sendOptions.ephemeralSettingTimestamp = nowSec;
+      ephemeralContext = {
+        expiration: exp,
+        ephemeralSettingTimestamp: nowSec,
+        disappearingMode: { initiator: 0, trigger: 1 },
+      };
+      sendOptions.contextInfo = ephemeralContext;
+    }
 
     const fallback1x1Png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -318,6 +337,7 @@ export class ZapoMessageAdapter {
         interactiveMessage: {
           body: { text: data.bodyText },
           footer: data.footerText ? { text: data.footerText } : undefined,
+          contextInfo: ephemeralContext,
           carouselMessage: {
             messageVersion: 1,
             cards: processedCards,
@@ -325,7 +345,7 @@ export class ZapoMessageAdapter {
         },
       };
 
-      return client.message.send(jid, content as any, bizMixedOpts as any);
+      return client.message.send(jid, content as any, sendOptions as any);
     }
 
     // Legacy fallback
@@ -367,6 +387,7 @@ export class ZapoMessageAdapter {
     const content = {
       interactiveMessage: {
         body: { text: data.bodyText },
+        contextInfo: ephemeralContext,
         carouselMessage: {
           messageVersion: 1,
           cards: fallbackCards,
@@ -374,7 +395,7 @@ export class ZapoMessageAdapter {
       },
     };
 
-    return client.message.send(jid, content as any, bizMixedOpts as any);
+    return client.message.send(jid, content as any, sendOptions as any);
   }
 
   // 6. Chat-wide Ephemeral Toggle

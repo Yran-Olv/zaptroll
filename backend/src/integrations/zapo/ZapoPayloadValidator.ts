@@ -98,6 +98,7 @@ export const revokeMessageSchema = z.object({
 export const carouselMessageSchema = z.object({
   bodyText: z.string().min(1, 'Texto principal do carrossel é obrigatório'),
   footerText: z.string().optional(),
+  expirationSeconds: z.coerce.number().int().optional(),
   cards: z
     .array(
       z.object({
@@ -108,12 +109,17 @@ export const carouselMessageSchema = z.object({
           .array(
             z.object({
               type: z.enum(['cta_url', 'quick_reply', 'cta_call', 'cta_copy']).default('quick_reply'),
-              displayText: z.string().min(1, 'Nome do botão é obrigatório').max(40),
+              displayText: z.string().optional(),
+              display_text: z.string().optional(),
               url: z.string().optional(),
               id: z.string().optional(),
               phoneNumber: z.string().optional(),
               code: z.string().optional(),
-            })
+            }).transform((btn) => ({
+              ...btn,
+              displayText: btn.displayText || btn.display_text || 'Ação',
+              display_text: btn.display_text || btn.displayText || 'Ação',
+            }))
           )
           .min(1, 'Cada cartão deve ter ao menos 1 botão')
           .max(3, 'No máximo 3 botões por cartão são permitidos'),

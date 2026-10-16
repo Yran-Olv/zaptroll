@@ -100,6 +100,8 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   // 4. Carousel State ("Carrossel Interativo de Produtos / Cards")
   const [carouselBody, setCarouselBody] = useState('Hey there! 🙂 Great day to explore awesome products.');
   const [carouselFooter, setCarouselFooter] = useState('Expo Shoes Official Store');
+  const [carouselIsEphemeral, setCarouselIsEphemeral] = useState(false);
+  const [carouselExpirationSeconds, setCarouselExpirationSeconds] = useState(86400); // 24h padrão WhatsApp
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [carouselCards, setCarouselCards] = useState<CarouselCard[]>([
     {
@@ -1173,12 +1175,98 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   </div>
                 )}
 
+                {/* Ephemeral Message Configuration */}
+                <div className="p-3.5 bg-[#161922] border border-[#2a3346] rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+                          Mensagem Temporária (Auto-destruição)
+                          {carouselIsEphemeral && (
+                            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded font-mono">
+                              Ativo
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          O carrossel sumirá automaticamente do WhatsApp após o tempo selecionado
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={carouselIsEphemeral}
+                        onChange={(e) => setCarouselIsEphemeral(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+
+                  {carouselIsEphemeral && (
+                    <div className="pt-2.5 border-t border-[#2a3346] space-y-2.5">
+                      <div className="text-[11px] font-mono text-gray-300">
+                        Tempo de expiração dos cartões:
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { label: '24 Horas', sec: 86400, desc: 'Padrão WhatsApp' },
+                          { label: '7 Dias', sec: 604800, desc: '1 semana' },
+                          { label: '90 Dias', sec: 7776000, desc: '3 meses' },
+                          { label: '30 Segundos', sec: 30, desc: 'Teste Rápido' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.sec}
+                            type="button"
+                            onClick={() => setCarouselExpirationSeconds(preset.sec)}
+                            className={`p-2 rounded-lg text-left border transition text-xs font-mono ${
+                              carouselExpirationSeconds === preset.sec
+                                ? 'bg-amber-500/15 border-amber-500 text-amber-300 shadow-sm'
+                                : 'bg-[#0e1118] border-[#2a3346] text-gray-400 hover:text-white hover:border-gray-500'
+                            }`}
+                          >
+                            <div className="font-bold">{preset.label}</div>
+                            <div className="text-[9px] text-gray-500">{preset.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[11px] font-mono text-gray-400 whitespace-nowrap">
+                          Segundos customizados:
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={carouselExpirationSeconds}
+                          onChange={(e) =>
+                            setCarouselExpirationSeconds(Math.max(1, parseInt(e.target.value) || 1))
+                          }
+                          className="w-32 px-2.5 py-1 bg-[#0e1118] border border-[#2a3346] rounded-lg text-xs font-mono text-amber-400 focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-gray-500 font-mono">
+                          ({carouselExpirationSeconds >= 86400
+                            ? `${(carouselExpirationSeconds / 86400).toFixed(1)} dias`
+                            : carouselExpirationSeconds >= 3600
+                            ? `${(carouselExpirationSeconds / 3600).toFixed(1)} horas`
+                            : `${carouselExpirationSeconds}s`})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Send Button */}
                 <button
                   onClick={() =>
                     handleSend('carousel', {
                       bodyText: carouselBody,
                       footerText: carouselFooter,
+                      expirationSeconds: carouselIsEphemeral ? carouselExpirationSeconds : undefined,
                       cards: carouselCards.map((c) => ({
                         title: c.title,
                         text: c.text,
@@ -1195,10 +1283,23 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                     })
                   }
                   disabled={loading}
-                  className="w-full mt-4 py-3 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/20 transition disabled:opacity-50 cursor-pointer"
+                  className={`w-full mt-4 py-3 font-mono font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer ${
+                    carouselIsEphemeral
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-amber-400/20'
+                      : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[#39ff14]/20'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Enviar Carrossel Interativo ({carouselCards.length} {carouselCards.length === 1 ? 'Cartão' : 'Cartões'})
+                  {carouselIsEphemeral ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 text-black animate-pulse" />
+                      Enviar Carrossel Temporário (⏳ {carouselExpirationSeconds >= 86400 ? `${carouselExpirationSeconds / 86400}d` : `${carouselExpirationSeconds}s`})
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Enviar Carrossel Interativo ({carouselCards.length} {carouselCards.length === 1 ? 'Cartão' : 'Cartões'})
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -1464,6 +1565,18 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
                   {/* Carousel Mockup */}
                   {activeTab === 'carousel' && (
                     <div className="space-y-1.5 font-sans">
+                      {carouselIsEphemeral && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono mb-1 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-lg w-fit">
+                          <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                          <span>
+                            Temporária (
+                            {carouselExpirationSeconds >= 86400
+                              ? `${(carouselExpirationSeconds / 86400).toFixed(0)}d`
+                              : `${carouselExpirationSeconds}s`}
+                            )
+                          </span>
+                        </div>
+                      )}
                       <div className="text-[12px] leading-relaxed">{carouselBody}</div>
                       {carouselFooter && <div className="text-[10px] text-gray-400 pt-1 font-mono">{carouselFooter}</div>}
                     </div>

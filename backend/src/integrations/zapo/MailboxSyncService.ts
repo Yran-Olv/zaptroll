@@ -106,8 +106,13 @@ export class MailboxSyncService {
         messageType = 'list';
         content = '📋 Menu de Opções';
       } else if (msg.interactiveMessage) {
-        messageType = 'interactive';
-        content = '⚡ Mensagem Interativa';
+        if (msg.interactiveMessage?.carouselMessage) {
+          messageType = 'carousel';
+          content = '🎠 Carrossel Interativo';
+        } else {
+          messageType = 'interactive';
+          content = '⚡ Mensagem Interativa';
+        }
       }
 
       // Context Info / Quotes
