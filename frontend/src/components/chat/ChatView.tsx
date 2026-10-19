@@ -16,6 +16,7 @@ import {
   Terminal,
   FileText,
   Download,
+  Eye,
   Play,
   Volume2,
   Image as ImageIcon,
@@ -807,6 +808,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
+                  {/* Visualização Única (View Once) Intercepted & Saved Banner */}
+                  {(() => {
+                    const rawP = (msg.rawPayload as any) || {};
+                    const isViewOnceMsg = Boolean(
+                      rawP.isViewOnce ||
+                      rawP.viewOnceMessage ||
+                      rawP.viewOnceMessageV2 ||
+                      rawP.viewOnceMessageV2Extension ||
+                      rawP.imageMessage?.viewOnce ||
+                      rawP.videoMessage?.viewOnce ||
+                      rawP.audioMessage?.viewOnce ||
+                      rawP.ptvMessage?.viewOnce ||
+                      msg.mediaUrl?.includes('viewonce_') ||
+                      (typeof msg.content === 'string' && msg.content.includes('[Visualização Única]'))
+                    );
+
+                    if (!isViewOnceMsg) return null;
+
+                    return (
+                      <div className="mb-2 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-mono shadow-sm">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Visualização Única</span>
+                          <span className="text-[9px] px-1.5 py-0.5 bg-amber-400/25 text-amber-200 rounded font-semibold uppercase tracking-wider">
+                            Salva
+                          </span>
+                        </div>
+                        {msg.mediaUrl && (
+                          <a
+                            href={msg.mediaUrl}
+                            download={
+                              msg.mediaFilename ||
+                              (msg.messageType === 'video'
+                                ? 'video_visualizacao_unica.mp4'
+                                : 'foto_visualizacao_unica.jpg')
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white transition text-[11px] font-medium"
+                            title="Baixar arquivo salvo permanentemente"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>Baixar</span>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* 1. Image Media (mediaUrl or Base64 thumbnailUrl) */}
                   {(msg.messageType === 'image' || msg.mediaUrl || msg.thumbnailUrl) &&
                     (msg.mediaUrl || msg.thumbnailUrl) &&
@@ -821,14 +872,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           className="max-h-72 w-full object-cover rounded-xl transition hover:opacity-90"
                           loading="lazy"
                         />
+                        {msg.mediaUrl && (
+                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm rounded-lg p-1 border border-white/10">
+                            <a
+                              href={msg.mediaUrl}
+                              download={msg.mediaFilename || 'imagem_whatsapp.jpg'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 hover:bg-white/20 text-white rounded transition"
+                              title="Baixar imagem"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
 
                   {/* 2. Video Media */}
                   {(msg.messageType === 'video' || msg.mediaMimetype?.startsWith('video/')) && (
-                    <div className="mb-2 overflow-hidden rounded-xl bg-black relative border border-white/10">
+                    <div className="mb-2 overflow-hidden rounded-xl bg-black relative border border-white/10 group/vid">
                       {msg.mediaUrl ? (
-                        <video src={msg.mediaUrl} controls className="max-h-72 w-full rounded-xl" />
+                        <>
+                          <video src={msg.mediaUrl} controls className="max-h-72 w-full rounded-xl" />
+                          <div className="absolute top-2 right-2 flex items-center opacity-0 group-hover/vid:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm rounded-lg p-1 border border-white/10 z-10 pointer-events-auto">
+                            <a
+                              href={msg.mediaUrl}
+                              download={msg.mediaFilename || 'video_whatsapp.mp4'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 hover:bg-white/20 text-white rounded transition flex items-center gap-1 text-[11px] font-mono px-1.5"
+                              title="Baixar vídeo"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Baixar</span>
+                            </a>
+                          </div>
+                        </>
                       ) : msg.thumbnailUrl ? (
                         <div
                           className="relative cursor-pointer"
@@ -851,9 +932,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                   {/* 3. Audio / Voice Note */}
                   {(msg.messageType === 'audio' || msg.mediaMimetype?.startsWith('audio/')) && (
-                    <div className="mb-2 p-1.5 bg-black/40 rounded-xl flex items-center gap-2 border border-white/10">
+                    <div className="mb-2 p-1.5 bg-black/40 rounded-xl flex items-center justify-between gap-2 border border-white/10">
                       {msg.mediaUrl ? (
-                        <audio src={msg.mediaUrl} controls className="w-full h-8" />
+                        <>
+                          <audio src={msg.mediaUrl} controls className="w-full h-8" />
+                          <a
+                            href={msg.mediaUrl}
+                            download={msg.mediaFilename || 'audio_whatsapp.ogg'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg transition shrink-0"
+                            title="Baixar áudio"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </>
                       ) : (
                         <div className="flex items-center gap-2 py-1 px-2 text-gray-300">
                           <Volume2 className="w-4 h-4 text-[#39ff14]" />
@@ -1633,13 +1726,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
           onClick={() => setSelectedMediaPreview(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
-            <button
-              onClick={() => setSelectedMediaPreview(null)}
-              className="absolute -top-10 right-0 p-2 text-white/80 hover:text-white transition"
-              title="Fechar"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="absolute -top-12 right-0 flex items-center gap-2">
+              <a
+                href={selectedMediaPreview}
+                download="midia_whatsapp.jpg"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition flex items-center gap-1.5 text-xs font-mono border border-white/10"
+                title="Baixar arquivo para o computador"
+              >
+                <Download className="w-4 h-4 text-[#39ff14]" />
+                <span>Baixar</span>
+              </a>
+              <button
+                onClick={() => setSelectedMediaPreview(null)}
+                className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition border border-white/10"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <img
               src={selectedMediaPreview}
               alt="Mídia expandida"

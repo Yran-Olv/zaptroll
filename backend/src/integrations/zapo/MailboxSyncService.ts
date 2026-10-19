@@ -1,4 +1,5 @@
 import { proto } from 'zapo-js';
+import { extractMessageContent } from './ViewOnceInterceptor.js';
 import { sequelize } from '../../database/index.js';
 import {
   WhatsAppConnection,
@@ -44,14 +45,23 @@ export class MailboxSyncService {
    */
   static decodeMessageBytes(buf: Buffer): DecodedMailboxMessage | null {
     try {
-      const msg = proto.Message.decode(buf);
+      const rawProto = proto.Message.decode(buf);
 
       // Skip internal synchronization / protocol control messages
-      if (msg.protocolMessage && !msg.protocolMessage.key?.id) {
+      if (rawProto.protocolMessage && !rawProto.protocolMessage.key?.id) {
         return null;
       }
 
-      let messageType = 'text';
+      const {
+        unwrappedMsg,
+        isViewOnce,
+        mediaType: extractedMediaType,
+        hasMedia,
+      } = extractMessageContent(rawProto);
+
+      const msg = unwrappedMsg || rawProto;
+
+      let messageType = extractedMediaType || 'text';
       let content = '[Mensagem]';
       let caption: string | null = null;
       let thumbnailUrl: string | null = null;
@@ -115,6 +125,20 @@ export class MailboxSyncService {
         }
       }
 
+      if (isViewOnce) {
+        if (msg.imageMessage) {
+          content = caption
+            ? `👁️ [Visualização Única] 📷 ${caption}`
+            : '👁️ [Visualização Única] 📷 Foto salva';
+        } else if (msg.videoMessage) {
+          content = caption
+            ? `👁️ [Visualização Única] 🎥 ${caption}`
+            : '👁️ [Visualização Única] 🎥 Vídeo salvo';
+        } else if (msg.audioMessage) {
+          content = '👁️ [Visualização Única] 🎤 Áudio temporário salvo';
+        }
+      }
+
       // Context Info / Quotes
       const rawCtx =
         msg.extendedTextMessage?.contextInfo ||
@@ -153,7 +177,11 @@ export class MailboxSyncService {
         thumbnailUrl,
         mediaFilename,
         mediaMimetype,
-        rawPayload: msg,
+        rawPayload: {
+          ...(rawProto || {}),
+          ...(msg !== rawProto ? { unwrapped: msg } : {}),
+          isViewOnce: Boolean(isViewOnce),
+        },
         contextInfo,
       };
     } catch {

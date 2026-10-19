@@ -16,6 +16,7 @@ import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
 import { StatusService } from '../../modules/advanced/StatusService.js';
 import { MetaAiService } from '../../modules/advanced/MetaAiService.js';
 import { RpgCommandDispatcher } from '../../modules/rpg/commands/RpgCommandDispatcher.js';
+import { extractMessageContent } from './ViewOnceInterceptor.js';
 import fs from 'node:fs';
 
 function formatPhoneNumber(phoneOrJid: string): string {
@@ -429,32 +430,36 @@ export class ZapoEventHandler {
           }
         }
 
-        // 5.3 Handle Media Attachments (Download & Store)
+        // 5.3 Handle Media Attachments (Download & Store, including View-Once interception)
         let mediaUrl: string | null = null;
         let mediaMimetype: string | null = null;
         let mediaFilename: string | null = null;
         let thumbnailUrl: string | null = null;
         let caption: string | null = null;
 
-        const msgPayload = event.message;
+        const {
+          unwrappedMsg,
+          isViewOnce,
+          mediaType: extractedMediaType,
+          hasMedia: extractedHasMedia,
+        } = extractMessageContent(event.message);
+
+        const msgPayload = unwrappedMsg || event.message;
         const img = msgPayload?.imageMessage;
-        const vid = msgPayload?.videoMessage;
+        const vid = msgPayload?.videoMessage || msgPayload?.ptvMessage;
         const aud = msgPayload?.audioMessage;
         const doc = msgPayload?.documentMessage;
         const stk = msgPayload?.stickerMessage;
 
-        const hasMedia = Boolean(img || vid || aud || doc || stk);
+        const hasMedia = extractedHasMedia || Boolean(img || vid || aud || doc || stk);
 
-        let messageType = 'text';
-        if (img) messageType = 'image';
-        else if (vid) messageType = 'video';
-        else if (aud) messageType = 'audio';
-        else if (doc) messageType = 'document';
-        else if (stk) messageType = 'sticker';
-        else if (msgPayload?.buttonsMessage) messageType = 'buttons';
-        else if (msgPayload?.listMessage) messageType = 'list';
-        else if (msgPayload?.interactiveMessage) {
-          messageType = msgPayload.interactiveMessage?.carouselMessage ? 'carousel' : 'interactive';
+        let messageType = extractedMediaType || 'text';
+        if (!hasMedia) {
+          if (msgPayload?.buttonsMessage) messageType = 'buttons';
+          else if (msgPayload?.listMessage) messageType = 'list';
+          else if (msgPayload?.interactiveMessage) {
+            messageType = msgPayload.interactiveMessage?.carouselMessage ? 'carousel' : 'interactive';
+          }
         }
 
         if (hasMedia) {
@@ -489,18 +494,33 @@ export class ZapoEventHandler {
             mediaMimetype = stk.mimetype || 'image/webp';
           }
 
+          try {
+            fs.mkdirSync(config.mediaDir, { recursive: true });
+          } catch {}
+
           const safeStanza = stanzaId.replace(/[^a-zA-Z0-9]/g, '_');
-          const filename = `${connectionId.slice(0, 8)}_${safeStanza}_${Date.now()}.${ext}`;
+          const prefix = isViewOnce ? 'viewonce_' : '';
+          const filename = `${prefix}${connectionId.slice(0, 8)}_${safeStanza}_${Date.now()}.${ext}`;
           const filePath = path.join(config.mediaDir, filename);
 
           try {
-            await client.message.downloadToFile(event, filePath);
+            // Unwrapped payload ensures zapo-js downloadMediaMessage resolves directPath/mediaKey directly
+            const downloadSource = event.rawNode ? { ...event, message: msgPayload } : msgPayload;
+            await client.message.downloadToFile(downloadSource, filePath);
             mediaUrl = `/api/media/${filename}`;
             if (!mediaFilename) {
               mediaFilename = filename;
             }
+            if (isViewOnce) {
+              console.log(
+                `[ZapoEventHandler] 👁️ Visualização Única interceptada e salva permanentemente: ${filePath} (${mediaMimetype})`
+              );
+            }
           } catch (dlErr: any) {
-            console.warn(`[ZapoEventHandler] Download failed for message ${stanzaId}:`, dlErr.message);
+            console.warn(
+              `[ZapoEventHandler] Download failed for message ${stanzaId} (isViewOnce=${isViewOnce}):`,
+              dlErr.message
+            );
           }
         }
 
@@ -522,6 +542,22 @@ export class ZapoEventHandler {
           (msgPayload?.interactiveMessage?.carouselMessage ? '🎠 Carrossel Interativo' : null) ||
           (msgPayload?.interactiveMessage ? '⚡ Mensagem Interativa' : null) ||
           '[Mensagem não suportada ou formato especial]';
+
+        if (isViewOnce) {
+          if (img) {
+            textContent = caption
+              ? `👁️ [Visualização Única] 📷 ${caption}`
+              : '👁️ [Visualização Única] 📷 Foto salva';
+          } else if (vid) {
+            textContent = caption
+              ? `👁️ [Visualização Única] 🎥 ${caption}`
+              : '👁️ [Visualização Única] 🎥 Vídeo salvo';
+          } else if (aud) {
+            textContent = '👁️ [Visualização Única] 🎤 Áudio temporário salvo';
+          } else {
+            textContent = `👁️ [Visualização Única] ${textContent}`;
+          }
+        }
 
         // 5.5 Upsert Conversation
         let conversation = await Conversation.findOne({
@@ -638,8 +674,10 @@ export class ZapoEventHandler {
         }
 
         const enrichedRawPayload = {
-          ...(msgPayload || {}),
+          ...(event.message || {}),
+          ...(msgPayload && msgPayload !== event.message ? { unwrapped: msgPayload } : {}),
           ...(normalizedContextInfo ? { contextInfo: normalizedContextInfo } : {}),
+          isViewOnce: Boolean(isViewOnce),
         };
 
         // 5.6 Upsert Message
@@ -677,6 +715,12 @@ export class ZapoEventHandler {
           message.mediaFilename = mediaFilename;
           message.thumbnailUrl = thumbnailUrl;
           message.caption = caption;
+          if (isViewOnce) {
+            message.rawPayload = { ...(message.rawPayload || {}), isViewOnce: true };
+          }
+          await message.save();
+        } else if (isViewOnce && !message.rawPayload?.isViewOnce) {
+          message.rawPayload = { ...(message.rawPayload || {}), isViewOnce: true };
           await message.save();
         }
 
