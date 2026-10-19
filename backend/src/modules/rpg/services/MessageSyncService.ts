@@ -120,11 +120,12 @@ export class MessageSyncService {
       }
 
       if (!edited) {
-        // Envio de nova mensagem controlada
+        // Envio de nova mensagem controlada (linkPreview desativado para máxima velocidade e confiabilidade)
         const sendResult = await client.message.send(targetJid, {
           type: 'text',
           text,
-        });
+          linkPreview: false,
+        } as any);
 
         if (sendResult?.id) {
           battle.lastMessageId = sendResult.id;

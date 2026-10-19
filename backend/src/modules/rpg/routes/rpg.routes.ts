@@ -9,6 +9,9 @@ const router = Router();
 router.get('/batalha/:battleId', RpgController.getBattleState);
 router.post('/batalha/:battleId/jogar', RpgController.playCard);
 
+// Endpoints de duelo
+router.post('/duelo/bot', authMiddleware, RpgController.startBotDuel);
+
 // Endpoints informativos, missões e ranking
 router.get('/ranking', RpgController.getRanking);
 router.get('/personagens', RpgController.getCharacters);

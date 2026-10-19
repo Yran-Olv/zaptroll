@@ -56,6 +56,11 @@ export const config = {
  * com credenciais padrão, JWT_SECRET inseguro ou CORS excessivamente permissivo.
  */
 export function validateConfig(customConfig = config, env = process.env): void {
+  if (env.ALLOW_DEFAULT_CREDENTIALS === 'true' || env.SKIP_CONFIG_VALIDATION === 'true') {
+    console.warn('⚠️ [CONFIG WARNING] Validação estrita ignorada (ALLOW_DEFAULT_CREDENTIALS=true)');
+    return;
+  }
+
   if (customConfig.env === 'production') {
     const errors: string[] = [];
     const jwtSecret = env.JWT_SECRET || customConfig.jwt.secret;

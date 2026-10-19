@@ -12,6 +12,8 @@ import {
 import { RpgTokenService } from '../services/RpgTokenService.js';
 import { TurnResolutionService } from '../services/TurnResolutionService.js';
 import { MissionService } from '../services/MissionService.js';
+import { DuelService } from '../services/DuelService.js';
+import { zapoManager } from '../../../integrations/zapo/ZapoConnectionManager.js';
 
 export class RpgController {
   /**
@@ -358,6 +360,32 @@ export class RpgController {
       res.json({ success: true, config });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao atualizar configuração.' });
+    }
+  }
+
+  /**
+   * Dispara batalha de bot no grupo ou chat
+   * POST /api/rpg/duelo/bot
+   */
+  public static async startBotDuel(req: any, res: Response): Promise<void> {
+    try {
+      const { connectionId, targetJid, difficulty = 'facil', phone, userName } = req.body;
+      const client = zapoManager.getClient(connectionId);
+      if (!client) {
+        res.status(400).json({ error: 'Sessão WhatsApp não está conectada.' });
+        return;
+      }
+      const reply = await DuelService.startBotBattle({
+        connectionId,
+        targetJid,
+        phone: phone || '553499198782@s.whatsapp.net',
+        userName: userName || 'Candidato Yran',
+        difficulty,
+        client,
+      });
+      res.json({ success: true, reply });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   }
 }
