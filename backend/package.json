@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "Zaptroll Backend - WhatsApp Advanced Testing Platform with Zapo",
   "main": "dist/server.js",
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node scripts/patch-zapo.js"
   },
   "dependencies": {
     "@zapo-js/store-postgres": "^1.2.0",
