@@ -116,6 +116,13 @@ export class TurnResolutionService {
       return { success: true, turnResolved: true, message: 'Ambos travaram as cartas. Turno resolvido!' };
     }
 
+    if (!allLocked && refreshed.length === 2) {
+      const zapoClient = zapoManager.getClient(battle.connectionId);
+      if (zapoClient) {
+        MessageSyncService.syncBattleMessage(zapoClient, battle, refreshed[0], refreshed[1]).catch(() => {});
+      }
+    }
+
     return { success: true, turnResolved: false, message: 'Carta travada com sucesso! Aguardando oponente.' };
   }
 

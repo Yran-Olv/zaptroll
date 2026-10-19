@@ -240,6 +240,11 @@ export class DuelService {
     // Enviar mensagem inaugural da batalha
     await MessageSyncService.syncBattleMessage(client, battle, p1Part, p2Part);
 
+    // Enviar link de transmissão da Arena Webview separadamente da batalha
+    if (battle.groupId) {
+      await MessageSyncService.sendSeparateSpectatorLink(client, battle);
+    }
+
     // Enviar mensagem privada a cada duelista com seu link confidencial de combate
     const sendFighterPrivate = async (part: RpgBattleParticipant, opponentName: string) => {
       if (!part.phone) return;
@@ -362,6 +367,11 @@ export class DuelService {
 
     // Enviar mensagem inaugural da batalha
     await MessageSyncService.syncBattleMessage(client, battle, p1Part, p2Part);
+
+    // Enviar link de transmissão da Arena Webview separadamente da batalha
+    if (battle.groupId) {
+      await MessageSyncService.sendSeparateSpectatorLink(client, battle);
+    }
 
     // Se iniciado em grupo, envia DM de combate para o participante humano
     if (isGroup && p1Part.phone) {

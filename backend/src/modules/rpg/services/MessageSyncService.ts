@@ -1,145 +1,225 @@
 import { WaClient } from 'zapo-js';
-import { RpgBattle, RpgBattleParticipant, RpgCharacter, RpgCard } from '../models/index.js';
+import { RpgBattle, RpgBattleParticipant, RpgCharacter, RpgBattleTurn } from '../models/index.js';
 import { config } from '../../../config/index.js';
 import { CombatTurnResult } from '../engine/CombatEngine.js';
 import { RpgAccessCodeService } from './RpgAccessCodeService.js';
+import { BattleNarratorService } from './BattleNarratorService.js';
+
+export interface BattleMessageOptions {
+  inCombatStep?: string;
+  turnNarrative?: string;
+  commentatorLine?: string | null;
+  forceNewMessage?: boolean;
+}
 
 export class MessageSyncService {
   /**
-   * Constrói barra visual de vida em emojis (ex: 🟩🟩🟩🟨⬜ 64/100)
+   * Helper para formatar o nome do cenário de forma agradável
    */
-  public static renderHpBar(current: number, max: number): string {
-    const pct = Math.max(0, Math.min(1, current / max));
-    const totalBlocks = 8;
-    const filled = Math.round(pct * totalBlocks);
-
-    let color = '🟩';
-    if (pct <= 0.25) color = '🟥';
-    else if (pct <= 0.5) color = '🟨';
-
-    const bar = color.repeat(filled) + '⬜'.repeat(totalBlocks - filled);
-    return `${bar} ${current}/${max} HP`;
+  private static formatArenaName(arena: string): string {
+    if (!arena) return 'Brasília';
+    return arena
+      .replace(/ring_/i, '')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   /**
-   * Formata a mensagem de status da arena de batalha:
-   * - Em GRUPO: link público de espectador (sem expor mãos)
-   * - No PRIVADO: link secreto de lutador
+   * Envia uma mensagem SEPARADA no grupo com o link/botão oficial de transmissão da WebView 2.5D
+   */
+  public static async sendSeparateSpectatorLink(client: WaClient, battle: RpgBattle): Promise<void> {
+    const targetJid = battle.groupId;
+    if (!targetJid) return;
+    try {
+      const spectatorCode = await RpgAccessCodeService.getOrCreateSpectatorCode(battle.id);
+      const spectatorUrl = `${config.appUrl}/a/${spectatorCode}`;
+      await client.message.send(targetJid, {
+        type: 'text',
+        text: [
+          `👁️ *ZAPTROLL RPG — TRANSMISSÃO AO VIVO (ARENA 2.5D)* 🏛️`,
+          `Acompanhe a batalha com gráficos 2.5D, animações de ataque e torcida em tempo real:`,
+          `🔗 ${spectatorUrl}`,
+          ``,
+          `🏛️ _Transmissão oficial de espectador aberta a todos do grupo!_`,
+        ].join('\n'),
+      });
+    } catch (e: any) {
+      console.warn('[MessageSyncService] Falha ao enviar link de espectador separado:', e?.message || e);
+    }
+  }
+
+  /**
+   * Formata a mensagem principal da batalha:
+   * - Quando finished: APENAS o grande vencedor, como foi o desfecho e recompensas!
+   * - Em andamento: Placar com vida colorida, Narração viva, Como chegamos até aqui, Comentarista e Status das cartas.
+   * - Nunca inclui o link gigante de webview (ele vai separado)!
    */
   public static async formatBattleMessage(
     battle: RpgBattle,
     p1: RpgBattleParticipant,
     p2: RpgBattleParticipant,
-    lastSummary?: string
+    options?: BattleMessageOptions
   ): Promise<string> {
-    const p1Char = await RpgCharacter.findByPk(p1.characterId);
-    const p2Char = await RpgCharacter.findByPk(p2.characterId);
+    let p1Char: any = null;
+    let p2Char: any = null;
+    try {
+      p1Char = await RpgCharacter.findByPk(p1.characterId);
+      p2Char = await RpgCharacter.findByPk(p2.characterId);
+    } catch {}
 
-    const isGroup = Boolean(battle.groupId);
-    const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
-
-    let arenaUrl = '';
-    if (isGroup) {
-      // 1. Link postado no GRUPO é estritamente de ESPECTADOR
-      const spectatorCode = await RpgAccessCodeService.getOrCreateSpectatorCode(battle.id);
-      arenaUrl = `${config.appUrl}/a/${spectatorCode}`;
-    } else {
-      // 2. Chat privado com bot: envia link de lutador do jogador
-      const fighterCode = await RpgAccessCodeService.getOrCreateFighterCode({
-        battleId: battle.id,
-        participantId: human.id,
-        phone: human.phone,
-        playerId: human.playerId,
+    // Se a batalha acabou, exibe EXCLUSIVAMENTE o desfecho épico final
+    if (battle.status === 'finished') {
+      return BattleNarratorService.generateFinalBattleMessage({
+        battle,
+        p1,
+        p2,
+        p1CharTitle: p1Char?.title,
+        p2CharTitle: p2Char?.title,
       });
-      arenaUrl = `${config.appUrl}/a/${fighterCode}`;
     }
+
+    const p1Name = BattleNarratorService.cleanFighterName(p1.name, p1.isBot);
+    const p2Name = BattleNarratorService.cleanFighterName(p2.name, p2.isBot);
 
     const lines: string[] = [];
     lines.push('🥊 *ZAPTROLL RPG — ARENA POLÍTICA* 🏛️');
-    lines.push(`⚔️ *${p1.name}*  _VS_  *${p2.name}*`);
-    lines.push(`📍 *Cenário:* ${battle.arena.toUpperCase()} • *Turno ${battle.currentTurn}/${battle.maxTurns}*`);
+    lines.push(`⚔️ *${p1Name}*  _VS_  *${p2Name}*`);
+    lines.push(`📍 *Ring ${this.formatArenaName(battle.arena)}* • *Turno ${battle.currentTurn}/${battle.maxTurns}*`);
     lines.push('');
 
     // Placar Lutador 1
-    lines.push(`${p1Char?.avatarEmoji || '👤'} *${p1.name}* (${p1Char?.title || 'Candidato'})`);
-    lines.push(`❤️ ${this.renderHpBar(p1.currentHp, p1.maxHp)}`);
-    lines.push(`⚡ Energia: ${p1.currentEnergy}/${p1.maxEnergy} | 🔥 Ibope: ${p1.popularity}%`);
+    lines.push(`${p1Char?.avatarEmoji || '👔'} *${p1Name}* — _${p1Char?.title || 'Candidato'}_`);
+    lines.push(`❤️ ${BattleNarratorService.renderHpBar(p1.currentHp, p1.maxHp)}   ⚡${p1.currentEnergy}  🔥${p1.popularity}%`);
     lines.push('');
 
     // Placar Lutador 2
-    lines.push(`${p2Char?.avatarEmoji || '👤'} *${p2.name}* (${p2Char?.title || 'Candidato'})`);
-    lines.push(`❤️ ${this.renderHpBar(p2.currentHp, p2.maxHp)}`);
-    lines.push(`⚡ Energia: ${p2.currentEnergy}/${p2.maxEnergy} | 🔥 Ibope: ${p2.popularity}%`);
+    lines.push(`${p2Char?.avatarEmoji || '📑'} *${p2Name}* — _${p2Char?.title || 'Candidato'}_`);
+    lines.push(`❤️ ${BattleNarratorService.renderHpBar(p2.currentHp, p2.maxHp)}   ⚡${p2.currentEnergy}  🔥${p2.popularity}%`);
     lines.push('');
 
-    // Resumo da ação se houver
-    if (lastSummary) {
-      lines.push(lastSummary);
+    // Se estiver em etapa intermediária de animação (Ação 1/2 ou Ação 2/2)
+    if (options?.inCombatStep) {
+      lines.push(options.inCombatStep);
+      lines.push('');
+      return lines.join('\n');
+    }
+
+    // 1. Narração do Turno
+    let activeNarrative = options?.turnNarrative;
+    let commentator = options?.commentatorLine;
+
+    if (!activeNarrative && battle.currentTurn > 1) {
+      let lastTurn: any = null;
+      try {
+        lastTurn = await RpgBattleTurn.findOne({
+          where: { battleId: battle.id, turnNumber: battle.currentTurn - 1 },
+        });
+      } catch {}
+
+      if (lastTurn) {
+        const narrativeResult = BattleNarratorService.generateTurnNarrative({
+          turnNumber: lastTurn.turnNumber,
+          rngSeed: lastTurn.rngSeedUsed,
+          p1,
+          p2,
+          combatResult: {
+            events: lastTurn.events || [],
+            logSummary: lastTurn.logSummary || '',
+            p1: p1 as any,
+            p2: p2 as any,
+            winner: 'none',
+            isSuddenDeath: false,
+          },
+        });
+        activeNarrative = narrativeResult.narrativeText;
+        if (!commentator) {
+          commentator = narrativeResult.commentatorLine;
+        }
+      }
+    }
+
+    if (activeNarrative) {
+      lines.push(`🎙️ *NARRAÇÃO — TURNO ${battle.currentTurn - 1}*`);
+      lines.push(activeNarrative);
       lines.push('');
     }
 
-    if (battle.status === 'finished') {
-      const winner =
-        battle.winnerPlayerId === p1.playerId
-          ? p1.name
-          : battle.winnerPlayerId === p2.playerId
-          ? p2.name
-          : null;
-      if (winner) {
-        lines.push(`🏆 *VENCEDOR:* 👑 *${winner.toUpperCase()}* levou o mandato e venceu o duelo político!`);
-      } else {
-        lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
-      }
-    } else {
-      if (isGroup) {
-        // No grupo: instruções seguras sem revelar a mão dos combatentes
-        lines.push('⏱️ *Tempo para decisão:* 45 segundos');
-        lines.push('👉 *Duelistas:* respondam com 1, 2, 3 ou 4 ou acessem seu link no privado!');
-        lines.push('💬 Digite */arena* para receber seu link confidencial no privado.');
-        lines.push('');
-        lines.push('👁️ *Assista ao vivo na Arena 2.5D (Transmissão Oficial):*');
-        lines.push(`🔗 ${arenaUrl}`);
-      } else {
-        // No privado: mostra cartas do jogador
-        lines.push(`🃏 *SUAS CARTAS NA MÃO (${human?.name || 'Jogador'}):*`);
-        if (human && human.hand && human.hand.length > 0) {
-          const cards = await RpgCard.findAll({ where: { id: human.hand } });
-          cards.forEach((c, idx) => {
-            lines.push(`${idx + 1}️⃣ ${c.emoji} *${c.name}* (⚡${c.energyCost}) — ${c.description || 'Poder: ' + c.power}`);
-          });
-          lines.push('');
-        }
+    // 2. Histórico de Turnos ("COMO CHEGAMOS ATÉ AQUI") - 3 turnos anteriores
+    let priorTurns: any[] = [];
+    try {
+      priorTurns = await RpgBattleTurn.findAll({
+        where: { battleId: battle.id },
+        order: [['turnNumber', 'DESC']],
+        offset: activeNarrative || battle.currentTurn > 1 ? 1 : 0,
+        limit: 3,
+      });
+    } catch {}
 
-        lines.push('⏱️ *Tempo para decisão:* 45 segundos');
-        lines.push('👉 *Responda com 1, 2, 3 ou 4 neste chat para jogar rápido!*');
-        lines.push('');
-        lines.push('⚔️ *Ou jogue ao vivo na Arena 2.5D:*');
-        lines.push(`🔗 ${arenaUrl}`);
+    if (priorTurns.length > 0) {
+      lines.push('📜 *COMO CHEGAMOS ATÉ AQUI:*');
+      for (const pt of priorTurns) {
+        const recap = BattleNarratorService.generateTurnNarrative({
+          turnNumber: pt.turnNumber,
+          rngSeed: pt.rngSeedUsed,
+          p1,
+          p2,
+          combatResult: {
+            events: pt.events || [],
+            logSummary: pt.logSummary || '',
+            p1: p1 as any,
+            p2: p2 as any,
+            winner: 'none',
+            isSuddenDeath: false,
+          },
+        });
+        lines.push(recap.historyLine);
       }
+      lines.push('');
     }
+
+    // 3. Comentarista (somente em momentos de destaque)
+    if (commentator) {
+      lines.push(commentator);
+      lines.push('');
+    }
+
+    // 4. Status de Escolha e Instruções do Turno Atual
+    const p1Status = p1.cardLocked ? `✅ ${p1Name} travou` : `⌛ ${p1Name} escolhendo...`;
+    const p2Status = p2.cardLocked ? `✅ ${p2Name} travou` : `⌛ ${p2Name} escolhendo...`;
+
+    lines.push(`⏱️ *Turno ${battle.currentTurn} — 45s*`);
+    lines.push(`${p1Status}   ${p2Status}`);
+    lines.push('👉 *Responda 1, 2, 3 ou 4* | */arena para o link no privado*');
 
     return lines.join('\n');
   }
 
   /**
-   * Envia uma mensagem no WhatsApp ou EDITA a existente em tempo real sem criar mensagens novas
+   * Envia ou edita a mensagem da batalha em tempo real no WhatsApp.
+   * Respeita a janela máxima de 12 minutos do WhatsApp, criando uma nova mensagem se expirar.
    */
   public static async sendOrEditBattleMessage(
     client: WaClient,
     battle: RpgBattle,
     p1: RpgBattleParticipant,
     p2: RpgBattleParticipant,
-    summary?: string
+    options?: BattleMessageOptions
   ): Promise<void> {
     const targetJid = battle.groupId || p1.phone || p2.phone;
     if (!targetJid) return;
 
     try {
-      const text = await this.formatBattleMessage(battle, p1, p2, summary);
+      const text = await this.formatBattleMessage(battle, p1, p2, options);
       let edited = false;
 
-      // 1. Se já existe mensagem anterior da batalha, EDITA a mensagem nativamente no WhatsApp!
-      if (battle.lastMessageId) {
+      // Janela de edição do WhatsApp: limite seguro de 12 minutos
+      const ageMs = battle.lastMessageTimestamp
+        ? Date.now() - new Date(battle.lastMessageTimestamp).getTime()
+        : 0;
+      const isExpiredForEdit = Boolean(battle.lastMessageId && ageMs > 12 * 60 * 1000);
+
+      // 1. Tentar editar a mensagem existente se não expirou
+      if (battle.lastMessageId && !isExpiredForEdit && !options?.forceNewMessage) {
         try {
           const editRes = await client.message.send(targetJid, text, {
             editKey: { id: battle.lastMessageId },
@@ -147,22 +227,21 @@ export class MessageSyncService {
 
           if (editRes?.id) {
             edited = true;
-            battle.lastMessageTimestamp = new Date();
-            await battle.save();
           }
         } catch (editErr: any) {
           console.warn(
-            `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}:`,
+            `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId} (fallback para nova mensagem):`,
             editErr?.message || editErr
           );
           edited = false;
         }
       }
 
-      // 2. Se for a mensagem inaugural ou se a edição não puder ser aplicada (ex: mensagem expirada)
+      // 2. Se for a inaugural, se expirou ou se a edição falhou, envia mensagem nova
       if (!edited) {
-        const sendResult = await client.message.send(targetJid, text, {
-          linkPreview: true,
+        const sendResult = await client.message.send(targetJid, {
+          type: 'text',
+          text,
         } as any);
 
         if (sendResult?.id) {
@@ -180,26 +259,29 @@ export class MessageSyncService {
   }
 
   /**
-   * Sincroniza a mensagem da batalha (alias compatível)
+   * Alias de compatibilidade
    */
   public static async syncBattleMessage(
     client: WaClient,
     battle: RpgBattle,
     p1: RpgBattleParticipant,
     p2: RpgBattleParticipant,
-    summary?: string
+    summaryOrOptions?: string | BattleMessageOptions
   ): Promise<void> {
-    return this.sendOrEditBattleMessage(client, battle, p1, p2, summary);
+    const options: BattleMessageOptions =
+      typeof summaryOrOptions === 'string'
+        ? { inCombatStep: summaryOrOptions }
+        : summaryOrOptions || {};
+    return this.sendOrEditBattleMessage(client, battle, p1, p2, options);
   }
 
   /**
    * Sincroniza a narrativa do turno passo a passo editando a cada ação:
-   * 1. Ação 1: Golpe do primeiro combatente + dano/efeitos -> Edita mensagem!
-   * 2. Intervalo de 1.8s
-   * 3. Ação 2: Reação/contra-ataque do segundo combatente + dano -> Edita mensagem!
-   * 4. Intervalo de 1.5s
-   * 5. Efeitos contínuos/Passivas se houver -> Edita mensagem!
-   * 6. Desfecho completo do turno e atualização do placar -> Edita mensagem com botão Webview!
+   * 1. Ação 1: Golpe do primeiro combatente -> Edita mensagem
+   * 2. Intervalo de 1.6s
+   * 3. Ação 2: Reação/contra-ataque do segundo combatente -> Edita mensagem
+   * 4. Intervalo de 1.6s
+   * 5. Desfecho com Narração completa do turno, histórico e novo status!
    */
   public static async syncBattleTurnNarrative(
     client: WaClient,
@@ -213,31 +295,31 @@ export class MessageSyncService {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    // Identificar linhas que representam ações (começam com "• ")
     const actionIndices = rawLines
       .map((line, idx) => (line.startsWith('• ') ? idx : -1))
       .filter((idx) => idx !== -1);
 
+    const p1Name = BattleNarratorService.cleanFighterName(p1.name, p1.isBot);
+    const p2Name = BattleNarratorService.cleanFighterName(p2.name, p2.isBot);
+
     if (actionIndices.length >= 2 && battle.lastMessageId) {
-      // --- PASSO 1: AÇÃO 1 (PRIMEIRO GOLPE) ---
+      // --- PASSO 1: AÇÃO 1 ---
       const a1Index = actionIndices[0];
       const a2Index = actionIndices[1];
       const a1Line = rawLines[a1Index];
-
-      // Efeitos associados à Ação 1
       const a1Effects = rawLines.slice(a1Index + 1, a2Index).filter((l) => !l.startsWith('• '));
 
       const step1Text = [
         `⚔️ *EM COMBATE (AÇÃO 1/2):*`,
         a1Line,
         ...a1Effects,
-        `⏳ Processando reação do oponente...`,
+        `⏳ _Processando resposta do oponente..._`,
       ].join('\n');
 
-      await this.sendOrEditBattleMessage(client, battle, p1, p2, step1Text);
-      await new Promise((resolve) => setTimeout(resolve, 1800));
+      await this.sendOrEditBattleMessage(client, battle, p1, p2, { inCombatStep: step1Text });
+      await new Promise((resolve) => setTimeout(resolve, 1600));
 
-      // --- PASSO 2: AÇÃO 2 (RESPOSTA / CONTRA-ATAQUE) ---
+      // --- PASSO 2: AÇÃO 2 ---
       const a2Line = rawLines[a2Index];
       const afterA2 = rawLines.slice(a2Index + 1);
       const standardEffects = afterA2.filter(
@@ -249,33 +331,25 @@ export class MessageSyncService {
         a1Line,
         a2Line,
         ...standardEffects,
+        `⏳ _Apurando votos e prestígio..._`,
       ].join('\n');
 
-      await this.sendOrEditBattleMessage(client, battle, p1, p2, step2Text);
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-
-      // --- PASSO 3: EVENTOS ESPECIAIS (SE HOUVER CPI, PASSIVAS, REVIRAVOLTAS) ---
-      const specialEvents = afterA2.filter(
-        (l) => l.startsWith('☠️') || l.startsWith('👑') || l.startsWith('🏆') || l.startsWith('⚖️')
-      );
-
-      if (specialEvents.length > 0) {
-        const step3Text = [
-          `📜 *REVIRAVOLTA DO TURNO:*`,
-          ...specialEvents,
-        ].join('\n');
-
-        await this.sendOrEditBattleMessage(client, battle, p1, p2, step3Text);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
+      await this.sendOrEditBattleMessage(client, battle, p1, p2, { inCombatStep: step2Text });
+      await new Promise((resolve) => setTimeout(resolve, 1600));
     }
 
-    // --- PASSO FINAL: DESFECHO COMPLETO DO TURNO E PLACAR ATUALIZADO ---
-    const finalSummary = [
-      `📜 *ACONTECIMENTOS DO TURNO ${battle.currentTurn - 1}:*`,
-      combatResult.logSummary,
-    ].join('\n');
+    // --- PASSO FINAL: DESFECHO COMPLETO DO TURNO OU FIM DE BATALHA ---
+    const narrativeResult = BattleNarratorService.generateTurnNarrative({
+      turnNumber: battle.currentTurn - 1,
+      rngSeed: battle.rngSeed,
+      p1,
+      p2,
+      combatResult,
+    });
 
-    await this.sendOrEditBattleMessage(client, battle, p1, p2, finalSummary);
+    await this.sendOrEditBattleMessage(client, battle, p1, p2, {
+      turnNarrative: narrativeResult.narrativeText,
+      commentatorLine: narrativeResult.commentatorLine,
+    });
   }
 }
