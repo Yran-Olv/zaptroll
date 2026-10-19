@@ -15,6 +15,37 @@ async function main() {
   const phone = '553499198782';
   const client = await zapoManager.connect(conn.id, conn.userId);
 
+  let isPaired = false;
+  let isRequesting = false;
+  let currentCode = '';
+
+  const requestNewCode = async () => {
+    if (isPaired || isRequesting) return;
+    isRequesting = true;
+    try {
+      const code = await client.auth.requestPairingCode(phone);
+      currentCode = code;
+      console.log('\n======================================================');
+      console.log(`📲 CÓDIGO DE PAREAMENTO DO WHATSAPP ATIVO (${new Date().toLocaleTimeString()}):`);
+      console.log(`👉👉👉   ${code}   👈👈👈`);
+      console.log('======================================================');
+      console.log('No celular, abra o WhatsApp:');
+      console.log('1. Toque nos 3 pontinhos (ou Configurações) > Aparelhos Conectados');
+      console.log('2. Toque em "Conectar um Aparelho"');
+      console.log('3. Toque em "Conectar com número de telefone"');
+      console.log(`4. Digite o código: ${code}\n`);
+
+      await WhatsAppConnection.update(
+        { pairingCode: code, status: 'awaiting_auth', phoneNumber: phone },
+        { where: { id: conn.id } }
+      );
+    } catch (err: any) {
+      console.log('Aviso ao solicitar código de pareamento:', err.message);
+    } finally {
+      setTimeout(() => { isRequesting = false; }, 4000);
+    }
+  };
+
   console.log('Aguardando handshake da conexão com o WhatsApp...');
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
@@ -32,17 +63,15 @@ async function main() {
     });
   });
 
+  client.on('auth_pairing_required', () => {
+    if (!isPaired) requestNewCode();
+  });
+  client.on('auth_qr', () => {
+    if (!isPaired) requestNewCode();
+  });
+
   try {
-    const code = await client.auth.requestPairingCode(phone);
-    console.log('\n======================================================');
-    console.log('📲 NOVO CÓDIGO DE PAREAMENTO GERADO (VÁLIDO POR 10 MINUTOS):');
-    console.log(`👉👉👉   ${code}   👈👈👈`);
-    console.log('======================================================');
-    console.log('No celular, abra o WhatsApp:');
-    console.log('1. Toque nos 3 pontinhos (ou Configurações) > Aparelhos Conectados');
-    console.log('2. Toque em "Conectar um Aparelho"');
-    console.log('3. Toque em "Conectar com número de telefone"');
-    console.log(`4. Digite o código: ${code}\n`);
+    await requestNewCode();
 
     let groupCreated = false;
     const triggerGroupCreation = async (meJid?: string) => {
