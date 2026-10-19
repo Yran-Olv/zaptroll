@@ -25,6 +25,7 @@ import {
   Check,
   Phone,
   Radio,
+  Swords,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, WhatsAppConnection, Contact, Group } from '../../types/index.js';
@@ -43,6 +44,7 @@ import { EmptyConversationState } from '../memes/EmptyConversationState.js';
 import { MemeGalleryModal } from '../memes/MemeGalleryModal.js';
 import { TrollNotificationToast, TrollNotification, playTrollSound } from '../notifications/TrollNotificationToast.js';
 import { DevToolsModal } from '../dev/DevToolsModal.js';
+import { RpgAdminModal } from '../rpg/RpgAdminModal.js';
 
 export const MainLayout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -65,6 +67,7 @@ export const MainLayout: React.FC = () => {
   const [loadingChats, setLoadingChats] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showDevToolsModal, setShowDevToolsModal] = useState(false);
+  const [showRpgModal, setShowRpgModal] = useState(false);
   const [devToolsInitialQuery, setDevToolsInitialQuery] = useState('');
   const [devToolsInitialTab, setDevToolsInitialTab] = useState<
     'resolver' | 'location' | 'server_health' | 'ghost_mention' | 'status_stories' | 'groups' | 'generator'
@@ -608,6 +611,16 @@ export const MainLayout: React.FC = () => {
               title="Abrir Galeria de Memes & Stickers"
             >
               <Laugh className="w-4 h-4" />
+            </button>
+
+            {/* Zaptroll RPG Admin Shortcut Button */}
+            <button
+              type="button"
+              onClick={() => setShowRpgModal(true)}
+              className="p-1.5 text-gray-300 hover:text-emerald-400 hover:bg-[#1a202c] rounded-xl transition border border-transparent hover:border-emerald-500/30"
+              title="Abrir Painel do RPG Parlamentar (Arquétipos, Flags e Lutas)"
+            >
+              <Swords className="w-4 h-4 text-emerald-400" />
             </button>
 
             <div className="text-right mr-1 hidden sm:block">
@@ -1192,6 +1205,12 @@ export const MainLayout: React.FC = () => {
         activeConnectionId={selectedConversation?.connectionId || selectedConnection?.id}
         initialQuery={devToolsInitialQuery}
         initialTab={devToolsInitialTab}
+      />
+
+      {/* Zaptroll RPG Admin Modal */}
+      <RpgAdminModal
+        isOpen={showRpgModal}
+        onClose={() => setShowRpgModal(false)}
       />
 
       {/* Modal: Confirm Close All Conversations */}

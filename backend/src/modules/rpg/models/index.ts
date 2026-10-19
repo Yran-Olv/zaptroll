@@ -8,6 +8,7 @@ import { RpgBattleTurn } from './RpgBattleTurn.js';
 import { RpgDuelInvite } from './RpgDuelInvite.js';
 import { RpgItem, RpgInventory } from './RpgItem.js';
 import { RpgCampaignProgress, RpgConfig } from './RpgCampaignProgress.js';
+import { RpgAuditLog } from './RpgAuditLog.js';
 
 // Relacionamentos
 RpgPlayer.hasMany(RpgPlayerCharacter, { foreignKey: 'playerId', as: 'characters', onDelete: 'CASCADE' });
@@ -42,4 +43,5 @@ export {
   RpgInventory,
   RpgCampaignProgress,
   RpgConfig,
+  RpgAuditLog,
 };

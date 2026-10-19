@@ -9,6 +9,7 @@ import { DuelService } from '../services/DuelService.js';
 import { TurnResolutionService } from '../services/TurnResolutionService.js';
 import { EconomyService } from '../services/EconomyService.js';
 import { CampaignService } from '../services/CampaignService.js';
+import { MissionService } from '../services/MissionService.js';
 
 export interface DispatcherParams {
   client: WaClient;
@@ -209,6 +210,14 @@ export class RpgCommandDispatcher {
         return true;
       }
 
+      case 'missoes':
+      case 'metas':
+      case 'tarefas': {
+        const { formatted } = await MissionService.getDailyMissions(senderJid, userName);
+        await client.message.send(remoteJid, { type: 'text', text: formatted });
+        return true;
+      }
+
       default:
         return false;
     }
@@ -381,6 +390,7 @@ export class RpgCommandDispatcher {
       '',
       '💼 *ECONOMIA & PERFIL:*',
       '• */perfil* — Atributos, cargo, ELO, vitórias e sequência',
+      '• */missoes* — Metas diárias com bônus extras de verba e XP',
       '• */diaria* — Recolha sua verba parlamentar diária (R$ + XP)',
       '• */loja* — Compre equipamentos e itens na Loja do Congresso',
       '• */comprar <id>* — Adquira um item da loja',

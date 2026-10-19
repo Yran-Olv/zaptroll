@@ -14,6 +14,8 @@ import {
   Flame,
   AlertTriangle,
   RotateCcw,
+  ThumbsUp,
+  Award,
 } from 'lucide-react';
 import { rpgAudio } from '../../utils/rpgAudio.js';
 
@@ -33,6 +35,7 @@ interface CardData {
 
 interface ParticipantData {
   id: string;
+  playerId?: string | null;
   name: string;
   phone?: string;
   isBot: boolean;
@@ -574,12 +577,74 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
               )}
             </div>
           ) : (
-            <div className="text-center py-2 text-sm text-gray-400 font-mono">
-              👓 Você está assistindo a esta luta como espectador ao vivo.
+            <div className="flex items-center justify-between py-1 px-2 text-xs font-mono text-gray-300">
+              <span>👓 Modo Espectador ao Vivo (Transmissão da Arena)</span>
+              <button
+                onClick={() => {
+                  rpgAudio.playCardSelect();
+                  setP1((prev) => (prev ? { ...prev, popularity: Math.min(100, prev.popularity + 2) } : null));
+                  setP2((prev) => (prev ? { ...prev, popularity: Math.min(100, prev.popularity + 2) } : null));
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-bold transition shadow"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" /> Aplaudir (+Ibope)
+              </button>
             </div>
           )}
         </div>
       </footer>
+
+      {/* 4. MODAL DE FIM DE COMBATE / RESULTADO ELEITORAL */}
+      {battle.status === 'finished' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-md bg-[#0d121c] border-2 border-emerald-500/50 rounded-3xl p-6 text-center shadow-[0_0_50px_rgba(16,185,129,0.3)] space-y-4">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-emerald-500 to-amber-500 flex items-center justify-center shadow-lg animate-bounce">
+              <Trophy className="w-10 h-10 text-white" />
+            </div>
+
+            <div>
+              <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">
+                Resultado Oficial da Apuração
+              </span>
+              <h2 className="text-2xl font-black text-white mt-1">
+                {battle.winnerPlayerId === p1.playerId
+                  ? `${p1.name} Venceu o Debate!`
+                  : battle.winnerPlayerId === p2.playerId
+                  ? `${p2.name} Venceu o Debate!`
+                  : 'Empate no Plenário!'}
+              </h2>
+            </div>
+
+            <p className="text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+              O combate foi encerrado e os pontos de prestígio, experiência e verba parlamentar foram computados!
+            </p>
+
+            <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex justify-around text-xs font-mono">
+              <div>
+                <div className="text-gray-400">Placar Final</div>
+                <div className="font-bold text-white mt-0.5">
+                  {p1.currentHp} vs {p2.currentHp} HP
+                </div>
+              </div>
+              <div className="border-r border-white/10" />
+              <div>
+                <div className="text-gray-400">Total de Turnos</div>
+                <div className="font-bold text-emerald-400 mt-0.5">{battle.currentTurn}</div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (window.opener) window.close();
+                else window.location.href = '/';
+              }}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm tracking-wide shadow-lg transition"
+            >
+              Concluir & Retornar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

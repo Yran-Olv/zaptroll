@@ -4,6 +4,8 @@ import { BalanceSimulator } from '../src/modules/rpg/engine/BalanceSimulator.js'
 import { BotAiService } from '../src/modules/rpg/services/BotAiService.js';
 import { RpgTokenService } from '../src/modules/rpg/services/RpgTokenService.js';
 import { EconomyService } from '../src/modules/rpg/services/EconomyService.js';
+import { MissionService } from '../src/modules/rpg/services/MissionService.js';
+import { RpgTurnWorker } from '../src/modules/rpg/services/RpgTurnWorker.js';
 
 describe('Zaptroll RPG — Combat Engine (Pure Deterministic)', () => {
   const createMockFighter = (overrides?: Partial<FighterCombatState>): FighterCombatState => ({
@@ -330,3 +332,23 @@ describe('Zaptroll RPG — Balance Simulator (Monte Carlo)', () => {
     expect(result.characterWinRates['c2']).toBeDefined();
   });
 });
+
+describe('Zaptroll RPG — Missions & Daily Goals', () => {
+  it('returns structured daily missions with rewards', async () => {
+    const { missions, formatted } = await MissionService.getDailyMissions('5511888888888@s.whatsapp.net', 'Deputado Teste');
+    expect(missions.length).toBe(3);
+    expect(missions[0].rewardCoins).toBeGreaterThan(0);
+    expect(missions[0].rewardXp).toBeGreaterThan(0);
+    expect(formatted).toContain('PAINEL DE METAS & MISSÕES DIÁRIAS');
+  });
+});
+
+describe('Zaptroll RPG — Turn Worker Timeout Monitor', () => {
+  it('instantiates and starts/stops worker without errors', () => {
+    expect(() => {
+      RpgTurnWorker.start(10000);
+      RpgTurnWorker.stop();
+    }).not.toThrow();
+  });
+});
+

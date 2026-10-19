@@ -6,9 +6,12 @@ import {
   RpgCard,
   RpgCharacter,
   RpgPlayer,
+  RpgConfig,
+  RpgAuditLog,
 } from '../models/index.js';
 import { RpgTokenService } from '../services/RpgTokenService.js';
 import { TurnResolutionService } from '../services/TurnResolutionService.js';
+import { MissionService } from '../services/MissionService.js';
 
 export class RpgController {
   /**
@@ -82,6 +85,7 @@ export class RpgController {
 
         participantsData.push({
           id: p.id,
+          playerId: p.playerId,
           name: p.name,
           phone: isSelf ? p.phone : undefined,
           isBot: p.isBot,
@@ -234,6 +238,126 @@ export class RpgController {
       res.json({ characters });
     } catch (err: any) {
       res.status(500).json({ error: 'Erro ao listar personagens.' });
+    }
+  }
+
+  /**
+   * Consulta metas e missões diárias
+   * GET /api/rpg/missoes
+   */
+  public static async getMissions(req: Request, res: Response): Promise<void> {
+    try {
+      const phone = (req.query.phone as string) || '5511999999999@s.whatsapp.net';
+      const result = await MissionService.getDailyMissions(phone);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erro ao obter missões.' });
+    }
+  }
+
+  /**
+   * Visão geral administrativa do ecossistema RPG
+   * GET /api/rpg/admin/overview
+   */
+  public static async getAdminOverview(req: Request, res: Response): Promise<void> {
+    try {
+      const totalPlayers = await RpgPlayer.count();
+      const activeBattlesCount = await RpgBattle.count({
+        where: { status: ['selecting_characters', 'selecting_cards', 'resolving_turn'] },
+      });
+      const totalBattlesCount = await RpgBattle.count();
+      const totalCoinsInCirculation = (await RpgPlayer.sum('coins')) || 0;
+
+      const recentBattles = await RpgBattle.findAll({
+        order: [['createdAt', 'DESC']],
+        limit: 10,
+        include: [{ model: RpgBattleParticipant, as: 'participants' }],
+      });
+
+      const allCharacters = await RpgCharacter.findAll({
+        order: [['name', 'ASC']],
+      });
+
+      const configs = await RpgConfig.findAll({
+        order: [['key', 'ASC']],
+      });
+
+      res.json({
+        stats: {
+          totalPlayers,
+          activeBattlesCount,
+          totalBattlesCount,
+          totalCoinsInCirculation,
+        },
+        recentBattles,
+        characters: allCharacters,
+        configs,
+      });
+    } catch (err: any) {
+      console.error('[RpgController] Erro no painel admin:', err);
+      res.status(500).json({ error: 'Erro ao carregar dados administrativos.' });
+    }
+  }
+
+  /**
+   * Alterna estado de ativação de um personagem (kill-switch de segurança)
+   * POST /api/rpg/admin/personagens/:id/toggle
+   */
+  public static async toggleCharacter(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const character = await RpgCharacter.findByPk(id);
+
+      if (!character) {
+        res.status(404).json({ error: 'Personagem não encontrado.' });
+        return;
+      }
+
+      character.active = !character.active;
+      await character.save();
+
+      await RpgAuditLog.create({
+        action: 'toggle_character',
+        targetType: 'character',
+        targetId: id,
+        details: { active: character.active, name: character.name },
+      });
+
+      res.json({ success: true, active: character.active, name: character.name });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erro ao alterar estado do personagem.' });
+    }
+  }
+
+  /**
+   * Atualiza valor de uma configuração / feature flag do RPG
+   * PUT /api/rpg/admin/configs/:key
+   */
+  public static async updateConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+
+      if (value === undefined) {
+        res.status(400).json({ error: 'Valor da configuração não fornecido.' });
+        return;
+      }
+
+      const [config] = await RpgConfig.upsert({
+        key,
+        value: String(value),
+      });
+
+      await RpgAuditLog.create({
+        action: 'update_config',
+        targetType: 'config',
+        targetId: key,
+        details: { key, value: String(value) },
+      });
+
+      res.json({ success: true, config });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erro ao atualizar configuração.' });
     }
   }
 }

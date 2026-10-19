@@ -24,6 +24,7 @@ import {
   RpgInventory,
   RpgCampaignProgress,
   RpgConfig,
+  RpgAuditLog,
 } from '../../modules/rpg/models/index.js';
 import { RpgSeedService } from '../../modules/rpg/services/RpgSeedService.js';
 
@@ -116,4 +117,5 @@ export {
   RpgInventory,
   RpgCampaignProgress,
   RpgConfig,
+  RpgAuditLog,
 };

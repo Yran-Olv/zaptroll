@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { config, validateConfig } from './config/index.js';
 import { initDatabase } from './database/models/index.js';
 import { RpgSeedService } from './modules/rpg/services/RpgSeedService.js';
+import { RpgTurnWorker } from './modules/rpg/services/RpgTurnWorker.js';
 import { initSocket } from './modules/realtime/socket.js';
 import { zapoManager } from './integrations/zapo/ZapoConnectionManager.js';
 import { AutoDestructService } from './modules/messages/AutoDestructService.js';
@@ -17,6 +18,7 @@ async function bootstrap() {
     // 1. Initialize Database & Seed RPG
     await initDatabase();
     await RpgSeedService.seedDefaults();
+    RpgTurnWorker.start(5000);
 
     // 2. Setup Express & HTTP Server
     const app = createApp();
@@ -41,6 +43,7 @@ async function bootstrap() {
     // 6. Graceful Shutdown handlers
     const shutdown = async (signal: string) => {
       console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+      RpgTurnWorker.stop();
       await zapoManager.destroyAll();
       server.close(() => {
         console.log('👋 HTTP server closed. Process exiting.');
