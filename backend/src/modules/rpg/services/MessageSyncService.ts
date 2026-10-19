@@ -1,4 +1,5 @@
 import { WaClient } from 'zapo-js';
+import crypto from 'crypto';
 import { RpgBattle, RpgBattleParticipant, RpgCharacter } from '../models/index.js';
 import { RpgTokenService } from './RpgTokenService.js';
 import { config } from '../../../config/index.js';
@@ -19,6 +20,37 @@ export class MessageSyncService {
 
     const bar = color.repeat(filled) + '⬜'.repeat(totalBlocks - filled);
     return `${bar} ${current}/${max} HP`;
+  }
+
+  /**
+   * Constrói o payload com o Botão Nativo de Webview (cta_url em tela cheia)
+   */
+  public static buildInteractivePayload(text: string, arenaUrl: string) {
+    return {
+      messageContextInfo: {
+        messageSecret: crypto.randomBytes(32),
+      },
+      interactiveMessage: {
+        body: { text },
+        footer: { text: '🏛️ Arena Zaptroll RPG • Luta Política' },
+        nativeFlowMessage: {
+          buttons: [
+            {
+              name: 'cta_url',
+              buttonParamsJson: JSON.stringify({
+                display_text: '⚔️ Abrir Arena Web',
+                url: arenaUrl,
+                merchant_url: arenaUrl,
+                webview_presentation: 'full',
+                webview_interaction: true,
+              }),
+            },
+          ],
+          messageVersion: 1,
+          messageParamsJson: '{}',
+        },
+      },
+    };
   }
 
   /**
@@ -57,7 +89,6 @@ export class MessageSyncService {
 
     // Resumo da ação se houver
     if (lastSummary) {
-      lines.push('📜 *ACONTECIMENTOS DO TURNO:*');
       lines.push(lastSummary);
       lines.push('');
     }
@@ -75,8 +106,8 @@ export class MessageSyncService {
         lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
       }
     } else {
-      lines.push('🃏 *ESCOLHA SUAS CARTAS NA ARENA WEB:*');
-      lines.push('📲 *Toque no link abaixo para ver suas cartas e escolher sua jogada:*');
+      lines.push('🃏 *ESCOLHA SUAS CARTAS:*');
+      lines.push('📲 Toque no botão *⚔️ Abrir Arena Web* abaixo para ver suas cartas e jogar ao vivo!');
       lines.push(`🔗 ${arenaUrl}`);
       lines.push('');
       lines.push('⏱️ *Tempo para decisão:* 45 segundos');
@@ -87,7 +118,7 @@ export class MessageSyncService {
   }
 
   /**
-   * Envia uma nova mensagem ou edita a existente em tempo real no WhatsApp
+   * Envia uma nova mensagem com Botão Nativo ou edita a existente em tempo real no WhatsApp
    */
   public static async sendOrEditBattleMessage(
     client: WaClient,
@@ -101,6 +132,12 @@ export class MessageSyncService {
 
     try {
       const text = await this.formatBattleMessage(battle, p1, p2, summary);
+      const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
+      const token = RpgTokenService.generateBattleToken(battle.id, human?.phone || undefined, false);
+      const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}?t=${token}`;
+
+      const interactivePayload = this.buildInteractivePayload(text, arenaUrl);
+
       const creds = client.getCredentials?.() || null;
       const ownParticipant = creds?.meLid || creds?.meJid;
       const isGroup = targetJid.endsWith('@g.us');
@@ -109,14 +146,11 @@ export class MessageSyncService {
 
       // 1. Se já existe mensagem anterior da batalha, tenta EDITAR a mensagem no WhatsApp
       if (battle.lastMessageId) {
+        // Tentativa A: Editar preservando o card interativo com o botão
         try {
           await client.message.send(
             targetJid,
-            {
-              type: 'text',
-              text,
-              linkPreview: true,
-            } as any,
+            interactivePayload as any,
             {
               editKey: {
                 id: battle.lastMessageId,
@@ -127,27 +161,58 @@ export class MessageSyncService {
           edited = true;
           battle.lastMessageTimestamp = new Date();
           await battle.save();
-        } catch (editErr: any) {
-          console.warn(
-            `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}:`,
-            editErr?.message || editErr
-          );
-          edited = false;
+        } catch (interactiveEditErr: any) {
+          // Tentativa B: Fallback de texto se o cliente do WhatsApp não aceitar edição de interactiveMessage
+          try {
+            await client.message.send(
+              targetJid,
+              {
+                type: 'text',
+                text,
+                linkPreview: true,
+              } as any,
+              {
+                editKey: {
+                  id: battle.lastMessageId,
+                  ...(isGroup && ownParticipant ? { participant: ownParticipant } : {}),
+                },
+              }
+            );
+            edited = true;
+            battle.lastMessageTimestamp = new Date();
+            await battle.save();
+          } catch (textEditErr: any) {
+            console.warn(
+              `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}:`,
+              textEditErr?.message || textEditErr
+            );
+            edited = false;
+          }
         }
       }
 
       // 2. Se for a mensagem inaugural (Turno 1) ou se a edição não pôde ser aplicada:
       if (!edited) {
-        const sendResult = await client.message.send(targetJid, {
-          type: 'text',
-          text,
-          linkPreview: true,
-        } as any);
+        try {
+          const sendResult = await client.message.send(targetJid, interactivePayload as any);
+          if (sendResult?.id) {
+            battle.lastMessageId = sendResult.id;
+            battle.lastMessageTimestamp = new Date();
+            await battle.save();
+          }
+        } catch (buttonErr: any) {
+          console.warn('[MessageSyncService] Envio com botão nativo falhou, enviando com link preview:', buttonErr);
+          const sendResult = await client.message.send(targetJid, {
+            type: 'text',
+            text,
+            linkPreview: true,
+          } as any);
 
-        if (sendResult?.id) {
-          battle.lastMessageId = sendResult.id;
-          battle.lastMessageTimestamp = new Date();
-          await battle.save();
+          if (sendResult?.id) {
+            battle.lastMessageId = sendResult.id;
+            battle.lastMessageTimestamp = new Date();
+            await battle.save();
+          }
         }
       }
     } catch (err: any) {
@@ -172,10 +237,13 @@ export class MessageSyncService {
   }
 
   /**
-   * Sincroniza a narrativa do turno passo a passo:
-   * 1. Edita com o primeiro golpe ("Yran deu primeiro soco...")
-   * 2. Aguarda um breve intervalo (1.5s)
-   * 3. Edita com a reação do adversário ("Bot defendeu...") e o status final do turno.
+   * Sincroniza a narrativa do turno passo a passo editando a cada ação:
+   * 1. Ação 1: Golpe do primeiro combatente + dano/efeitos -> Edita mensagem!
+   * 2. Intervalo de 1.8s
+   * 3. Ação 2: Reação/contra-ataque do segundo combatente + dano -> Edita mensagem!
+   * 4. Intervalo de 1.5s
+   * 5. Efeitos contínuos/Passivas se houver -> Edita mensagem!
+   * 6. Desfecho completo do turno e atualização do placar -> Edita mensagem com botão Webview!
    */
   public static async syncBattleTurnNarrative(
     client: WaClient,
@@ -189,24 +257,69 @@ export class MessageSyncService {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    // Linhas de ações dos lutadores (iniciadas com "• ")
-    const actionLines = rawLines.filter((l) => l.startsWith('• '));
+    // Identificar linhas que representam ações (começam com "• ")
+    const actionIndices = rawLines
+      .map((line, idx) => (line.startsWith('• ') ? idx : -1))
+      .filter((idx) => idx !== -1);
 
-    if (actionLines.length >= 2 && battle.lastMessageId) {
-      // Passo 1: Edita a mensagem mostrando a primeira ação
-      const firstActionSummary = [
-        `⚔️ *EM COMBATE:*`,
-        actionLines[0],
-        `⏳ Processando resposta do oponente...`,
+    if (actionIndices.length >= 2 && battle.lastMessageId) {
+      // --- PASSO 1: AÇÃO 1 (PRIMEIRO GOLPE) ---
+      const a1Index = actionIndices[0];
+      const a2Index = actionIndices[1];
+      const a1Line = rawLines[a1Index];
+
+      // Efeitos associados à Ação 1
+      const a1Effects = rawLines.slice(a1Index + 1, a2Index).filter((l) => !l.startsWith('• '));
+
+      const step1Text = [
+        `⚔️ *EM COMBATE (AÇÃO 1/2):*`,
+        a1Line,
+        ...a1Effects,
+        `⏳ Processando reação do oponente...`,
       ].join('\n');
 
-      await this.sendOrEditBattleMessage(client, battle, p1, p2, firstActionSummary);
+      await this.sendOrEditBattleMessage(client, battle, p1, p2, step1Text);
+      await new Promise((resolve) => setTimeout(resolve, 1800));
 
-      // Intervalo dramático de 1.5s
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // --- PASSO 2: AÇÃO 2 (RESPOSTA / CONTRA-ATAQUE) ---
+      const a2Line = rawLines[a2Index];
+      const afterA2 = rawLines.slice(a2Index + 1);
+      const standardEffects = afterA2.filter(
+        (l) => !l.startsWith('☠️') && !l.startsWith('👑') && !l.startsWith('🏆') && !l.startsWith('⚖️')
+      );
+
+      const step2Text = [
+        `⚔️ *EM COMBATE (AÇÃO 2/2):*`,
+        a1Line,
+        a2Line,
+        ...standardEffects,
+      ].join('\n');
+
+      await this.sendOrEditBattleMessage(client, battle, p1, p2, step2Text);
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      // --- PASSO 3: EVENTOS ESPECIAIS (SE HOUVER CPI, PASSIVAS, REVIRAVOLTAS) ---
+      const specialEvents = afterA2.filter(
+        (l) => l.startsWith('☠️') || l.startsWith('👑') || l.startsWith('🏆') || l.startsWith('⚖️')
+      );
+
+      if (specialEvents.length > 0) {
+        const step3Text = [
+          `📜 *REVIRAVOLTA DO TURNO:*`,
+          ...specialEvents,
+        ].join('\n');
+
+        await this.sendOrEditBattleMessage(client, battle, p1, p2, step3Text);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     }
 
-    // Passo 2: Edita a mensagem com o desfecho completo do turno
-    await this.sendOrEditBattleMessage(client, battle, p1, p2, combatResult.logSummary);
+    // --- PASSO FINAL: DESFECHO COMPLETO DO TURNO E PLACAR ATUALIZADO ---
+    const finalSummary = [
+      `📜 *ACONTECIMENTOS DO TURNO ${battle.currentTurn - 1}:*`,
+      combatResult.logSummary,
+    ].join('\n');
+
+    await this.sendOrEditBattleMessage(client, battle, p1, p2, finalSummary);
   }
 }
