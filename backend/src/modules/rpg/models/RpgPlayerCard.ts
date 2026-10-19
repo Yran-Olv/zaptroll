@@ -11,15 +11,15 @@ export interface RpgPlayerCardAttributes {
 }
 
 export class RpgPlayerCard extends Model<RpgPlayerCardAttributes, Partial<RpgPlayerCardAttributes>> implements RpgPlayerCardAttributes {
-  public id!: string;
-  public playerId!: string;
-  public cardId!: string;
-  public level!: number;
-  public fragments!: number;
-  public inDeck!: boolean;
+  declare id: string;
+  declare playerId: string;
+  declare cardId: string;
+  declare level: number;
+  declare fragments: number;
+  declare inDeck: boolean;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgPlayerCard.init(
@@ -72,14 +72,14 @@ export interface RpgPlayerCharacterAttributes {
 }
 
 export class RpgPlayerCharacter extends Model<RpgPlayerCharacterAttributes, Partial<RpgPlayerCharacterAttributes>> implements RpgPlayerCharacterAttributes {
-  public id!: string;
-  public playerId!: string;
-  public characterId!: string;
-  public level!: number;
-  public masteryXp!: number;
+  declare id: string;
+  declare playerId: string;
+  declare characterId: string;
+  declare level: number;
+  declare masteryXp: number;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgPlayerCharacter.init(

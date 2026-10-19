@@ -281,7 +281,11 @@ export class DuelService {
 
     const pickCards = (count = 4) => {
       const picks: string[] = [];
-      for (let i = 0; i < count; i++) {
+      const lowCost = allCards.filter((c) => c.energyCost <= 2).map((c) => c.id);
+      if (lowCost.length > 0) {
+        picks.push(lowCost[Math.floor(Math.random() * lowCost.length)]);
+      }
+      while (picks.length < count && cardIds.length > 0) {
         picks.push(cardIds[Math.floor(Math.random() * cardIds.length)]);
       }
       return picks;

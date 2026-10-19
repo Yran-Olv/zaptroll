@@ -36,25 +36,25 @@ export interface RpgCardAttributes {
 }
 
 export class RpgCard extends Model<RpgCardAttributes, Partial<RpgCardAttributes>> implements RpgCardAttributes {
-  public id!: string;
-  public name!: string;
-  public description!: string;
-  public category!: CardCategory;
-  public element!: CardElement;
-  public energyCost!: number;
-  public power!: number;
-  public priority!: number;
-  public cooldown!: number;
-  public rarity!: CardRarity;
-  public targetEffect!: CardEffect | null;
-  public selfEffect!: CardEffect | null;
-  public isBluff!: boolean;
-  public isComboStarter!: boolean;
-  public comboFollowUp!: string | null;
-  public emoji!: string;
+  declare id: string;
+  declare name: string;
+  declare description: string;
+  declare category: CardCategory;
+  declare element: CardElement;
+  declare energyCost: number;
+  declare power: number;
+  declare priority: number;
+  declare cooldown: number;
+  declare rarity: CardRarity;
+  declare targetEffect: CardEffect | null;
+  declare selfEffect: CardEffect | null;
+  declare isBluff: boolean;
+  declare isComboStarter: boolean;
+  declare comboFollowUp: string | null;
+  declare emoji: string;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgCard.init(

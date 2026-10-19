@@ -11,15 +11,15 @@ export interface RpgAuditLogAttributes {
 }
 
 export class RpgAuditLog extends Model<RpgAuditLogAttributes, Partial<RpgAuditLogAttributes>> implements RpgAuditLogAttributes {
-  public id!: string;
-  public adminId!: string | null;
-  public action!: string;
-  public targetType!: string;
-  public targetId!: string | null;
-  public details!: any;
+  declare id: string;
+  declare adminId: string | null;
+  declare action: string;
+  declare targetType: string;
+  declare targetId: string | null;
+  declare details: any;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgAuditLog.init(

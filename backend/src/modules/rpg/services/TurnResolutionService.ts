@@ -356,17 +356,42 @@ export class TurnResolutionService {
       p2.cardLocked = false;
       p2.selectedCardId = null;
 
-      // Compra de nova carta para a mão se tiver menos de 4
+      // Remover cartas usadas das mãos
+      const p1Hand = [...(p1.hand || [])];
+      const p1Idx = p1Hand.indexOf(p1CardState.id);
+      if (p1Idx !== -1) p1Hand.splice(p1Idx, 1);
+
+      const p2Hand = [...(p2.hand || [])];
+      const p2Idx = p2Hand.indexOf(p2CardState.id);
+      if (p2Idx !== -1) p2Hand.splice(p2Idx, 1);
+
+      // Compra de nova carta para a mão mantendo sempre opções jogáveis
       const allCards = await RpgCard.findAll({ transaction: t });
       const cardIds = allCards.map((c) => c.id);
-      while (p1.hand.length < 4 && cardIds.length > 0) {
-        const pick = cardIds[Math.floor(Math.random() * cardIds.length)];
-        p1.hand.push(pick);
+      const lowCostIds = allCards.filter((c) => c.energyCost <= 2).map((c) => c.id);
+
+      while (p1Hand.length < 4 && cardIds.length > 0) {
+        const hasLowCost = p1Hand.some((id) => {
+          const card = allCards.find((c) => c.id === id);
+          return card && card.energyCost <= 2;
+        });
+        const pool = !hasLowCost && lowCostIds.length > 0 ? lowCostIds : cardIds;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        p1Hand.push(pick);
       }
-      while (p2.hand.length < 4 && cardIds.length > 0) {
-        const pick = cardIds[Math.floor(Math.random() * cardIds.length)];
-        p2.hand.push(pick);
+
+      while (p2Hand.length < 4 && cardIds.length > 0) {
+        const hasLowCost = p2Hand.some((id) => {
+          const card = allCards.find((c) => c.id === id);
+          return card && card.energyCost <= 2;
+        });
+        const pool = !hasLowCost && lowCostIds.length > 0 ? lowCostIds : cardIds;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        p2Hand.push(pick);
       }
+
+      p1.hand = p1Hand;
+      p2.hand = p2Hand;
 
       await p1.save({ transaction: t });
       await p2.save({ transaction: t });

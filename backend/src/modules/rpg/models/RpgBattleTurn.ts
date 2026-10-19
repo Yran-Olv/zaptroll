@@ -26,21 +26,21 @@ export interface RpgBattleTurnAttributes {
 }
 
 export class RpgBattleTurn extends Model<RpgBattleTurnAttributes, Partial<RpgBattleTurnAttributes>> implements RpgBattleTurnAttributes {
-  public id!: string;
-  public battleId!: string;
-  public turnNumber!: number;
-  public p1Choice!: string | null;
-  public p2Choice!: string | null;
-  public p1HpAfter!: number;
-  public p2HpAfter!: number;
-  public p1EnergyAfter!: number;
-  public p2EnergyAfter!: number;
-  public logSummary!: string;
-  public events!: TurnEvent[];
-  public rngSeedUsed!: number;
+  declare id: string;
+  declare battleId: string;
+  declare turnNumber: number;
+  declare p1Choice: string | null;
+  declare p2Choice: string | null;
+  declare p1HpAfter: number;
+  declare p2HpAfter: number;
+  declare p1EnergyAfter: number;
+  declare p2EnergyAfter: number;
+  declare logSummary: string;
+  declare events: TurnEvent[];
+  declare rngSeedUsed: number;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgBattleTurn.init(

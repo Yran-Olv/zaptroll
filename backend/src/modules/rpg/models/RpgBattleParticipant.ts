@@ -34,32 +34,32 @@ export interface RpgBattleParticipantAttributes {
 }
 
 export class RpgBattleParticipant extends Model<RpgBattleParticipantAttributes, Partial<RpgBattleParticipantAttributes>> implements RpgBattleParticipantAttributes {
-  public id!: string;
-  public battleId!: string;
-  public playerId!: string | null;
-  public phone!: string | null;
-  public name!: string;
-  public isBot!: boolean;
-  public botDifficulty!: 'facil' | 'normal' | 'dificil' | 'chefe' | null;
-  public botPersonality!: 'agressivo' | 'defensivo' | 'blefador' | 'equilibrado' | null;
-  public characterId!: string;
-  public maxHp!: number;
-  public currentHp!: number;
-  public maxEnergy!: number;
-  public currentEnergy!: number;
-  public popularity!: number;
-  public rage!: number;
-  public activeStatuses!: ActiveStatusEffect[];
-  public selectedCardId!: string | null;
-  public cardLocked!: boolean;
-  public comboStreak!: string[];
-  public cardCooldowns!: Record<string, number>;
-  public hand!: string[];
-  public allyUsed!: boolean;
-  public passiveTriggered!: boolean;
+  declare id: string;
+  declare battleId: string;
+  declare playerId: string | null;
+  declare phone: string | null;
+  declare name: string;
+  declare isBot: boolean;
+  declare botDifficulty: 'facil' | 'normal' | 'dificil' | 'chefe' | null;
+  declare botPersonality: 'agressivo' | 'defensivo' | 'blefador' | 'equilibrado' | null;
+  declare characterId: string;
+  declare maxHp: number;
+  declare currentHp: number;
+  declare maxEnergy: number;
+  declare currentEnergy: number;
+  declare popularity: number;
+  declare rage: number;
+  declare activeStatuses: ActiveStatusEffect[];
+  declare selectedCardId: string | null;
+  declare cardLocked: boolean;
+  declare comboStreak: string[];
+  declare cardCooldowns: Record<string, number>;
+  declare hand: string[];
+  declare allyUsed: boolean;
+  declare passiveTriggered: boolean;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgBattleParticipant.init(

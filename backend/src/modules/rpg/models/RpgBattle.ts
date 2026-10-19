@@ -29,24 +29,24 @@ export interface RpgBattleAttributes {
 }
 
 export class RpgBattle extends Model<RpgBattleAttributes, Partial<RpgBattleAttributes>> implements RpgBattleAttributes {
-  public id!: string;
-  public connectionId!: string;
-  public groupId!: string | null;
-  public mode!: BattleMode;
-  public status!: BattleStatus;
-  public arena!: string;
-  public currentTurn!: number;
-  public maxTurns!: number;
-  public turnDeadline!: Date | null;
-  public winnerPlayerId!: string | null;
-  public rngSeed!: number;
-  public version!: number;
-  public lastMessageId!: string | null;
-  public lastMessageTimestamp!: Date | null;
-  public modifier!: string | null;
+  declare id: string;
+  declare connectionId: string;
+  declare groupId: string | null;
+  declare mode: BattleMode;
+  declare status: BattleStatus;
+  declare arena: string;
+  declare currentTurn: number;
+  declare maxTurns: number;
+  declare turnDeadline: Date | null;
+  declare winnerPlayerId: string | null;
+  declare rngSeed: number;
+  declare version: number;
+  declare lastMessageId: string | null;
+  declare lastMessageTimestamp: Date | null;
+  declare modifier: string | null;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgBattle.init(

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { CombatEngine, FighterCombatState, CardCombatState } from '../src/modules/rpg/engine/CombatEngine.js';
 import { BalanceSimulator } from '../src/modules/rpg/engine/BalanceSimulator.js';
 import { BotAiService } from '../src/modules/rpg/services/BotAiService.js';
@@ -6,6 +6,7 @@ import { RpgTokenService } from '../src/modules/rpg/services/RpgTokenService.js'
 import { EconomyService } from '../src/modules/rpg/services/EconomyService.js';
 import { MissionService } from '../src/modules/rpg/services/MissionService.js';
 import { RpgTurnWorker } from '../src/modules/rpg/services/RpgTurnWorker.js';
+import { RpgCommandDispatcher } from '../src/modules/rpg/commands/RpgCommandDispatcher.js';
 
 describe('Zaptroll RPG — Combat Engine (Pure Deterministic)', () => {
   const createMockFighter = (overrides?: Partial<FighterCombatState>): FighterCombatState => ({
@@ -349,6 +350,81 @@ describe('Zaptroll RPG — Turn Worker Timeout Monitor', () => {
       RpgTurnWorker.start(10000);
       RpgTurnWorker.stop();
     }).not.toThrow();
+  });
+});
+
+describe('Zaptroll RPG — WhatsApp Group Commands & Integration', () => {
+  const mockClient = (onSend?: (payload: any) => void): any => ({
+    message: {
+      send: async (_target: string, payload: any) => {
+        onSend?.(payload);
+        return { stanzaId: 'msg-test' };
+      },
+    },
+  });
+
+  it('dispatches /rpg command in a WhatsApp group', async () => {
+    let sentText = '';
+    const client = mockClient((p) => {
+      sentText = p.text || '';
+    });
+    const handled = await RpgCommandDispatcher.handleMessage({
+      client,
+      connectionId: 'conn-1',
+      userId: 'user-1',
+      remoteJid: '120363000000000000@g.us',
+      senderJid: '5511999999999@s.whatsapp.net',
+      userName: 'Deputado Teste',
+      text: '/rpg',
+    });
+
+    expect(handled).toBe(true);
+    expect(sentText).toContain('ZAPTROLL RPG — LUTA POLÍTICA NO WHATSAPP');
+    expect(sentText).toContain('/duelo');
+    expect(sentText).toContain('/lutarbot');
+  });
+
+  it('dispatches /perfil command in a WhatsApp group', async () => {
+    vi.spyOn(EconomyService, 'getProfile').mockResolvedValueOnce({
+      player: { name: 'Deputado Teste' } as any,
+      formatted: '👤 *PERFIL POLÍTICO: Deputado Teste*\n🏷️ *Cargo:* Estagiário de Gabinete',
+    });
+
+    let sentText = '';
+    const client = mockClient((p) => {
+      sentText = p.text || '';
+    });
+    const handled = await RpgCommandDispatcher.handleMessage({
+      client,
+      connectionId: 'conn-1',
+      userId: 'user-1',
+      remoteJid: '120363000000000000@g.us',
+      senderJid: '5511999999999@s.whatsapp.net',
+      userName: 'Deputado Teste',
+      text: '/perfil',
+    });
+
+    expect(handled).toBe(true);
+    expect(sentText).toContain('PERFIL POLÍTICO');
+  });
+
+  it('dispatches /missoes command in a WhatsApp group', async () => {
+    let sentText = '';
+    const client = mockClient((p) => {
+      sentText = p.text || '';
+    });
+    const handled = await RpgCommandDispatcher.handleMessage({
+      client,
+      connectionId: 'conn-1',
+      userId: 'user-1',
+      remoteJid: '120363000000000000@g.us',
+      senderJid: '5511999999999@s.whatsapp.net',
+      userName: 'Deputado Teste',
+      text: '/missoes',
+    });
+
+    expect(handled).toBe(true);
+    expect(sentText).toContain('PAINEL DE METAS & MISSÕES DIÁRIAS');
   });
 });
 

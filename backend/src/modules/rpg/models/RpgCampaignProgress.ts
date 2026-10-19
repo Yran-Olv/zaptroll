@@ -11,15 +11,15 @@ export interface RpgCampaignProgressAttributes {
 }
 
 export class RpgCampaignProgress extends Model<RpgCampaignProgressAttributes, Partial<RpgCampaignProgressAttributes>> implements RpgCampaignProgressAttributes {
-  public id!: string;
-  public playerId!: string;
-  public currentChapter!: number;
-  public completedChapters!: number[];
-  public reputationScore!: number;
-  public choicesMade!: Record<string, number | string>;
+  declare id: string;
+  declare playerId: string;
+  declare currentChapter: number;
+  declare completedChapters: number[];
+  declare reputationScore: number;
+  declare choicesMade: Record<string, number | string>;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgCampaignProgress.init(
@@ -69,12 +69,12 @@ export interface RpgConfigAttributes {
 }
 
 export class RpgConfig extends Model<RpgConfigAttributes, Partial<RpgConfigAttributes>> implements RpgConfigAttributes {
-  public key!: string;
-  public value!: string;
-  public description!: string | null;
+  declare key: string;
+  declare value: string;
+  declare description: string | null;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   public static async getBool(key: string, defaultValue = true): Promise<boolean> {
     const record = await this.findByPk(key);

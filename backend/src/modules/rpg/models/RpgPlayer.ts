@@ -27,31 +27,31 @@ export interface RpgPlayerAttributes {
 }
 
 export class RpgPlayer extends Model<RpgPlayerAttributes, Partial<RpgPlayerAttributes>> implements RpgPlayerAttributes {
-  public id!: string;
-  public whatsappPhone!: string;
-  public name!: string;
-  public level!: number;
-  public xp!: number;
-  public coins!: number;
-  public eventTokens!: number;
-  public victories!: number;
-  public defeats!: number;
-  public draws!: number;
-  public winStreak!: number;
-  public elo!: number;
-  public prestige!: number;
-  public selectedCharacterId!: string;
-  public equippedTitle!: string;
-  public lastDailyRewardAt!: Date | null;
-  public dailyStreak!: number;
-  public statPoints!: number;
-  public bonusHp!: number;
-  public bonusAtk!: number;
-  public bonusDef!: number;
-  public reputation!: number;
+  declare id: string;
+  declare whatsappPhone: string;
+  declare name: string;
+  declare level: number;
+  declare xp: number;
+  declare coins: number;
+  declare eventTokens: number;
+  declare victories: number;
+  declare defeats: number;
+  declare draws: number;
+  declare winStreak: number;
+  declare elo: number;
+  declare prestige: number;
+  declare selectedCharacterId: string;
+  declare equippedTitle: string;
+  declare lastDailyRewardAt: Date | null;
+  declare dailyStreak: number;
+  declare statPoints: number;
+  declare bonusHp: number;
+  declare bonusAtk: number;
+  declare bonusDef: number;
+  declare reputation: number;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 
   /**
    * Fórmula oficial de XP para o próximo nível: base * nivel^1.5

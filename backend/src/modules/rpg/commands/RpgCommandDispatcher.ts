@@ -254,9 +254,11 @@ export class RpgCommandDispatcher {
           as: 'battle',
           where: {
             status: 'selecting_cards',
+            ...(remoteJid ? { groupId: remoteJid } : {}),
           },
         },
       ],
+      order: [['createdAt', 'DESC']],
     });
 
     if (!activeParticipant) {

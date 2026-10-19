@@ -18,20 +18,20 @@ export interface RpgDuelInviteAttributes {
 }
 
 export class RpgDuelInvite extends Model<RpgDuelInviteAttributes, Partial<RpgDuelInviteAttributes>> implements RpgDuelInviteAttributes {
-  public id!: string;
-  public connectionId!: string;
-  public groupId!: string;
-  public challengerPhone!: string;
-  public challengerName!: string;
-  public challengedPhone!: string;
-  public challengedName!: string;
-  public status!: InviteStatus;
-  public betAmount!: number;
-  public expiresAt!: Date;
-  public battleId!: string | null;
+  declare id: string;
+  declare connectionId: string;
+  declare groupId: string;
+  declare challengerPhone: string;
+  declare challengerName: string;
+  declare challengedPhone: string;
+  declare challengedName: string;
+  declare status: InviteStatus;
+  declare betAmount: number;
+  declare expiresAt: Date;
+  declare battleId: string | null;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgDuelInvite.init(

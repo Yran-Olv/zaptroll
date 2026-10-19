@@ -19,20 +19,20 @@ export interface RpgItemAttributes {
 }
 
 export class RpgItem extends Model<RpgItemAttributes, Partial<RpgItemAttributes>> implements RpgItemAttributes {
-  public id!: string;
-  public name!: string;
-  public description!: string;
-  public type!: ItemType;
-  public rarity!: ItemRarity;
-  public price!: number;
-  public bonusHp!: number;
-  public bonusAtk!: number;
-  public bonusDef!: number;
-  public emoji!: string;
-  public consumableEffect!: any;
+  declare id: string;
+  declare name: string;
+  declare description: string;
+  declare type: ItemType;
+  declare rarity: ItemRarity;
+  declare price: number;
+  declare bonusHp: number;
+  declare bonusAtk: number;
+  declare bonusDef: number;
+  declare emoji: string;
+  declare consumableEffect: any;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgItem.init(
@@ -104,14 +104,14 @@ export interface RpgInventoryAttributes {
 }
 
 export class RpgInventory extends Model<RpgInventoryAttributes, Partial<RpgInventoryAttributes>> implements RpgInventoryAttributes {
-  public id!: string;
-  public playerId!: string;
-  public itemId!: string;
-  public equipped!: boolean;
-  public quantity!: number;
+  declare id: string;
+  declare playerId: string;
+  declare itemId: string;
+  declare equipped: boolean;
+  declare quantity: number;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgInventory.init(

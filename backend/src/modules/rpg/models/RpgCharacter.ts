@@ -43,30 +43,30 @@ export interface RpgCharacterAttributes {
 }
 
 export class RpgCharacter extends Model<RpgCharacterAttributes, Partial<RpgCharacterAttributes>> implements RpgCharacterAttributes {
-  public id!: string;
-  public name!: string;
-  public title!: string;
-  public description!: string;
-  public characterClass!: CharacterClass;
-  public affinity!: CharacterElement;
-  public weakness!: CharacterElement;
-  public resistance!: CharacterElement;
-  public baseHp!: number;
-  public baseAtk!: number;
-  public baseDef!: number;
-  public baseSpeed!: number;
-  public baseCrit!: number;
-  public baseCharisma!: number;
-  public passiveName!: string;
-  public passiveDescription!: string;
-  public passiveEffect!: CharacterPassive;
-  public quotes!: CharacterQuotes;
-  public rarity!: CharacterRarity;
-  public active!: boolean;
-  public avatarEmoji!: string;
+  declare id: string;
+  declare name: string;
+  declare title: string;
+  declare description: string;
+  declare characterClass: CharacterClass;
+  declare affinity: CharacterElement;
+  declare weakness: CharacterElement;
+  declare resistance: CharacterElement;
+  declare baseHp: number;
+  declare baseAtk: number;
+  declare baseDef: number;
+  declare baseSpeed: number;
+  declare baseCrit: number;
+  declare baseCharisma: number;
+  declare passiveName: string;
+  declare passiveDescription: string;
+  declare passiveEffect: CharacterPassive;
+  declare quotes: CharacterQuotes;
+  declare rarity: CharacterRarity;
+  declare active: boolean;
+  declare avatarEmoji: string;
 
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 RpgCharacter.init(
