@@ -470,15 +470,15 @@ export class TurnResolutionService {
         });
       }
 
-      // 9. Atualizar mensagem no WhatsApp com o resumo
+      // 9. Atualizar mensagem no WhatsApp com a narrativa do combate passo a passo
       const zapoClient = zapoManager.getClient(freshBattle.connectionId);
       if (zapoClient) {
-        await MessageSyncService.syncBattleMessage(
+        await MessageSyncService.syncBattleTurnNarrative(
           zapoClient,
           freshBattle,
           p1,
           p2,
-          combatResult.logSummary
+          combatResult
         );
       }
     } catch (err: any) {
