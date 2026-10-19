@@ -11,6 +11,7 @@ import {
 import { MessageSyncService } from './MessageSyncService.js';
 import { TurnResolutionService } from './TurnResolutionService.js';
 import { RpgTokenService } from './RpgTokenService.js';
+import { RpgAccessCodeService } from './RpgAccessCodeService.js';
 import { config } from '../../../config/index.js';
 
 export class DuelService {
@@ -239,6 +240,31 @@ export class DuelService {
     // Enviar mensagem inaugural da batalha
     await MessageSyncService.syncBattleMessage(client, battle, p1Part, p2Part);
 
+    // Enviar mensagem privada a cada duelista com seu link confidencial de combate
+    const sendFighterPrivate = async (part: RpgBattleParticipant, opponentName: string) => {
+      if (!part.phone) return;
+      try {
+        const fighterCode = await RpgAccessCodeService.getOrCreateFighterCode({
+          battleId: battle.id,
+          participantId: part.id,
+          phone: part.phone,
+          playerId: part.playerId,
+        });
+        const jid = part.phone.includes('@') ? part.phone : `${part.phone}@s.whatsapp.net`;
+        await client.message.send(jid, {
+          type: 'text',
+          text: `⚔️ *ZAPTROLL RPG — SUA ARENA PRIVADA* 🏛️\n\nOlá *${part.name}*! O duelo contra *${opponentName}* começou.\nAcesse seu link exclusivo para ver suas cartas e jogar ao vivo:\n🔗 ${config.appUrl}/a/${fighterCode}\n\n⚠️ *Não compartilhe este link!* Ele dá acesso direto à sua mão de cartas.`,
+        });
+      } catch (e: any) {
+        console.warn(`[DuelService] Falha ao enviar DM para ${part.phone}:`, e.message);
+      }
+    };
+
+    await Promise.allSettled([
+      sendFighterPrivate(p1Part, p2Part.name),
+      sendFighterPrivate(p2Part, p1Part.name),
+    ]);
+
     return 'Duelo iniciado com sucesso!';
   }
 
@@ -336,6 +362,25 @@ export class DuelService {
 
     // Enviar mensagem inaugural da batalha
     await MessageSyncService.syncBattleMessage(client, battle, p1Part, p2Part);
+
+    // Se iniciado em grupo, envia DM de combate para o participante humano
+    if (isGroup && p1Part.phone) {
+      try {
+        const fighterCode = await RpgAccessCodeService.getOrCreateFighterCode({
+          battleId: battle.id,
+          participantId: p1Part.id,
+          phone: p1Part.phone,
+          playerId: p1Part.playerId,
+        });
+        const jid = p1Part.phone.includes('@') ? p1Part.phone : `${p1Part.phone}@s.whatsapp.net`;
+        await client.message.send(jid, {
+          type: 'text',
+          text: `⚔️ *ZAPTROLL RPG — SUA ARENA PRIVADA* 🏛️\n\nOlá *${p1Part.name}*! Sua batalha contra *${botName}* começou.\nAcesse seu link exclusivo para ver suas cartas e jogar ao vivo:\n🔗 ${config.appUrl}/a/${fighterCode}\n\n⚠️ *Não compartilhe este link!* Ele dá acesso direto à sua mão de cartas.`,
+        });
+      } catch (e: any) {
+        console.warn(`[DuelService] Falha ao enviar DM para ${p1Part.phone}:`, e.message);
+      }
+    }
 
     return 'Luta contra bot iniciada com sucesso!';
   }

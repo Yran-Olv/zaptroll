@@ -13,6 +13,7 @@ import { RpgTokenService } from '../services/RpgTokenService.js';
 import { TurnResolutionService } from '../services/TurnResolutionService.js';
 import { MissionService } from '../services/MissionService.js';
 import { DuelService } from '../services/DuelService.js';
+import { RpgAccessCodeService } from '../services/RpgAccessCodeService.js';
 import { zapoManager } from '../../../integrations/zapo/ZapoConnectionManager.js';
 
 export class RpgController {
@@ -423,4 +424,184 @@ export class RpgController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  /**
+   * Retorna os dados da arena autenticado pelo código seguro curto Base62 (/a/{codigo})
+   * GET /api/rpg/a/:code
+   */
+  public static async getBattleStateByCode(req: Request, res: Response): Promise<void> {
+    try {
+      const { code } = req.params;
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || '';
+
+      const validation = await RpgAccessCodeService.validateCode(code, clientIp, userAgent);
+      if (!validation.valid || !validation.record) {
+        const errorMsg =
+          validation.reason === 'REVOKED'
+            ? 'Este link de acesso foi revogado.'
+            : validation.reason === 'EXPIRED'
+            ? 'Este link de acesso expirou.'
+            : 'Código de acesso à arena inválido.';
+        res.status(403).json({ error: errorMsg, code: validation.reason });
+        return;
+      }
+
+      const access = validation.record;
+      const battle = await RpgBattle.findByPk(access.battleId, {
+        include: [{ model: RpgBattleParticipant, as: 'participants' }],
+      });
+
+      if (!battle) {
+        res.status(404).json({ error: 'Batalha não encontrada ou já expirada.' });
+        return;
+      }
+
+      const participants = (battle.get('participants') as RpgBattleParticipant[]) || [];
+      const participantsData = [];
+
+      for (const p of participants) {
+        const char = await RpgCharacter.findByPk(p.characterId);
+        // O jogador só vê suas próprias cartas se o papel for 'fighter' e o participante bater com o código
+        const isSelf =
+          access.role === 'fighter' &&
+          ((access.participantId && p.id === access.participantId) ||
+            (access.phone && p.phone === access.phone));
+
+        let cardsInHand: any[] = [];
+        if (isSelf && p.hand && p.hand.length > 0) {
+          const cards = await RpgCard.findAll({ where: { id: p.hand } });
+          cardsInHand = cards.map((c) => ({
+            id: c.id,
+            name: c.name,
+            description: c.description,
+            category: c.category,
+            element: c.element,
+            energyCost: c.energyCost,
+            power: c.power,
+            priority: c.priority,
+            emoji: c.emoji,
+            isBluff: c.isBluff,
+          }));
+        } else {
+          // Oponente ou espectador: cartas ocultas (anti-trapaça estrito)
+          cardsInHand = (p.hand || []).map((_, idx) => ({ id: `hidden_${idx}`, hidden: true }));
+        }
+
+        participantsData.push({
+          id: p.id,
+          playerId: p.playerId,
+          name: p.name,
+          phone: isSelf ? p.phone : undefined,
+          isBot: p.isBot,
+          characterId: p.characterId,
+          characterName: char?.name || p.name,
+          characterTitle: char?.title,
+          characterClass: char?.characterClass,
+          affinity: char?.affinity,
+          weakness: char?.weakness,
+          resistance: char?.resistance,
+          avatarEmoji: char?.avatarEmoji || '👔',
+          passiveName: char?.passiveName,
+          passiveDescription: char?.passiveDescription,
+          maxHp: p.maxHp,
+          currentHp: p.currentHp,
+          maxEnergy: p.maxEnergy,
+          currentEnergy: p.currentEnergy,
+          popularity: p.popularity,
+          rage: p.rage,
+          cardLocked: p.cardLocked,
+          selectedCardId: isSelf ? p.selectedCardId : p.cardLocked ? 'locked' : null,
+          activeStatuses: p.activeStatuses,
+          handCount: p.hand ? p.hand.length : 0,
+          hand: cardsInHand,
+        });
+      }
+
+      const recentTurns = await RpgBattleTurn.findAll({
+        where: { battleId: battle.id },
+        order: [['turnNumber', 'ASC']],
+        limit: 10,
+      });
+
+      res.json({
+        battle: {
+          id: battle.id,
+          mode: battle.mode,
+          status: battle.status,
+          arena: battle.arena,
+          currentTurn: battle.currentTurn,
+          maxTurns: battle.maxTurns,
+          turnDeadline: battle.turnDeadline,
+          winnerPlayerId: battle.winnerPlayerId,
+        },
+        participants: participantsData,
+        recentTurns: recentTurns.map((t) => ({
+          turnNumber: t.turnNumber,
+          events: t.events,
+          logSummary: t.logSummary,
+        })),
+        viewer: {
+          role: access.role,
+          participantId: access.participantId || undefined,
+          phone: access.phone || undefined,
+          code: access.code,
+        },
+      });
+    } catch (err: any) {
+      console.error('[RpgController] Erro ao obter estado por código:', err);
+      res.status(500).json({ error: 'Erro interno ao carregar a arena.' });
+    }
+  }
+
+  /**
+   * Joga uma carta na batalha validando o código seguro do lutador
+   * POST /api/rpg/a/:code/jogar
+   */
+  public static async playCardByCode(req: Request, res: Response): Promise<void> {
+    try {
+      const { code } = req.params;
+      const { cardId } = req.body;
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || '';
+
+      if (!cardId) {
+        res.status(400).json({ error: 'cardId é obrigatório.' });
+        return;
+      }
+
+      const validation = await RpgAccessCodeService.validateCode(code, clientIp, userAgent);
+      if (!validation.valid || !validation.record) {
+        res.status(403).json({ error: 'Código de acesso inválido ou expirado.' });
+        return;
+      }
+
+      const access = validation.record;
+      if (access.role !== 'fighter') {
+        res.status(403).json({ error: 'Espectadores não possuem permissão para jogar cartas.' });
+        return;
+      }
+
+      const result = await TurnResolutionService.lockCard({
+        battleId: access.battleId,
+        participantId: access.participantId || undefined,
+        phone: access.phone || undefined,
+        cardId,
+      });
+
+      await RpgAccessCodeService.recordAudit({
+        action: 'ARENA_CARD_PLAYED',
+        code: access.code,
+        battleId: access.battleId,
+        targetId: access.participantId || access.battleId,
+        details: { cardId, ip: clientIp },
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      console.error('[RpgController] Erro ao travar carta por código:', err.message);
+      res.status(400).json({ error: err.message || 'Erro ao travar carta.' });
+    }
+  }
 }
+

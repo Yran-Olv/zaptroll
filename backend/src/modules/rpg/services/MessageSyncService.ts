@@ -2,6 +2,7 @@ import { WaClient } from 'zapo-js';
 import { RpgBattle, RpgBattleParticipant, RpgCharacter, RpgCard } from '../models/index.js';
 import { config } from '../../../config/index.js';
 import { CombatTurnResult } from '../engine/CombatEngine.js';
+import { RpgAccessCodeService } from './RpgAccessCodeService.js';
 
 export class MessageSyncService {
   /**
@@ -21,7 +22,9 @@ export class MessageSyncService {
   }
 
   /**
-   * Formata a mensagem de status da arena de batalha com link limpo e direto
+   * Formata a mensagem de status da arena de batalha:
+   * - Em GRUPO: link público de espectador (sem expor mãos)
+   * - No PRIVADO: link secreto de lutador
    */
   public static async formatBattleMessage(
     battle: RpgBattle,
@@ -32,9 +35,24 @@ export class MessageSyncService {
     const p1Char = await RpgCharacter.findByPk(p1.characterId);
     const p2Char = await RpgCharacter.findByPk(p2.characterId);
 
+    const isGroup = Boolean(battle.groupId);
     const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
-    // URL limpa e curta (sem JWT gigante)
-    const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}${human?.phone ? `?p=${human.phone}` : ''}`;
+
+    let arenaUrl = '';
+    if (isGroup) {
+      // 1. Link postado no GRUPO é estritamente de ESPECTADOR
+      const spectatorCode = await RpgAccessCodeService.getOrCreateSpectatorCode(battle.id);
+      arenaUrl = `${config.appUrl}/a/${spectatorCode}`;
+    } else {
+      // 2. Chat privado com bot: envia link de lutador do jogador
+      const fighterCode = await RpgAccessCodeService.getOrCreateFighterCode({
+        battleId: battle.id,
+        participantId: human.id,
+        phone: human.phone,
+        playerId: human.playerId,
+      });
+      arenaUrl = `${config.appUrl}/a/${fighterCode}`;
+    }
 
     const lines: string[] = [];
     lines.push('🥊 *ZAPTROLL RPG — ARENA POLÍTICA* 🏛️');
@@ -73,20 +91,31 @@ export class MessageSyncService {
         lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
       }
     } else {
-      lines.push(`🃏 *SUAS CARTAS NA MÃO (${human?.name || 'Jogador'}):*`);
-      if (human && human.hand && human.hand.length > 0) {
-        const cards = await RpgCard.findAll({ where: { id: human.hand } });
-        cards.forEach((c, idx) => {
-          lines.push(`${idx + 1}️⃣ ${c.emoji} *${c.name}* (⚡${c.energyCost}) — ${c.description || 'Poder: ' + c.power}`);
-        });
+      if (isGroup) {
+        // No grupo: instruções seguras sem revelar a mão dos combatentes
+        lines.push('⏱️ *Tempo para decisão:* 45 segundos');
+        lines.push('👉 *Duelistas:* respondam com 1, 2, 3 ou 4 ou acessem seu link no privado!');
+        lines.push('💬 Digite */arena* para receber seu link confidencial no privado.');
         lines.push('');
-      }
+        lines.push('👁️ *Assista ao vivo na Arena 2.5D (Transmissão Oficial):*');
+        lines.push(`🔗 ${arenaUrl}`);
+      } else {
+        // No privado: mostra cartas do jogador
+        lines.push(`🃏 *SUAS CARTAS NA MÃO (${human?.name || 'Jogador'}):*`);
+        if (human && human.hand && human.hand.length > 0) {
+          const cards = await RpgCard.findAll({ where: { id: human.hand } });
+          cards.forEach((c, idx) => {
+            lines.push(`${idx + 1}️⃣ ${c.emoji} *${c.name}* (⚡${c.energyCost}) — ${c.description || 'Poder: ' + c.power}`);
+          });
+          lines.push('');
+        }
 
-      lines.push('⏱️ *Tempo para decisão:* 45 segundos');
-      lines.push('👉 *Responda com 1, 2, 3 ou 4 neste grupo para jogar!*');
-      lines.push('');
-      lines.push('⚔️ *Ou assista/jogue ao vivo na Arena 2.5D:*');
-      lines.push(`🔗 ${arenaUrl}`);
+        lines.push('⏱️ *Tempo para decisão:* 45 segundos');
+        lines.push('👉 *Responda com 1, 2, 3 ou 4 neste chat para jogar rápido!*');
+        lines.push('');
+        lines.push('⚔️ *Ou jogue ao vivo na Arena 2.5D:*');
+        lines.push(`🔗 ${arenaUrl}`);
+      }
     }
 
     return lines.join('\n');

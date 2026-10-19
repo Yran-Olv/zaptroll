@@ -11,6 +11,8 @@ import { TurnResolutionService } from '../services/TurnResolutionService.js';
 import { EconomyService } from '../services/EconomyService.js';
 import { CampaignService } from '../services/CampaignService.js';
 import { MissionService } from '../services/MissionService.js';
+import { RpgAccessCodeService } from '../services/RpgAccessCodeService.js';
+import { config } from '../../../config/index.js';
 
 export interface DispatcherParams {
   client: WaClient;
@@ -110,6 +112,12 @@ export class RpgCommandDispatcher {
           difficulty,
           client,
         });
+        return true;
+      }
+
+      case 'arena':
+      case 'link': {
+        await this.handleArenaLinkRequest(params);
         return true;
       }
 
@@ -410,5 +418,72 @@ export class RpgCommandDispatcher {
     ].join('\n');
 
     await client.message.send(remoteJid, { type: 'text', text: helpText });
+  }
+
+  /**
+   * Envia o link confidencial de combate ao jogador por mensagem privada (/arena)
+   */
+  private static async handleArenaLinkRequest(params: DispatcherParams): Promise<void> {
+    const { client, remoteJid, senderJid, userName } = params;
+    const cleanDigits = senderJid ? senderJid.replace(/\D/g, '') : '';
+    const phoneCandidates = [
+      senderJid,
+      cleanDigits,
+      `${cleanDigits}@s.whatsapp.net`,
+    ].filter(Boolean);
+
+    // Buscar batalha ativa onde o usuário seja participante
+    const activeParticipant = await RpgBattleParticipant.findOne({
+      where: {
+        phone: { [Op.in]: phoneCandidates },
+      },
+      include: [
+        {
+          model: RpgBattle,
+          as: 'battle',
+          where: {
+            status: { [Op.in]: ['selecting_cards', 'resolving_turn'] },
+          },
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const isGroup = remoteJid.endsWith('@g.us');
+    const privateJid = cleanDigits ? `${cleanDigits}@s.whatsapp.net` : senderJid;
+
+    if (!activeParticipant || !activeParticipant.battleId) {
+      const msg = `⚠️ *Olá ${userName}!* Você não está participando de nenhum duelo ativo no momento.\n\n👉 Para começar, digite */bot* para lutar contra a máquina ou */duelo @alguem* para desafiar um amigo!`;
+      await client.message.send(remoteJid, { type: 'text', text: msg });
+      return;
+    }
+
+    const fighterCode = await RpgAccessCodeService.getOrCreateFighterCode({
+      battleId: activeParticipant.battleId,
+      participantId: activeParticipant.id,
+      phone: activeParticipant.phone,
+      playerId: activeParticipant.playerId,
+    });
+
+    const arenaUrl = `${config.appUrl}/a/${fighterCode}`;
+
+    const privateMsg = [
+      `⚔️ *ZAPTROLL RPG — SUA ARENA PRIVADA* 🏛️`,
+      `Olá *${userName}*! Aqui está o seu link exclusivo e confidencial de combate:`,
+      `🔗 ${arenaUrl}`,
+      ``,
+      `🃏 *Sua mão de cartas e ações ao vivo estão liberadas neste link.*`,
+      `⚠️ *Aviso de Segurança:* Não envie este link para outros jogadores para não revelar suas cartas!`,
+    ].join('\n');
+
+    await client.message.send(privateJid, { type: 'text', text: privateMsg });
+
+    if (isGroup) {
+      await client.message.send(remoteJid, {
+        type: 'text',
+        text: `🔒 @${userName}, seu link confidencial de combate foi enviado no seu privado!`,
+        mentions: [senderJid],
+      } as any);
+    }
   }
 }

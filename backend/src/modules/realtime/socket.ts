@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config/index.js';
 import { User, WhatsAppConnection } from '../../database/models/index.js';
+import { RpgAccessCodeService } from '../rpg/services/RpgAccessCodeService.js';
 
 let io: Server | null = null;
 
@@ -11,6 +12,8 @@ interface AuthenticatedSocket extends Socket {
   battleId?: string;
   battleRole?: string;
   battlePhone?: string;
+  battleParticipantId?: string;
+  battleCode?: string;
 }
 
 export function initSocket(server: HttpServer): Server {
@@ -23,13 +26,41 @@ export function initSocket(server: HttpServer): Server {
     transports: ['websocket', 'polling'],
   });
 
-  // JWT Authentication middleware for Socket.IO
+  // JWT / Code Authentication middleware for Socket.IO
   io.use(async (socket: AuthenticatedSocket, next) => {
+    // 1. Autenticação prioritária pelo Código Seguro Base62 (/a/{codigo})
+    const rawCode =
+      socket.handshake.auth?.code ||
+      socket.handshake.headers['x-access-code'] ||
+      (socket.handshake.query?.code as string);
+
+    if (rawCode) {
+      try {
+        const clientIp = socket.handshake.address;
+        const userAgent = socket.handshake.headers['user-agent'] as string;
+        const validation = await RpgAccessCodeService.validateCode(rawCode, clientIp, userAgent);
+
+        if (!validation.valid || !validation.record) {
+          return next(new Error('Código de acesso inválido ou expirado.'));
+        }
+
+        const access = validation.record;
+        socket.battleId = access.battleId;
+        socket.battleRole = access.role;
+        socket.battlePhone = access.phone || undefined;
+        socket.battleParticipantId = access.participantId || undefined;
+        socket.battleCode = access.code;
+        return next();
+      } catch (err: any) {
+        return next(new Error('Erro ao validar código de acesso.'));
+      }
+    }
+
     const battleId =
       socket.handshake.auth?.battleId ||
       (socket.handshake.query?.battleId as string);
 
-    // Suporte a conexão direta da WebView de RPG sem login
+    // Suporte legado a conexão direta com battleId
     if (battleId) {
       socket.battleId = battleId;
       socket.battleRole = (socket.handshake.auth?.role || socket.handshake.query?.role || 'fighter') as string;
@@ -49,7 +80,7 @@ export function initSocket(server: HttpServer): Server {
     try {
       const decoded = jwt.verify(token, config.jwt.secret) as any;
 
-      // Suporte a token de acesso à arena de RPG
+      // Suporte a token JWT de arena
       if (decoded.battleId && (decoded.role === 'fighter' || decoded.role === 'spectator')) {
         socket.battleId = decoded.battleId;
         socket.battleRole = decoded.role;
@@ -72,8 +103,22 @@ export function initSocket(server: HttpServer): Server {
 
   io.on('connection', async (socket: AuthenticatedSocket) => {
     if (socket.battleId) {
-      socket.join(`battle_${socket.battleId}`);
-      console.log(`[Socket] Cliente conectado à arena RPG battle_${socket.battleId} (papel: ${socket.battleRole})`);
+      // Sala pública da batalha (recebe eventos públicos de animação e início de turno)
+      socket.join(`battle_${socket.battleId}_public`);
+      socket.join(`battle_${socket.battleId}`); // alias de retrocompatibilidade
+
+      if (socket.battleRole === 'fighter') {
+        // Sala privada estrita do jogador (recebe cartas secretas e confirmação pessoal)
+        if (socket.battleParticipantId) {
+          socket.join(`battle_${socket.battleId}_player_${socket.battleParticipantId}`);
+        }
+        if (socket.battlePhone) {
+          socket.join(`battle_${socket.battleId}_player_${socket.battlePhone}`);
+        }
+        console.log(`[Socket] ⚔️ Lutador autenticado na arena battle_${socket.battleId} (participante: ${socket.battleParticipantId || socket.battlePhone})`);
+      } else {
+        console.log(`[Socket] 👁️ Espectador conectado à arena battle_${socket.battleId} (código: ${socket.battleCode || 'anon'})`);
+      }
     }
 
     const userId = socket.userId;

@@ -2,10 +2,15 @@ import { Router } from 'express';
 import { RpgController } from '../controllers/rpg.controller.js';
 import { authMiddleware } from '../../../middleware/auth.js';
 import { adminMiddleware } from '../../../middleware/admin.js';
+import { rateLimiter } from '../../../middleware/rateLimiter.js';
 
 const router = Router();
 
-// Endpoints públicos / autenticados via token de batalha para a WebView
+// Endpoints seguros via código Base62 (/a/:code)
+router.get('/a/:code', rateLimiter(60, 60000), RpgController.getBattleStateByCode);
+router.post('/a/:code/jogar', rateLimiter(30, 60000), RpgController.playCardByCode);
+
+// Endpoints legados para compatibilidade
 router.get('/batalha/:battleId', RpgController.getBattleState);
 router.post('/batalha/:battleId/jogar', RpgController.playCard);
 

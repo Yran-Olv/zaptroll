@@ -94,8 +94,9 @@ interface BattleData {
 }
 
 interface RpgArenaProps {
-  battleId: string;
-  token: string;
+  accessCode?: string;
+  battleId?: string;
+  token?: string;
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
@@ -105,12 +106,13 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   utilidade: { bg: 'bg-amber-950/70', border: 'border-amber-500', text: 'text-amber-400', glow: 'shadow-[0_0_20px_rgba(234,179,8,0.4)]' },
 };
 
-export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
+export const RpgArenaView: React.FC<RpgArenaProps> = ({ accessCode, battleId: initialBattleId, token }) => {
   const [battle, setBattle] = useState<BattleData | null>(null);
   const [p1, setP1] = useState<ParticipantData | null>(null);
   const [p2, setP2] = useState<ParticipantData | null>(null);
   const [viewerRole, setViewerRole] = useState<'fighter' | 'spectator'>('spectator');
   const [myPhone, setMyPhone] = useState<string | null>(null);
+  const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isLocking, setIsLocking] = useState(false);
@@ -338,30 +340,41 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     }
   };
 
-  // Carregar dados da batalha (Suporta link limpo sem JWT)
+  // Carregar dados da batalha (Suporta /a/{codigo} e link legado /rpg/batalha/{id})
   const fetchBattle = async () => {
     try {
       setLoading(true);
-      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-      const urlToken = searchParams.get('t') || token || '';
-      const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('rpg_phone') || '' : '';
-      const urlPhone = searchParams.get('p') || searchParams.get('phone') || savedPhone || '';
 
-      const res = await axios.get(`/api/rpg/batalha/${battleId}`, {
-        params: {
-          t: urlToken || undefined,
-          p: urlPhone || undefined,
-        },
-      });
+      let res: any;
+      if (accessCode) {
+        res = await axios.get(`/api/rpg/a/${accessCode}`);
+      } else {
+        const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        const urlToken = searchParams.get('t') || token || '';
+        const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('rpg_phone') || '' : '';
+        const urlPhone = searchParams.get('p') || searchParams.get('phone') || savedPhone || '';
+
+        res = await axios.get(`/api/rpg/batalha/${initialBattleId}`, {
+          params: {
+            t: urlToken || undefined,
+            p: urlPhone || undefined,
+          },
+        });
+      }
 
       const data = res.data;
       setBattle(data.battle);
       setViewerRole(data.viewer?.role || 'spectator');
-      const resolvedPhone = data.viewer?.phone || urlPhone || null;
-      setMyPhone(resolvedPhone);
+      if (data.viewer?.participantId) {
+        setMyParticipantId(data.viewer.participantId);
+      }
 
-      if (resolvedPhone && typeof window !== 'undefined') {
-        localStorage.setItem('rpg_phone', resolvedPhone);
+      const resolvedPhone = data.viewer?.phone || null;
+      if (resolvedPhone) {
+        setMyPhone(resolvedPhone);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('rpg_phone', resolvedPhone);
+        }
       }
 
       if (data.participants && data.participants.length >= 2) {
@@ -394,13 +407,19 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('rpg_phone') || '' : '';
     const activePhone = searchParams.get('p') || searchParams.get('phone') || savedPhone || '';
 
-    // Conectar ao Socket.IO da batalha diretamente pelo ID da batalha
+    // Autenticação no Socket.IO via código Base62 ou token legado
+    const socketAuth: any = {};
+    if (accessCode) {
+      socketAuth.code = accessCode;
+    } else {
+      socketAuth.battleId = initialBattleId;
+      socketAuth.token = token || undefined;
+      socketAuth.phone = activePhone || undefined;
+    }
+
     const s = io({
-      auth: {
-        token: token || undefined,
-        battleId,
-        phone: activePhone || undefined,
-      },
+      auth: socketAuth,
+      query: socketAuth,
       transports: ['websocket', 'polling'],
     });
 
@@ -412,6 +431,12 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
       rpgAudio.playCardSelect();
       setP1((prev) => (prev && prev.id === payload.participantId ? { ...prev, cardLocked: true } : prev));
       setP2((prev) => (prev && prev.id === payload.participantId ? { ...prev, cardLocked: true } : prev));
+    });
+
+    s.on('battle:my_card_locked', (payload: any) => {
+      rpgAudio.playCardSelect();
+      setP1((prev) => (prev && prev.id === payload.participantId ? { ...prev, cardLocked: true, selectedCardId: payload.lockedCardId } : prev));
+      setP2((prev) => (prev && prev.id === payload.participantId ? { ...prev, cardLocked: true, selectedCardId: payload.lockedCardId } : prev));
     });
 
     s.on('battle:turn_resolved', (payload: any) => {
@@ -449,7 +474,7 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     return () => {
       s.disconnect();
     };
-  }, [battleId, token]);
+  }, [accessCode, initialBattleId, token]);
 
   // Limpar danos flutuantes após animação
   useEffect(() => {
@@ -468,25 +493,33 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     try {
       setIsLocking(true);
       rpgAudio.playCardSelect();
-      const res = await axios.post(
-        `/api/rpg/batalha/${battleId}/jogar`,
-        {
+
+      let res: any;
+      if (accessCode) {
+        res = await axios.post(`/api/rpg/a/${accessCode}/jogar`, {
           cardId: selectedCardId,
-          phone: myPhone || undefined,
-        },
-        {
-          params: {
-            t: token || undefined,
-            p: myPhone || undefined,
+        });
+      } else {
+        res = await axios.post(
+          `/api/rpg/batalha/${initialBattleId}/jogar`,
+          {
+            cardId: selectedCardId,
+            phone: myPhone || undefined,
           },
-        }
-      );
+          {
+            params: {
+              t: token || undefined,
+              p: myPhone || undefined,
+            },
+          }
+        );
+      }
 
       if (res.data.success) {
         // Atualizar estado local
-        if (p1 && myPhone === p1.phone) {
+        if (p1 && (myPhone === p1.phone || myParticipantId === p1.id)) {
           setP1({ ...p1, cardLocked: true });
-        } else if (p2 && myPhone === p2.phone) {
+        } else if (p2 && (myPhone === p2.phone || myParticipantId === p2.id)) {
           setP2({ ...p2, cardLocked: true });
         }
       }

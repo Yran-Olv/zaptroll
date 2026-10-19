@@ -9,6 +9,7 @@ import { RpgDuelInvite } from './RpgDuelInvite.js';
 import { RpgItem, RpgInventory } from './RpgItem.js';
 import { RpgCampaignProgress, RpgConfig } from './RpgCampaignProgress.js';
 import { RpgAuditLog } from './RpgAuditLog.js';
+import { RpgBattleAccessCode } from './RpgBattleAccessCode.js';
 
 // Relacionamentos
 RpgPlayer.hasMany(RpgPlayerCharacter, { foreignKey: 'playerId', as: 'characters', onDelete: 'CASCADE' });
@@ -29,6 +30,9 @@ RpgBattleParticipant.belongsTo(RpgBattle, { foreignKey: 'battleId', as: 'battle'
 RpgBattle.hasMany(RpgBattleTurn, { foreignKey: 'battleId', as: 'turns', onDelete: 'CASCADE' });
 RpgBattleTurn.belongsTo(RpgBattle, { foreignKey: 'battleId', as: 'battle' });
 
+RpgBattle.hasMany(RpgBattleAccessCode, { foreignKey: 'battleId', as: 'accessCodes', onDelete: 'CASCADE' });
+RpgBattleAccessCode.belongsTo(RpgBattle, { foreignKey: 'battleId', as: 'battle' });
+
 export {
   RpgPlayer,
   RpgCharacter,
@@ -44,4 +48,5 @@ export {
   RpgCampaignProgress,
   RpgConfig,
   RpgAuditLog,
+  RpgBattleAccessCode,
 };

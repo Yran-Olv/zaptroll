@@ -70,14 +70,34 @@ export class TurnResolutionService {
     participant.cardLocked = true;
     await participant.save();
 
-    // Notificar sala da WebView que este jogador travou (sem revelar qual carta escolheu!)
+    // Notificar sala pública que este jogador travou (SEM revelar qual carta escolheu!)
     const io = getIO();
     if (io) {
+      // 1. Sala pública da arena (espectadores e outros jogadores): APENAS flag de travamento
+      io.to(`battle_${battle.id}_public`).emit('battle:card_locked', {
+        battleId: battle.id,
+        participantId: participant.id,
+        participantName: participant.name,
+      });
       io.to(`battle_${battle.id}`).emit('battle:card_locked', {
         battleId: battle.id,
         participantId: participant.id,
         participantName: participant.name,
       });
+
+      // 2. Sala privada exclusiva do próprio jogador: confirmação com a carta travada
+      io.to(`battle_${battle.id}_player_${participant.id}`).emit('battle:my_card_locked', {
+        battleId: battle.id,
+        participantId: participant.id,
+        lockedCardId: cardId,
+      });
+      if (participant.phone) {
+        io.to(`battle_${battle.id}_player_${participant.phone}`).emit('battle:my_card_locked', {
+          battleId: battle.id,
+          participantId: participant.id,
+          lockedCardId: cardId,
+        });
+      }
     }
 
     // Se o outro participante for um BOT, escolher e travar a jogada do bot agora
@@ -437,10 +457,9 @@ export class TurnResolutionService {
         }
       }
 
-      // 8. Publicar eventos em tempo real para a WebView
       const io = getIO();
       if (io) {
-        io.to(`battle_${freshBattle.id}`).emit('battle:turn_resolved', {
+        const turnPayload = {
           battleId: freshBattle.id,
           currentTurn: freshBattle.currentTurn,
           p1: {
@@ -467,7 +486,10 @@ export class TurnResolutionService {
           logSummary: combatResult.logSummary,
           winner: combatResult.winner,
           status: freshBattle.status,
-        });
+        };
+
+        io.to(`battle_${freshBattle.id}_public`).emit('battle:turn_resolved', turnPayload);
+        io.to(`battle_${freshBattle.id}`).emit('battle:turn_resolved', turnPayload);
       }
 
       // 9. Atualizar mensagem no WhatsApp com a narrativa do combate passo a passo

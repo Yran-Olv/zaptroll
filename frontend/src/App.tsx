@@ -16,6 +16,12 @@ const AppContent: React.FC = () => {
     return <PoseEditorView />;
   }
 
+  // Rota segura com código curto Base62 para a Arena de RPG (/a/{codigo})
+  if (pathname.startsWith('/a/')) {
+    const accessCode = pathname.replace('/a/', '').split('/')[0].split('?')[0];
+    return <RpgArenaView accessCode={accessCode} />;
+  }
+
   // Rota pública para a Arena de RPG via WebView no WhatsApp
   if (pathname.startsWith('/rpg/batalha/')) {
     const battleId = pathname.replace('/rpg/batalha/', '').split('/')[0].split('?')[0];
