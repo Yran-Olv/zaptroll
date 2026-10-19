@@ -15,6 +15,7 @@ import { MailboxSyncService } from './MailboxSyncService.js';
 import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
 import { StatusService } from '../../modules/advanced/StatusService.js';
 import { MetaAiService } from '../../modules/advanced/MetaAiService.js';
+import { RpgCommandDispatcher } from '../../modules/rpg/commands/RpgCommandDispatcher.js';
 import fs from 'node:fs';
 
 function formatPhoneNumber(phoneOrJid: string): string {
@@ -785,6 +786,32 @@ export class ZapoEventHandler {
               console.error('[ZapoEventHandler] Erro ao responder /ai com Meta AI:', aiErr.message);
             }
           }, 300);
+        }
+
+        // Gatilho RPG de Luta Política - Processamento de Comandos e Cartas
+        if (created && rawCommandText) {
+          const clientUserId = (client as any)?.user?.id || 'me@s.whatsapp.net';
+          const effectiveSenderJid = isGroup
+            ? (event.key?.participant || event.participant || (fromMe ? clientUserId : remoteJid))
+            : (fromMe ? clientUserId : remoteJid);
+
+          const mentionedJids = rawCtx?.mentionedJid || [];
+          setTimeout(async () => {
+            try {
+              await RpgCommandDispatcher.handleMessage({
+                client,
+                connectionId,
+                userId,
+                remoteJid,
+                senderJid: effectiveSenderJid,
+                userName: event.pushName || conversation.name || 'Candidato',
+                text: rawCommandText,
+                mentionedJids,
+              });
+            } catch (rpgErr: any) {
+              console.error('[ZapoEventHandler] Erro no processamento RPG:', rpgErr.message);
+            }
+          }, 150);
         }
       } catch (err) {
         console.error('Error handling message event:', err);

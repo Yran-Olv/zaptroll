@@ -17,4 +17,6 @@ coverage/
 # Media sent/received in tickets & chat
 uploads/
 **/uploads/
+media/
+**/media/
 

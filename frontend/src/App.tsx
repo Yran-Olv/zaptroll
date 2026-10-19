@@ -5,8 +5,18 @@ import { AuthModal } from './components/auth/AuthModal.js';
 import { MainLayout } from './components/layout/MainLayout.js';
 import { TrollfaceSvg } from './components/memes/memeVectors.js';
 import { LAB_QUOTES } from './components/memes/memeData.js';
+import { RpgArenaView } from './components/rpg/RpgArenaView.js';
 
 const AppContent: React.FC = () => {
+  // Rota pública para a Arena de RPG via WebView no WhatsApp
+  const pathname = window.location.pathname;
+  if (pathname.startsWith('/rpg/batalha/')) {
+    const battleId = pathname.replace('/rpg/batalha/', '').split('/')[0].split('?')[0];
+    const searchParams = new URLSearchParams(window.location.search);
+    const token = searchParams.get('t') || '';
+    return <RpgArenaView battleId={battleId} token={token} />;
+  }
+
   const { user, loading } = useAuth();
   const [loadingQuote, setLoadingQuote] = useState(LAB_QUOTES[0]);
 

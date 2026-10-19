@@ -8,6 +8,9 @@ let io: Server | null = null;
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
+  battleId?: string;
+  battleRole?: string;
+  battlePhone?: string;
 }
 
 export function initSocket(server: HttpServer): Server {
@@ -32,7 +35,16 @@ export function initSocket(server: HttpServer): Server {
     }
 
     try {
-      const decoded = jwt.verify(token, config.jwt.secret) as { id: string };
+      const decoded = jwt.verify(token, config.jwt.secret) as any;
+
+      // Suporte a token de acesso à arena de RPG
+      if (decoded.battleId && (decoded.role === 'fighter' || decoded.role === 'spectator')) {
+        socket.battleId = decoded.battleId;
+        socket.battleRole = decoded.role;
+        socket.battlePhone = decoded.phone;
+        return next();
+      }
+
       const user = await User.findByPk(decoded.id);
 
       if (!user || user.status === 'suspended') {
@@ -47,6 +59,11 @@ export function initSocket(server: HttpServer): Server {
   });
 
   io.on('connection', async (socket: AuthenticatedSocket) => {
+    if (socket.battleId) {
+      socket.join(`battle_${socket.battleId}`);
+      console.log(`[Socket] Cliente conectado à arena RPG battle_${socket.battleId} (papel: ${socket.battleRole})`);
+    }
+
     const userId = socket.userId;
     if (userId) {
       socket.join(`user_${userId}`);
@@ -96,5 +113,11 @@ export function emitToUser(userId: string, event: string, data: any) {
 export function emitToConnection(connectionId: string, event: string, data: any) {
   if (io) {
     io.to(`conn_${connectionId}`).emit(event, data);
+  }
+}
+
+export function emitToBattle(battleId: string, event: string, data: any) {
+  if (io) {
+    io.to(`battle_${battleId}`).emit(event, data);
   }
 }

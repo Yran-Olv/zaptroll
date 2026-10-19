@@ -2,6 +2,7 @@ import http from 'http';
 import { createApp } from './app.js';
 import { config, validateConfig } from './config/index.js';
 import { initDatabase } from './database/models/index.js';
+import { RpgSeedService } from './modules/rpg/services/RpgSeedService.js';
 import { initSocket } from './modules/realtime/socket.js';
 import { zapoManager } from './integrations/zapo/ZapoConnectionManager.js';
 import { AutoDestructService } from './modules/messages/AutoDestructService.js';
@@ -13,8 +14,9 @@ async function bootstrap() {
     // 0. Security pre-flight validation
     validateConfig();
 
-    // 1. Initialize Database
+    // 1. Initialize Database & Seed RPG
     await initDatabase();
+    await RpgSeedService.seedDefaults();
 
     // 2. Setup Express & HTTP Server
     const app = createApp();

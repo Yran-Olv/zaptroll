@@ -10,6 +10,22 @@ import { Message } from './Message.js';
 import { MessageTemplate } from './MessageTemplate.js';
 import { AuditLog } from './AuditLog.js';
 import { config } from '../../config/index.js';
+import {
+  RpgPlayer,
+  RpgCharacter,
+  RpgCard,
+  RpgPlayerCard,
+  RpgPlayerCharacter,
+  RpgBattle,
+  RpgBattleParticipant,
+  RpgBattleTurn,
+  RpgDuelInvite,
+  RpgItem,
+  RpgInventory,
+  RpgCampaignProgress,
+  RpgConfig,
+} from '../../modules/rpg/models/index.js';
+import { RpgSeedService } from '../../modules/rpg/services/RpgSeedService.js';
 
 // Define Associations
 User.hasMany(WhatsAppConnection, { foreignKey: 'userId', as: 'connections', onDelete: 'CASCADE' });
@@ -67,6 +83,9 @@ export async function initDatabase(force = false) {
         console.warn('⚠️ [Init] Nenhum FIRST_ADMIN_PASSWORD configurado. Administrador inicial não provisionado.');
       }
     }
+
+    // Seed RPG characters, combat cards and configuration
+    await RpgSeedService.seedDefaults();
   } catch (error) {
     console.error('❌ Database initialization error:', error);
     throw error;
@@ -83,4 +102,18 @@ export {
   Message,
   MessageTemplate,
   AuditLog,
+  // RPG Models
+  RpgPlayer,
+  RpgCharacter,
+  RpgCard,
+  RpgPlayerCard,
+  RpgPlayerCharacter,
+  RpgBattle,
+  RpgBattleParticipant,
+  RpgBattleTurn,
+  RpgDuelInvite,
+  RpgItem,
+  RpgInventory,
+  RpgCampaignProgress,
+  RpgConfig,
 };
