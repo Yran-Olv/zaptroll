@@ -114,6 +114,21 @@ export class ZapoConnectionManager {
     }
 
     try {
+      // Aguardar o socket handshake estar pronto para pareamento
+      if (!(session.client.auth as any).isConnected?.()) {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 8000);
+          session!.client.once('auth_pairing_required', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          session!.client.once('auth_qr', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      }
+
       const code = await session.client.auth.requestPairingCode(cleanPhone);
       await WhatsAppConnection.update(
         { pairingCode: code, status: 'awaiting_auth', phoneNumber: cleanPhone },
