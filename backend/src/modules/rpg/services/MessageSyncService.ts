@@ -1,4 +1,5 @@
 import { WaClient } from 'zapo-js';
+import crypto from 'crypto';
 import { RpgBattle, RpgBattleParticipant, RpgCharacter, RpgCard } from '../models/index.js';
 import { RpgTokenService } from './RpgTokenService.js';
 import { config } from '../../../config/index.js';
@@ -62,7 +63,7 @@ export class MessageSyncService {
     if (battle.status === 'finished') {
       const winner = battle.winnerPlayerId === p1.playerId ? p1.name : battle.winnerPlayerId === p2.playerId ? p2.name : null;
       if (winner) {
-        lines.push(`🏆 *VENCEDOR:* 👑 *${winner.toUpperCase()}* levou o mandato e venceu a luta!`);
+        lines.push(`🏆 *VENCEDOR:* 👑 *${winner.toUpperCase()}* levou o mandato e venceu o duelo!`);
       } else {
         lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
       }
@@ -86,14 +87,16 @@ export class MessageSyncService {
 
       lines.push('⏱️ *ESCOLHAM SUAS CARTAS!* (45 segundos para decidir)');
       lines.push('👉 *Responda com 1, 2, 3 ou 4 neste grupo para jogar!*');
-      lines.push(`🌐 *Assistir e jogar ao vivo na Arena Web:* ${arenaUrl}`);
+      lines.push(`🔗 *Ver Arena ao Vivo:* ${arenaUrl}`);
     }
 
     return lines.join('\n');
   }
 
   /**
-   * Sincroniza a mensagem da batalha no grupo do WhatsApp
+   * Sincroniza a mensagem da batalha no grupo do WhatsApp:
+   * - No turno inicial, envia card com Botão Nativo de Webview (cta_url em tela cheia).
+   * - Nos turnos seguintes, edita a mensagem anterior no WhatsApp via editKey.
    */
   public static async syncBattleMessage(
     client: WaClient,
@@ -107,17 +110,83 @@ export class MessageSyncService {
 
     try {
       const text = await this.formatBattleMessage(battle, p1, p2, summary);
+      const token = RpgTokenService.generateBattleToken(battle.id, undefined, true);
+      const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}?t=${token}`;
 
-      const sendResult = await client.message.send(targetJid, {
-        type: 'text',
-        text,
-        linkPreview: false,
-      } as any);
+      let edited = false;
 
-      if (sendResult?.id) {
-        battle.lastMessageId = sendResult.id;
-        battle.lastMessageTimestamp = new Date();
-        await battle.save();
+      // 1. Se já existe mensagem anterior da batalha, EDITA a mensagem anterior!
+      if (battle.lastMessageId) {
+        try {
+          await client.message.send(
+            targetJid,
+            {
+              type: 'text',
+              text,
+              linkPreview: false,
+            } as any,
+            {
+              editKey: {
+                id: battle.lastMessageId,
+              },
+            }
+          );
+          edited = true;
+          battle.lastMessageTimestamp = new Date();
+          await battle.save();
+        } catch (editErr: any) {
+          console.warn(`[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}, reenviando:`, editErr?.message || editErr);
+          edited = false;
+        }
+      }
+
+      // 2. Se for a mensagem inaugural (Turno 1) ou se a edição falhou:
+      if (!edited) {
+        let sendResult: any = null;
+
+        // Tenta enviar com o Botão Nativo de Webview (padrão Multivus-Barber cta_url / webview_presentation full)
+        try {
+          const interactivePayload = {
+            messageContextInfo: {
+              messageSecret: crypto.randomBytes(32),
+            },
+            interactiveMessage: {
+              body: { text },
+              footer: { text: '🏛️ Arena Zaptroll RPG • Luta Política' },
+              nativeFlowMessage: {
+                buttons: [
+                  {
+                    name: 'cta_url',
+                    buttonParamsJson: JSON.stringify({
+                      display_text: '⚔️ Abrir Arena Web',
+                      url: arenaUrl,
+                      merchant_url: arenaUrl,
+                      webview_presentation: 'full',
+                      webview_interaction: true,
+                    }),
+                  },
+                ],
+                messageVersion: 1,
+                messageParamsJson: '{}',
+              },
+            },
+          };
+
+          sendResult = await client.message.send(targetJid, interactivePayload as any);
+        } catch (buttonErr: any) {
+          console.warn('[MessageSyncService] Envio com botão nativo falhou, enviando como texto simples:', buttonErr?.message || buttonErr);
+          sendResult = await client.message.send(targetJid, {
+            type: 'text',
+            text,
+            linkPreview: false,
+          } as any);
+        }
+
+        if (sendResult?.id) {
+          battle.lastMessageId = sendResult.id;
+          battle.lastMessageTimestamp = new Date();
+          await battle.save();
+        }
       }
     } catch (err: any) {
       console.warn(`[MessageSyncService] Falha ao sincronizar mensagem da batalha ${battle.id}:`, err?.message || err);

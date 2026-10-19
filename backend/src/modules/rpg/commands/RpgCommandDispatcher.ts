@@ -294,15 +294,13 @@ export class RpgCommandDispatcher {
       });
 
       if (lockResult.success) {
-        const cardDisplay = card ? `${card.emoji} *${card.name}*` : selectedCardId;
-        const statusMsg = lockResult.turnResolved
-          ? `🃏 *CARTA JOGADA:* ${cardDisplay}!\n⚡ Ambos os lutadores jogaram! Resolvendo turno...`
-          : `🃏 *CARTA TRAVADA:* ${cardDisplay}!\n⌛ Aguardando a jogada do seu adversário...`;
-
-        await client.message.send(remoteJid, {
-          type: 'text',
-          text: statusMsg,
-        });
+        if (!lockResult.turnResolved) {
+          const cardDisplay = card ? `${card.emoji} *${card.name}*` : selectedCardId;
+          await client.message.send(remoteJid, {
+            type: 'text',
+            text: `🃏 *CARTA TRAVADA:* ${cardDisplay}!\n⌛ Aguardando a jogada do seu adversário...`,
+          });
+        }
       } else {
         await client.message.send(remoteJid, {
           type: 'text',
