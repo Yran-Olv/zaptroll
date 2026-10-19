@@ -1,4 +1,5 @@
 import { WaClient } from 'zapo-js';
+import { Op } from 'sequelize';
 import {
   RpgBattle,
   RpgBattleParticipant,
@@ -101,7 +102,7 @@ export class RpgCommandDispatcher {
           ? (diff as any)
           : 'normal';
 
-        const reply = await DuelService.startBotBattle({
+        await DuelService.startBotBattle({
           connectionId,
           targetJid: remoteJid,
           phone: senderJid,
@@ -109,7 +110,6 @@ export class RpgCommandDispatcher {
           difficulty,
           client,
         });
-        await client.message.send(remoteJid, { type: 'text', text: reply });
         return true;
       }
 
@@ -242,10 +242,17 @@ export class RpgCommandDispatcher {
 
     if (choiceNumber === null) return false;
 
+    const cleanDigits = senderJid ? senderJid.replace(/\D/g, '') : '';
+    const phoneCandidates = [
+      senderJid,
+      cleanDigits,
+      `${cleanDigits}@s.whatsapp.net`,
+    ].filter(Boolean);
+
     // Buscar se o jogador está em uma batalha ativa com status 'selecting_cards'
     const activeParticipant = await RpgBattleParticipant.findOne({
       where: {
-        phone: senderJid,
+        phone: { [Op.in]: phoneCandidates },
         cardLocked: false,
       },
       include: [

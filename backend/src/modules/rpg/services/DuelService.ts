@@ -1,4 +1,5 @@
 import { WaClient } from 'zapo-js';
+import { Op } from 'sequelize';
 import {
   RpgBattle,
   RpgBattleParticipant,
@@ -254,10 +255,19 @@ export class DuelService {
   }): Promise<string> {
     const { connectionId, targetJid, phone, userName, difficulty = 'normal', client } = params;
 
-    let player = await RpgPlayer.findOne({ where: { whatsappPhone: phone } });
+    const cleanPhone = phone ? phone.split('@')[0].replace(/\D/g, '') : '';
+    let player = await RpgPlayer.findOne({
+      where: {
+        [Op.or]: [
+          { whatsappPhone: phone },
+          { whatsappPhone: cleanPhone },
+          { whatsappPhone: `${cleanPhone}@s.whatsapp.net` },
+        ],
+      },
+    });
     if (!player) {
       player = await RpgPlayer.create({
-        whatsappPhone: phone,
+        whatsappPhone: cleanPhone || phone,
         name: userName || 'Candidato',
       });
     }
@@ -294,7 +304,7 @@ export class DuelService {
     const p1Part = await RpgBattleParticipant.create({
       battleId: battle.id,
       playerId: player.id,
-      phone,
+      phone: cleanPhone || phone,
       name: userName || 'Candidato',
       characterId: player.selectedCharacterId || 'doutor_promessa',
       maxHp: 100 + player.bonusHp,

@@ -54,7 +54,7 @@ export class MessageSyncService {
 
     // Resumo da última ação se houver
     if (lastSummary) {
-      lines.push('📜 *ÚLTIMOS ACONTECIMENTOS:*');
+      lines.push('📜 *ÚLTIMOS ACONTECIMENTOS DO TURNO:*');
       lines.push(lastSummary);
       lines.push('');
     }
@@ -62,22 +62,38 @@ export class MessageSyncService {
     if (battle.status === 'finished') {
       const winner = battle.winnerPlayerId === p1.playerId ? p1.name : battle.winnerPlayerId === p2.playerId ? p2.name : null;
       if (winner) {
-        lines.push(`🏆 *VENCEDOR:* 👑 *${winner.toUpperCase()}* levou o mandato!`);
+        lines.push(`🏆 *VENCEDOR:* 👑 *${winner.toUpperCase()}* levou o mandato e venceu a luta!`);
       } else {
         lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
       }
     } else {
-      lines.push('⏱️ *ESCOLHAM SUAS CARTAS!* (45 segundos)');
-      lines.push('👉 _Envie o número da carta ou confirme pela Arena Web:_');
-      lines.push(`🔗 *Ver Arena ao Vivo:* ${arenaUrl}`);
+      // Mostrar cartas do jogador humano para facilitar jogada rápida no WhatsApp
+      const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
+      if (human && human.hand && human.hand.length > 0) {
+        const cards = await RpgCard.findAll({ where: { id: human.hand } });
+        const cardMap = new Map(cards.map((c) => [c.id, c]));
+        lines.push(`🃏 *SUAS CARTAS NA MÃO (${human.name}):*`);
+        human.hand.forEach((cardId, idx) => {
+          const c = cardMap.get(cardId);
+          if (c) {
+            const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'][idx] || `[${idx + 1}]`;
+            const costIcon = human.currentEnergy >= c.energyCost ? '⚡' : '⚠️⚡';
+            lines.push(`${numEmoji} ${c.emoji} *${c.name}* (${costIcon}${c.energyCost}) — ${c.description}`);
+          }
+        });
+        lines.push('');
+      }
+
+      lines.push('⏱️ *ESCOLHAM SUAS CARTAS!* (45 segundos para decidir)');
+      lines.push('👉 *Responda com 1, 2, 3 ou 4 neste grupo para jogar!*');
+      lines.push(`🌐 *Assistir e jogar ao vivo na Arena Web:* ${arenaUrl}`);
     }
 
     return lines.join('\n');
   }
 
   /**
-   * Sincroniza a mensagem da batalha no grupo do WhatsApp:
-   * Tenta editar a mensagem anterior via Zapo; se falhar ou se for muito antiga, envia nova mensagem e atualiza o ID.
+   * Sincroniza a mensagem da batalha no grupo do WhatsApp
    */
   public static async syncBattleMessage(
     client: WaClient,
@@ -92,46 +108,16 @@ export class MessageSyncService {
     try {
       const text = await this.formatBattleMessage(battle, p1, p2, summary);
 
-      // Tenta editar a mensagem anterior se existir e tiver menos de 10 minutos
-      let edited = false;
-      if (battle.lastMessageId && battle.lastMessageTimestamp) {
-        const elapsedMinutes = (Date.now() - new Date(battle.lastMessageTimestamp).getTime()) / (1000 * 60);
-        if (elapsedMinutes < 12) {
-          try {
-            await client.message.send(targetJid, {
-              protocolMessage: {
-                key: {
-                  remoteJid: targetJid,
-                  fromMe: true,
-                  id: battle.lastMessageId,
-                },
-                type: 14, // MESSAGE_EDIT
-                editedMessage: {
-                  conversation: text,
-                },
-              },
-            } as any);
-            edited = true;
-          } catch (editErr) {
-            // Edição não suportada ou falhou, fará fallback para nova mensagem
-            edited = false;
-          }
-        }
-      }
+      const sendResult = await client.message.send(targetJid, {
+        type: 'text',
+        text,
+        linkPreview: false,
+      } as any);
 
-      if (!edited) {
-        // Envio de nova mensagem controlada (linkPreview desativado para máxima velocidade e confiabilidade)
-        const sendResult = await client.message.send(targetJid, {
-          type: 'text',
-          text,
-          linkPreview: false,
-        } as any);
-
-        if (sendResult?.id) {
-          battle.lastMessageId = sendResult.id;
-          battle.lastMessageTimestamp = new Date();
-          await battle.save();
-        }
+      if (sendResult?.id) {
+        battle.lastMessageId = sendResult.id;
+        battle.lastMessageTimestamp = new Date();
+        await battle.save();
       }
     } catch (err: any) {
       console.warn(`[MessageSyncService] Falha ao sincronizar mensagem da batalha ${battle.id}:`, err?.message || err);

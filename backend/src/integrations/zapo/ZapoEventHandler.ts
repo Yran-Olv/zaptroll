@@ -791,13 +791,26 @@ export class ZapoEventHandler {
         // Gatilho RPG de Luta Política - Processamento de Comandos e Cartas
         if (created && rawCommandText) {
           const clientUserId = (client as any)?.user?.id || 'me@s.whatsapp.net';
-          const effectiveSenderJid = isGroup
+          let effectiveSenderJid = isGroup
             ? (event.key?.participant || event.participant || (fromMe ? clientUserId : remoteJid))
             : (fromMe ? clientUserId : remoteJid);
 
           const mentionedJids = rawCtx?.mentionedJid || [];
           setTimeout(async () => {
             try {
+              // Resolver @lid para telefone real via wa_mailbox_contacts
+              if (effectiveSenderJid && effectiveSenderJid.includes('@lid')) {
+                try {
+                  const [rows]: any = await sequelize.query(
+                    `SELECT phone_number FROM wa_mailbox_contacts WHERE (lid = :jid OR jid = :jid) AND phone_number IS NOT NULL LIMIT 1`,
+                    { replacements: { jid: effectiveSenderJid } }
+                  );
+                  if (rows && rows[0]?.phone_number) {
+                    effectiveSenderJid = rows[0].phone_number;
+                  }
+                } catch {}
+              }
+
               await RpgCommandDispatcher.handleMessage({
                 client,
                 connectionId,

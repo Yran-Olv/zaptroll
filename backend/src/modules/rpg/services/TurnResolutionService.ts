@@ -39,8 +39,12 @@ export class TurnResolutionService {
     }
 
     const participants = battle.get('participants') as RpgBattleParticipant[];
+    const cleanDigits = phone ? phone.replace(/\D/g, '') : null;
     const participant = participants.find(
-      (p) => (participantId && p.id === participantId) || (phone && p.phone === phone)
+      (p) =>
+        (participantId && p.id === participantId) ||
+        (phone && p.phone === phone) ||
+        (cleanDigits && p.phone && p.phone.replace(/\D/g, '') === cleanDigits)
     );
 
     if (!participant) {
