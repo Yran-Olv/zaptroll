@@ -136,10 +136,21 @@ export class MessagesController {
       let convRecord: Conversation | null = null;
 
       if (conversationId) {
-        convRecord = await Conversation.findByPk(conversationId);
-        if (convRecord) {
-          targetJid = convRecord.jid;
+        convRecord = await Conversation.findOne({
+          where: { id: conversationId, connectionId },
+        });
+
+        if (!convRecord) {
+          res.status(404).json({ error: 'Conversa não encontrada ou não autorizada.' });
+          return;
         }
+
+        if (recipientJid && recipientJid !== convRecord.jid) {
+          res.status(400).json({ error: 'O destinatário não corresponde à conversa.' });
+          return;
+        }
+
+        targetJid = convRecord.jid;
       }
 
       if (!targetJid) {
@@ -485,17 +496,66 @@ export class MessagesController {
   static async revoke(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { connectionId, stanzaId, conversationId } = req.body;
+
+      if (!connectionId) {
+        res.status(400).json({ error: 'connectionId é obrigatório.' });
+        return;
+      }
+
       const validated = revokeMessageSchema.parse({ stanzaId });
 
-      // Cancela qualquer timer pendente para evitar execução duplicada
-      AutoDestructService.cancel(validated.stanzaId);
-
+      // 1. Validar que a conexão pertence ao usuário autenticado
       const connection = await WhatsAppConnection.findOne({
         where: { id: connectionId, userId: req.user!.id },
       });
 
       if (!connection) {
-        res.status(404).json({ error: 'Conexão não encontrada.' });
+        res.status(404).json({ error: 'Conexão não encontrada ou não autorizada.' });
+        return;
+      }
+
+      // 2. Validar que a conversa pertence à conexão informada
+      let conversation: Conversation | null = null;
+      if (conversationId) {
+        conversation = await Conversation.findOne({
+          where: { id: conversationId, connectionId },
+        });
+
+        if (!conversation) {
+          res.status(404).json({ error: 'Conversa não encontrada ou não autorizada para esta conexão.' });
+          return;
+        }
+      }
+
+      // 3. Validar que a mensagem pertence à conexão/conversa e foi enviada pelo próprio usuário
+      const msgWhere: any = {
+        connectionId,
+        stanzaId: validated.stanzaId,
+      };
+      if (conversationId) {
+        msgWhere.conversationId = conversationId;
+      }
+
+      const msg = await Message.findOne({ where: msgWhere });
+
+      if (!msg) {
+        res.status(404).json({ error: 'Mensagem não encontrada nesta conexão ou conversa.' });
+        return;
+      }
+
+      if (!msg.fromMe) {
+        res.status(403).json({ error: 'Apenas mensagens enviadas por você podem ser revogadas.' });
+        return;
+      }
+
+      if (!conversation && msg.conversationId) {
+        conversation = await Conversation.findOne({
+          where: { id: msg.conversationId, connectionId },
+        });
+      }
+
+      if (!conversation) {
+        res.status(404).json({ error: 'Conversa vinculada à mensagem não encontrada.' });
         return;
       }
 
@@ -505,29 +565,20 @@ export class MessagesController {
         return;
       }
 
-      const conversation = await Conversation.findByPk(conversationId);
-      if (!conversation) {
-        res.status(404).json({ error: 'Conversa não encontrada.' });
-        return;
-      }
-
-      // Execute revocation via Zapo
+      // 4. Executar revogação no WhatsApp
       await ZapoMessageAdapter.revokeMessage(client, conversation.jid, {
         stanzaId: validated.stanzaId,
         fromMe: true,
       });
 
-      // Update message in database
-      const msg = await Message.findOne({
-        where: { connectionId, stanzaId: validated.stanzaId },
-      });
+      // 5. Cancelar timer de autodestruição SOMENTE após autorização e revogação bem-sucedida
+      AutoDestructService.cancel(connectionId, validated.stanzaId);
 
-      if (msg) {
-        msg.status = 'revoked';
-        msg.isRevoked = true;
-        msg.content = '🚫 Esta mensagem foi apagada';
-        await msg.save();
-      }
+      // 6. Atualizar mensagem no banco de dados local
+      msg.status = 'revoked';
+      msg.isRevoked = true;
+      msg.content = '🚫 Esta mensagem foi apagada';
+      await msg.save();
 
       emitToConnection(connectionId, 'message_status', {
         connectionId,

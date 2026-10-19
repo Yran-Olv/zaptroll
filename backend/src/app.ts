@@ -22,12 +22,33 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl) or allowed origins
-        if (!origin || config.corsOrigins.includes(origin) || config.env === 'development') {
+        // Permitir requisições sem cabeçalho Origin (apps móveis, curl, chamadas de servidor)
+        if (!origin) {
           callback(null, true);
-        } else {
-          callback(null, true); // Permissive in dev/local setups
+          return;
         }
+
+        const normalizedOrigin = origin.trim().replace(/\/+$/, '');
+
+        // Permitir se estiver explicitamente configurado na lista de origens
+        if (config.corsOrigins.includes(normalizedOrigin)) {
+          callback(null, true);
+          return;
+        }
+
+        // Em desenvolvimento, permitir localhost e 127.0.0.1
+        if (config.env === 'development') {
+          if (
+            normalizedOrigin.startsWith('http://localhost') ||
+            normalizedOrigin.startsWith('http://127.0.0.1')
+          ) {
+            callback(null, true);
+            return;
+          }
+        }
+
+        // Rejeitar qualquer outra origem não autorizada
+        callback(new Error('Origem não permitida pela política CORS.'));
       },
       credentials: true,
     })

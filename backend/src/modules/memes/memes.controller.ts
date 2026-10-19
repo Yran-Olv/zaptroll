@@ -1,8 +1,10 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../../middleware/auth.js';
+import { WhatsAppConnection } from '../../database/models/index.js';
 import { MemeFlowService } from './MemeFlowService.js';
 
 export class MemesController {
-  static async listFlows(req: Request, res: Response): Promise<void> {
+  static async listFlows(req: AuthRequest, res: Response): Promise<void> {
     try {
       const flows = MemeFlowService.listFlows();
       res.json({ success: true, flows });
@@ -11,7 +13,7 @@ export class MemesController {
     }
   }
 
-  static async triggerFlow(req: Request, res: Response): Promise<void> {
+  static async triggerFlow(req: AuthRequest, res: Response): Promise<void> {
     const { connectionId, conversationId, recipientJid, flowId } = req.body;
 
     if (!connectionId) {
@@ -21,6 +23,16 @@ export class MemesController {
 
     if (!conversationId && !recipientJid) {
       res.status(400).json({ error: 'conversationId ou recipientJid é obrigatório.' });
+      return;
+    }
+
+    // Validar propriedade da conexão pelo usuário autenticado
+    const connection = await WhatsAppConnection.findOne({
+      where: { id: connectionId, userId: req.user!.id },
+    });
+
+    if (!connection) {
+      res.status(404).json({ error: 'Conexão não encontrada ou não autorizada.' });
       return;
     }
 
@@ -38,7 +50,8 @@ export class MemesController {
       res.status(400).json({ error: `Fluxo '${flowId}' não reconhecido.` });
     } catch (err: any) {
       console.error('[MemesController] Erro ao disparar fluxo:', err);
-      res.status(500).json({ error: err.message || 'Erro ao disparar fluxo de meme.' });
+      const status = err.status || 400;
+      res.status(status).json({ error: err.message || 'Erro ao disparar fluxo de meme.' });
     }
   }
 }

@@ -50,18 +50,22 @@ export async function initDatabase(force = false) {
     // Seed first administrator if none exists
     const adminCount = await User.count({ where: { role: 'admin' } });
     if (adminCount === 0) {
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(config.firstAdmin.password, salt);
-      await User.create({
-        name: config.firstAdmin.name,
-        email: config.firstAdmin.email,
-        passwordHash,
-        role: 'admin',
-        status: 'active',
-        maxConnections: 10,
-        rateLimit: 1000,
-      });
-      console.log(`👑 First administrator provisioned: ${config.firstAdmin.email}`);
+      if (config.firstAdmin.password) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(config.firstAdmin.password, salt);
+        await User.create({
+          name: config.firstAdmin.name,
+          email: config.firstAdmin.email,
+          passwordHash,
+          role: 'admin',
+          status: 'active',
+          maxConnections: 10,
+          rateLimit: 1000,
+        });
+        console.log(`👑 First administrator provisioned: ${config.firstAdmin.email}`);
+      } else {
+        console.warn('⚠️ [Init] Nenhum FIRST_ADMIN_PASSWORD configurado. Administrador inicial não provisionado.');
+      }
     }
   } catch (error) {
     console.error('❌ Database initialization error:', error);

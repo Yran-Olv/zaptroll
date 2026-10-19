@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-zaptroll_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-zaptroll_secret_pass}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be defined}
       POSTGRES_DB: ${DB_NAME:-zaptroll_db}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -26,18 +26,18 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgres://${DB_USER:-zaptroll_user}:${DB_PASSWORD:-zaptroll_secret_pass}@postgres:5432/${DB_NAME:-zaptroll_db}
+      DATABASE_URL: postgres://${DB_USER:-zaptroll_user}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-zaptroll_db}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-zaptroll_user}
-      DB_PASSWORD: ${DB_PASSWORD:-zaptroll_secret_pass}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be defined}
       DB_NAME: ${DB_NAME:-zaptroll_db}
-      JWT_SECRET: ${JWT_SECRET:-zaptroll_super_secure_jwt_secret_change_in_production_32chars}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be defined (min 32 chars)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       FIRST_ADMIN_NAME: ${FIRST_ADMIN_NAME:-Admin Zaptroll}
-      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-admin@zaptroll.local}
-      FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:-Admin@SecurePass2026!}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:?FIRST_ADMIN_EMAIL must be defined}
+      FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:?FIRST_ADMIN_PASSWORD must be defined}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy

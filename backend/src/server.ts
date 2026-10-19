@@ -1,6 +1,6 @@
 import http from 'http';
 import { createApp } from './app.js';
-import { config } from './config/index.js';
+import { config, validateConfig } from './config/index.js';
 import { initDatabase } from './database/models/index.js';
 import { initSocket } from './modules/realtime/socket.js';
 import { zapoManager } from './integrations/zapo/ZapoConnectionManager.js';
@@ -9,6 +9,9 @@ import { AutoDestructService } from './modules/messages/AutoDestructService.js';
 async function bootstrap() {
   try {
     console.log('🚀 Starting Zaptroll Backend...');
+
+    // 0. Security pre-flight validation
+    validateConfig();
 
     // 1. Initialize Database
     await initDatabase();

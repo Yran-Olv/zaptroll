@@ -110,10 +110,23 @@ export class MemeFlowService {
     let convRecord: Conversation | null = null;
 
     if (params.conversationId) {
-      convRecord = await Conversation.findByPk(params.conversationId);
-      if (convRecord) {
-        targetJid = convRecord.jid;
+      convRecord = await Conversation.findOne({
+        where: { id: params.conversationId, connectionId },
+      });
+
+      if (!convRecord) {
+        const err: any = new Error('Conversa não encontrada ou não autorizada para esta conexão.');
+        err.status = 404;
+        throw err;
       }
+
+      if (params.recipientJid && params.recipientJid !== convRecord.jid) {
+        const err: any = new Error('O destinatário não corresponde à conversa.');
+        err.status = 400;
+        throw err;
+      }
+
+      targetJid = convRecord.jid;
     } else if (targetJid) {
       convRecord = await Conversation.findOne({
         where: { connectionId, jid: targetJid },
@@ -121,7 +134,9 @@ export class MemeFlowService {
     }
 
     if (!targetJid || !convRecord) {
-      throw new Error('Conversa ou destinatário JID não encontrado.');
+      const err: any = new Error('Conversa ou destinatário JID não encontrado.');
+      err.status = 404;
+      throw err;
     }
 
     const oggPath = this.getJacareOggPath();
