@@ -820,8 +820,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       rawP.videoMessage?.viewOnce ||
                       rawP.audioMessage?.viewOnce ||
                       rawP.ptvMessage?.viewOnce ||
+                      msg.messageType === 'view_once' ||
                       msg.mediaUrl?.includes('viewonce_') ||
-                      (typeof msg.content === 'string' && msg.content.includes('[Visualização Única]'))
+                      (typeof msg.content === 'string' &&
+                        (msg.content.includes('[Visualização Única]') ||
+                         msg.content.toLowerCase().includes('visualização única') ||
+                         msg.content.toLowerCase().includes('visualizacao unica')))
                     );
 
                     if (!isViewOnceMsg) return null;
@@ -832,10 +836,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                           <span>Visualização Única</span>
                           <span className="text-[9px] px-1.5 py-0.5 bg-amber-400/25 text-amber-200 rounded font-semibold uppercase tracking-wider">
-                            Salva
+                            {msg.mediaUrl ? 'Salva' : isOutgoing ? 'Dispositivo' : 'Recebida'}
                           </span>
                         </div>
-                        {msg.mediaUrl && (
+                        {msg.mediaUrl ? (
                           <a
                             href={msg.mediaUrl}
                             download={
@@ -853,6 +857,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             <Download className="w-3 h-3" />
                             <span>Baixar</span>
                           </a>
+                        ) : (
+                          <span className="text-[10px] text-amber-400/80 font-normal">
+                            {isOutgoing ? '📱 Celular' : '🔒 WhatsApp'}
+                          </span>
                         )}
                       </div>
                     );

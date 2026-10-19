@@ -261,6 +261,163 @@ export class ZapoEventHandler {
       }
     });
 
+    // 4.9 Handle Unavailable / View-Once Messages from other devices or phone fanout
+    client.on('message_unavailable', async (event: any) => {
+      try {
+        const remoteJid = event.key?.remoteJid;
+        const stanzaId = event.key?.id;
+        if (!remoteJid || !stanzaId) return;
+
+        const fromMe = Boolean(event.key?.fromMe);
+        const participant = event.key?.participant || null;
+        const isGroup = remoteJid.endsWith('@g.us');
+        const isNewsletter = remoteJid.includes('@newsletter');
+        const chatType = isGroup ? 'group' : isNewsletter ? 'newsletter' : 'direct';
+        const kind = event.kind || 'view_once';
+
+        console.log(
+          `[ZapoEventHandler] 👁️ message_unavailable: stanzaId=${stanzaId}, jid=${remoteJid}, kind=${kind}, fromMe=${fromMe}, resend=${event.resendRequested}`
+        );
+
+        let chatName = remoteJid.split('@')[0];
+        if (isGroup) {
+          const existingGroup = await Group.findOne({ where: { connectionId, jid: remoteJid } });
+          if (existingGroup?.name && !existingGroup.name.startsWith('Grupo 12036')) {
+            chatName = existingGroup.name;
+          }
+        } else {
+          const contact = await Contact.findOne({ where: { connectionId, jid: remoteJid } });
+          if (contact?.name) chatName = contact.name;
+        }
+
+        let textContent: string;
+        if (kind === 'view_once') {
+          textContent = fromMe
+            ? 'Você enviou uma mensagem de visualização única de outro dispositivo.'
+            : '👁️ [Visualização Única] Mensagem de visualização única recebida no celular.';
+        } else if (kind === 'bot') {
+          textContent = '🤖 Mensagem de bot processada em outro dispositivo.';
+        } else {
+          textContent = fromMe
+            ? 'Você enviou uma mensagem de outro dispositivo.'
+            : 'Mensagem recebida no dispositivo principal.';
+        }
+
+        // Upsert Conversation
+        let conversation = await Conversation.findOne({
+          where: { connectionId, jid: remoteJid },
+        });
+
+        if (!conversation) {
+          conversation = await Conversation.create({
+            connectionId,
+            jid: remoteJid,
+            chatType,
+            name: chatName,
+            unreadCount: fromMe ? 0 : 1,
+            lastMessageText: textContent,
+            lastMessageTimestamp: new Date(),
+          });
+        } else {
+          conversation.lastMessageText = textContent;
+          conversation.lastMessageTimestamp = new Date();
+          conversation.status = 'open';
+          if (!fromMe) {
+            conversation.unreadCount += 1;
+          }
+          await conversation.save();
+        }
+
+        const rawPayload = {
+          isViewOnce: kind === 'view_once',
+          isUnavailable: true,
+          unavailableKind: kind,
+          resendRequested: Boolean(event.resendRequested),
+          pushName: event.pushName || null,
+        };
+
+        const msgTimestamp = event.timestampSeconds
+          ? new Date(event.timestampSeconds * 1000)
+          : new Date();
+
+        const [message, created] = await Message.findOrCreate({
+          where: { connectionId, stanzaId },
+          defaults: {
+            connectionId,
+            conversationId: conversation.id,
+            stanzaId,
+            senderJid: fromMe ? 'me' : participant || remoteJid,
+            fromMe,
+            messageType: kind === 'view_once' ? 'view_once' : 'text',
+            content: textContent,
+            caption: null,
+            mediaUrl: null,
+            rawPayload,
+            status: fromMe ? 'sent' : 'delivered',
+            timestamp: msgTimestamp,
+            isRevoked: false,
+            participant,
+          },
+        });
+
+        if (!created) {
+          message.rawPayload = { ...(message.rawPayload || {}), ...rawPayload };
+          if (!message.content) message.content = textContent;
+          await message.save();
+        }
+
+        const messagePayload = {
+          id: message.id,
+          stanzaId: message.stanzaId,
+          connectionId: message.connectionId,
+          conversationId: conversation.id,
+          remoteJid,
+          fromMe: message.fromMe,
+          senderJid: message.senderJid,
+          messageType: message.messageType,
+          content: message.content,
+          caption: message.caption,
+          mediaUrl: message.mediaUrl,
+          mediaMimetype: message.mediaMimetype,
+          mediaFilename: message.mediaFilename,
+          thumbnailUrl: message.thumbnailUrl,
+          rawPayload: message.rawPayload,
+          status: message.status,
+          timestamp: message.timestamp,
+        };
+
+        emitToConnection(connectionId, 'new_message', {
+          connectionId,
+          message: messagePayload,
+          conversation: {
+            id: conversation.id,
+            jid: conversation.jid,
+            name: conversation.name,
+            chatType: conversation.chatType,
+            unreadCount: conversation.unreadCount,
+            lastMessageText: conversation.lastMessageText,
+            lastMessageTimestamp: conversation.lastMessageTimestamp,
+          },
+        });
+
+        emitToUser(userId, 'new_message', {
+          connectionId,
+          message: messagePayload,
+          conversation: {
+            id: conversation.id,
+            jid: conversation.jid,
+            name: conversation.name,
+            chatType: conversation.chatType,
+            unreadCount: conversation.unreadCount,
+            lastMessageText: conversation.lastMessageText,
+            lastMessageTimestamp: conversation.lastMessageTimestamp,
+          },
+        });
+      } catch (err: any) {
+        console.error('[ZapoEventHandler] Error handling message_unavailable:', err);
+      }
+    });
+
     // 5. Incoming Messages
     client.on('message', async (event: any) => {
       try {
@@ -708,19 +865,20 @@ export class ZapoEventHandler {
           },
         });
 
-        // Ensure attributes are up to date if found
-        if (mediaUrl && !message.mediaUrl) {
+        // Ensure attributes are up to date if found or upgraded from unavailable placeholder
+        if (mediaUrl) {
           message.mediaUrl = mediaUrl;
           message.mediaMimetype = mediaMimetype;
           message.mediaFilename = mediaFilename;
           message.thumbnailUrl = thumbnailUrl;
           message.caption = caption;
-          if (isViewOnce) {
-            message.rawPayload = { ...(message.rawPayload || {}), isViewOnce: true };
-          }
+          message.content = textContent;
+          message.messageType = messageType;
+          message.rawPayload = { ...(message.rawPayload || {}), ...(enrichedRawPayload || {}), isViewOnce: Boolean(isViewOnce) };
           await message.save();
-        } else if (isViewOnce && !message.rawPayload?.isViewOnce) {
-          message.rawPayload = { ...(message.rawPayload || {}), isViewOnce: true };
+        } else if (isViewOnce) {
+          message.rawPayload = { ...(message.rawPayload || {}), ...(enrichedRawPayload || {}), isViewOnce: true };
+          if (message.messageType === 'text') message.messageType = 'view_once';
           await message.save();
         }
 

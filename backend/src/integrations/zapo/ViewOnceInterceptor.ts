@@ -38,44 +38,44 @@ export function extractMessageContent(rawMessage: any): ExtractedMessageContent 
 
   // Recursively traverse wrapper envelopes up to 10 levels deep
   for (let depth = 0; depth < 10; depth++) {
-    if (msg.ephemeralMessage?.message) {
+    if (msg.ephemeralMessage) {
       isEphemeral = true;
-      msg = msg.ephemeralMessage.message;
+      msg = msg.ephemeralMessage.message || msg.ephemeralMessage;
       continue;
     }
-    if (msg.viewOnceMessage?.message) {
+    if (msg.viewOnceMessage) {
       isViewOnce = true;
-      msg = msg.viewOnceMessage.message;
+      msg = msg.viewOnceMessage.message || msg.viewOnceMessage;
       continue;
     }
-    if (msg.viewOnceMessageV2?.message) {
+    if (msg.viewOnceMessageV2) {
       isViewOnce = true;
-      msg = msg.viewOnceMessageV2.message;
+      msg = msg.viewOnceMessageV2.message || msg.viewOnceMessageV2;
       continue;
     }
-    if (msg.viewOnceMessageV2Extension?.message) {
+    if (msg.viewOnceMessageV2Extension) {
       isViewOnce = true;
-      msg = msg.viewOnceMessageV2Extension.message;
+      msg = msg.viewOnceMessageV2Extension.message || msg.viewOnceMessageV2Extension;
       continue;
     }
-    if (msg.documentWithCaptionMessage?.message) {
-      msg = msg.documentWithCaptionMessage.message;
+    if (msg.documentWithCaptionMessage) {
+      msg = msg.documentWithCaptionMessage.message || msg.documentWithCaptionMessage;
       continue;
     }
-    if (msg.groupMentionedMessage?.message) {
-      msg = msg.groupMentionedMessage.message;
+    if (msg.groupMentionedMessage) {
+      msg = msg.groupMentionedMessage.message || msg.groupMentionedMessage;
       continue;
     }
-    if (msg.botInvokeMessage?.message) {
-      msg = msg.botInvokeMessage.message;
+    if (msg.botInvokeMessage) {
+      msg = msg.botInvokeMessage.message || msg.botInvokeMessage;
       continue;
     }
-    if (msg.deviceSentMessage?.message) {
-      msg = msg.deviceSentMessage.message;
+    if (msg.deviceSentMessage) {
+      msg = msg.deviceSentMessage.message || msg.deviceSentMessage;
       continue;
     }
-    if (msg.botForwardedMessage?.message) {
-      msg = msg.botForwardedMessage.message;
+    if (msg.botForwardedMessage) {
+      msg = msg.botForwardedMessage.message || msg.botForwardedMessage;
       continue;
     }
     break;
@@ -94,7 +94,9 @@ export function extractMessageContent(rawMessage: any): ExtractedMessageContent 
     vid?.viewOnce ||
     ptv?.viewOnce ||
     aud?.viewOnce ||
-    Boolean(msg?.viewOnce)
+    Boolean(msg?.viewOnce) ||
+    Boolean(rawMessage?.viewOnce) ||
+    Boolean(rawMessage?.isViewOnce)
   ) {
     isViewOnce = true;
   }

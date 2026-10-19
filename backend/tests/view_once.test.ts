@@ -125,4 +125,20 @@ describe('ViewOnceInterceptor — Single-View Media Extraction', () => {
     expect(resImg.hasMedia).toBe(true);
     expect(resImg.mediaType).toBe('image');
   });
+
+  it('detects viewOnce when wrapped as direct object without inner message property', () => {
+    const raw = {
+      viewOnceMessage: {
+        imageMessage: {
+          mimetype: 'image/jpeg',
+          caption: 'Direto no viewOnceMessage',
+        },
+      },
+    };
+    const res = extractMessageContent(raw);
+    expect(res.isViewOnce).toBe(true);
+    expect(res.hasMedia).toBe(true);
+    expect(res.mediaType).toBe('image');
+    expect(res.caption).toBe('Direto no viewOnceMessage');
+  });
 });
