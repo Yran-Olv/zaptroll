@@ -134,20 +134,29 @@ export class ConversationsController {
           continue;
         }
 
-        // Direct chat: verify if erroneously named "Você (Mensagens Salvas)" or showing raw JID/digits
+        // Direct chat: verify if erroneously named "Você (Mensagens Salvas)", "Yran", raw JID, or missing real contact name
+        const isPoisonedYran = (conv.name === 'Yran' || conv.name === 'Admin Zaptroll') && !isSelf;
         const needsNameFix =
           !conv.name ||
           conv.name === rawJidId ||
           conv.name.includes('@') ||
-          (conv.name === 'Você (Mensagens Salvas)' && !isSelf);
+          (conv.name === 'Você (Mensagens Salvas)' && !isSelf) ||
+          isPoisonedYran ||
+          (conv.jid.endsWith('@lid') && (!conv.name || conv.name === 'Contato WhatsApp' || isPoisonedYran));
 
-        if (needsNameFix) {
+        if (needsNameFix || !conv.phoneNumber) {
           // 1. Check wa_mailbox_contacts
           try {
             const [rows]: any = await sequelize.query(
-              `SELECT display_name, push_name, phone_number, lid FROM wa_mailbox_contacts 
+              `SELECT display_name, push_name, phone_number, lid, jid FROM wa_mailbox_contacts 
                WHERE (jid = :jid OR lid = :jid OR phone_number = :jid) 
-               AND (display_name IS NOT NULL OR push_name IS NOT NULL) 
+               ORDER BY 
+                 CASE 
+                   WHEN display_name IS NOT NULL AND display_name != '' AND display_name NOT LIKE '%∙%' THEN 1
+                   WHEN push_name IS NOT NULL AND push_name != '' AND push_name != '.' THEN 2
+                   ELSE 3
+                 END,
+                 last_updated_ms DESC
                LIMIT 1`,
               { replacements: { jid: conv.jid } }
             );
@@ -155,7 +164,11 @@ export class ConversationsController {
             if (rows && rows.length > 0) {
               const match = rows[0];
               const resolved = (match.display_name || match.push_name || '').trim();
-              if (resolved && resolved !== rawJidId) {
+              const matchedPhone = match.phone_number ? match.phone_number.split('@')[0].replace(/\D/g, '') : null;
+              if (matchedPhone && !conv.phoneNumber) {
+                conv.phoneNumber = matchedPhone;
+              }
+              if (resolved && resolved !== rawJidId && (isSelf || resolved !== 'Yran')) {
                 conv.name = resolved;
                 await conv.save();
                 continue;
@@ -165,15 +178,34 @@ export class ConversationsController {
 
           // 2. Check Contact model
           const contact = await Contact.findOne({ where: { connectionId: conv.connectionId, jid: conv.jid } });
-          if (contact && (contact.name || contact.notifyName)) {
-            conv.name = contact.name || contact.notifyName!;
+          if (contact) {
+            if (contact.phoneNumber && !conv.phoneNumber) {
+              conv.phoneNumber = contact.phoneNumber;
+            }
+            if (contact.name && (isSelf || contact.name !== 'Yran') && contact.name !== rawJidId) {
+              conv.name = contact.name;
+              await conv.save();
+              continue;
+            } else if (contact.notifyName && (isSelf || contact.notifyName !== 'Yran')) {
+              conv.name = contact.notifyName;
+              await conv.save();
+              continue;
+            }
+          }
+
+          if (conv.jid.includes('@bot')) {
+            conv.name = 'Meta AI';
             await conv.save();
             continue;
           }
 
-          // 3. If raw phone number, format it cleanly
+          // 3. If raw phone number or known phone, format it cleanly
           if (/^\d{10,15}$/.test(rawJidId)) {
+            conv.phoneNumber = rawJidId;
             conv.name = formatPhoneNumber(rawJidId);
+            await conv.save();
+          } else if (conv.phoneNumber && /^\d{10,15}$/.test(conv.phoneNumber)) {
+            conv.name = formatPhoneNumber(conv.phoneNumber);
             await conv.save();
           }
         }

@@ -134,6 +134,7 @@ export class AutoDestructService {
       });
 
       for (const msg of pendingMessages) {
+        if (msg.messageType === 'ephemeral_message') continue;
         const raw = msg.rawPayload;
         if (!raw) continue;
         const expSeconds = raw.expirationSeconds || raw.duration || raw.seconds;

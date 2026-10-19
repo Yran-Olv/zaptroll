@@ -26,7 +26,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ connection, onSelect
 
   if (!connection) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400 bg-[#0d1117] select-none">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400 bg-[#0d1117]">
         <UserCheck className="w-12 h-12 text-gray-600 mb-2" />
         <h3 className="text-sm font-bold text-gray-200 font-mono">Nenhuma Conexão Selecionada</h3>
         <p className="text-xs text-gray-500 mt-1 max-w-xs font-mono">
@@ -37,7 +37,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({ connection, onSelect
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-hidden">
       {/* Search Header */}
       <div className="lab-glass sticky top-0 z-10 px-4 py-3 border-b border-[#2a3346]">
         <h1 className="text-base font-bold font-mono text-white mb-2 flex items-center gap-2">

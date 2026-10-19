@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   MousePointerClick,
@@ -486,6 +486,21 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
     }
   }, [isOpen]);
 
+  const tabTrackRef = useRef<HTMLDivElement>(null);
+
+  const scrollCategoryTabs = (dir: 'left' | 'right') => {
+    if (tabTrackRef.current) {
+      tabTrackRef.current.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && tabTrackRef.current) {
+      const activeEl = tabTrackRef.current.querySelector(`[data-cat-id="${activeTab}"]`);
+      activeEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeTab, isOpen]);
+
   if (!isOpen) return null;
 
   const handleSend = async (type: string, payload: any) => {
@@ -620,7 +635,7 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
       <div className="bg-[#12151c] rounded-3xl w-full max-w-5xl h-[92vh] max-h-[820px] flex flex-col shadow-2xl border border-[#2a3346] overflow-hidden">
         {/* Modal Header */}
         <div className="bg-[#161922] border-b border-[#2a3346] px-3.5 sm:px-5 py-3 sm:py-4 text-white flex items-center justify-between shrink-0">
@@ -650,17 +665,31 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
           </button>
         </div>
 
-        {/* Categories Bar (Horizontally scrollable with smooth touch on mobile) */}
-        <div className="bg-[#0e1118] border-b border-[#2a3346] shrink-0 overflow-x-auto scrollbar-none">
-          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-2 min-w-max">
+        {/* Categories Bar with Left/Right Navigation Chevrons and smooth touch scroll */}
+        <div className="relative bg-[#0e1118] border-b border-[#2a3346] shrink-0 flex items-center px-1 sm:px-2">
+          <button
+            type="button"
+            onClick={() => scrollCategoryTabs('left')}
+            className="p-1 sm:p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition shrink-0 hidden sm:flex"
+            title="Rolar abas para a esquerda"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div
+            ref={tabTrackRef}
+            className="flex-1 flex items-center gap-1.5 px-2 py-2 overflow-x-auto scrollbar-none scroll-smooth"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {categories.map((cat) => {
               const IconComp = cat.icon;
               const isActive = activeTab === cat.id;
               return (
                 <button
                   key={cat.id}
+                  data-cat-id={cat.id}
                   onClick={() => setActiveTab(cat.id as any)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-mono font-semibold flex items-center gap-1.5 whitespace-nowrap transition shrink-0 ${
+                  className={`px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-mono font-semibold flex items-center gap-1.5 whitespace-nowrap transition shrink-0 ${
                     isActive
                       ? 'bg-[#39ff14] text-black font-bold shadow-[0_0_12px_rgba(57,255,20,0.3)]'
                       : 'bg-[#161922] text-gray-400 hover:text-white border border-[#2a3346]'
@@ -672,6 +701,15 @@ export const AdvancedFeaturesModal: React.FC<AdvancedFeaturesModalProps> = ({
               );
             })}
           </div>
+
+          <button
+            type="button"
+            onClick={() => scrollCategoryTabs('right')}
+            className="p-1 sm:p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition shrink-0 hidden sm:flex"
+            title="Rolar abas para a direita"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Content Body: 2 Columns on desktop (Editor + Live Preview) */}

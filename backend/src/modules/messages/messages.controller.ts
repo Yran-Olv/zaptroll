@@ -203,7 +203,8 @@ export class MessagesController {
             : undefined;
 
           if (ephemeralSeconds && ephemeralSeconds > 0) {
-            scheduledExpirationSeconds = ephemeralSeconds;
+            // Mensagem Fantasma nativa que desaparece após a leitura pelo WhatsApp
+            scheduledExpirationSeconds = undefined;
             sendResult = await ZapoMessageAdapter.sendEphemeralMessage(
               client,
               targetJid,
@@ -212,11 +213,11 @@ export class MessagesController {
               {
                 afterReadDuration: payload.experimentalAfterRead || payload.afterReadDuration
                   ? Number(payload.afterReadDuration || ephemeralSeconds)
-                  : undefined,
+                  : ephemeralSeconds,
                 quote: quoteOptions,
               }
             );
-            storedContent = `⏳ [Efêmera (${ephemeralSeconds}s)]: ${validated.text}`;
+            storedContent = `👻 [Fantasma (${ephemeralSeconds}s)]: ${validated.text}`;
             msgType = 'ephemeral_message';
           } else {
             sendResult = await ZapoMessageAdapter.sendText(client, targetJid, validated.text, {
@@ -320,25 +321,26 @@ export class MessagesController {
         case 'ephemeral':
         case 'ephemeral_single':
         case 'ephemeral_message': {
-          const exp = Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds ?? 10);
+          const exp = Number(payload.expirationSeconds ?? payload.duration ?? payload.seconds ?? 5);
           const validated = singleMessageEphemeralSchema.parse({
             ...payload,
             expirationSeconds: exp,
-            experimentalAfterRead: payload.experimentalAfterRead ?? Boolean(payload.afterReadDuration),
-            afterReadDuration: payload.afterReadDuration ?? exp,
+            experimentalAfterRead: true,
+            afterReadDuration: exp,
           });
-          scheduledExpirationSeconds = validated.expirationSeconds;
+          // Mensagem Fantasma nativa WhatsApp (desaparece após ser lida sem deixar "Esta mensagem foi apagada")
+          scheduledExpirationSeconds = undefined;
           sendResult = await ZapoMessageAdapter.sendEphemeralMessage(
             client,
             targetJid,
             validated.text,
             validated.expirationSeconds,
             {
-              afterReadDuration: validated.experimentalAfterRead ? validated.afterReadDuration || 5 : undefined,
+              afterReadDuration: validated.afterReadDuration || exp,
               quote: quoteOptions,
             }
           );
-          storedContent = `⏳ [Efêmera (${validated.expirationSeconds}s)]: ${validated.text}`;
+          storedContent = `👻 [Fantasma (${validated.expirationSeconds}s)]: ${validated.text}`;
           msgType = 'ephemeral_message';
           break;
         }
@@ -432,8 +434,10 @@ export class MessagesController {
         isRevoked: false,
       });
 
-      // Se a mensagem possui expiração/duração temporária, agenda autodestruição real no WhatsApp (apagar para todos)
-      if (scheduledExpirationSeconds && scheduledExpirationSeconds > 0) {
+      // Se a mensagem possui expiração/duração temporária manual (ex: botões, carrossel, raw que o usuário pediu timer),
+      // agenda autodestruição no WhatsApp (apagar para todos).
+      // Mensagens efêmeras/fantasmas desaparecem nativamente pelo WhatsApp após a leitura e NÃO devem ser revogadas.
+      if (scheduledExpirationSeconds && scheduledExpirationSeconds > 0 && msgType !== 'ephemeral_message') {
         AutoDestructService.scheduleAutoDestruct({
           connectionId,
           conversationId: convRecord.id,

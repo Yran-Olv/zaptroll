@@ -18,12 +18,23 @@ interface TrollNotificationToastProps {
   onOpenConversation: (conversationId: string) => void;
 }
 
-// Lightweight synthesized retro 8-bit laboratory chime using Web Audio API
+// Shared singleton AudioContext to prevent mobile browser audio engine exhaustion & freezes
+let sharedAudioCtx: AudioContext | null = null;
+
 export function playTrollSound() {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioCtx();
+    }
+
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+
+    const ctx = sharedAudioCtx;
     const now = ctx.currentTime;
 
     // Dual-tone high-tech notification chirp
@@ -60,37 +71,20 @@ export const TrollNotificationToast: React.FC<TrollNotificationToastProps> = ({
   onClose,
   onOpenConversation,
 }) => {
-  const [progress, setProgress] = useState(100);
-
   useEffect(() => {
     if (!notification) return;
 
-    // Play subtle audio cue
-    playTrollSound();
+    const timer = setTimeout(() => {
+      onClose();
+    }, 6000);
 
-    setProgress(100);
-    const duration = 6000;
-    const intervalTime = 50;
-    const step = (intervalTime / duration) * 100;
-
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev <= step) {
-          clearInterval(timer);
-          onClose();
-          return 0;
-        }
-        return prev - step;
-      });
-    }, intervalTime);
-
-    return () => clearInterval(timer);
-  }, [notification?.id]);
+    return () => clearTimeout(timer);
+  }, [notification?.id, onClose]);
 
   if (!notification) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100vw-2rem)] select-none animate-in slide-in-from-top-3 fade-in duration-300">
+    <div className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100vw-2rem)] animate-in slide-in-from-top-3 fade-in duration-300">
       <div
         onClick={() => onOpenConversation(notification.conversationId)}
         className="group relative bg-[#131722]/95 backdrop-blur-2xl border-2 border-[#39ff14] rounded-2xl shadow-[0_0_30px_rgba(57,255,20,0.35)] p-3.5 cursor-pointer overflow-hidden transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(57,255,20,0.5)]"
@@ -151,12 +145,9 @@ export const TrollNotificationToast: React.FC<TrollNotificationToastProps> = ({
           </div>
         </div>
 
-        {/* Progress Bar Countdown at Bottom */}
+        {/* Progress Bar Countdown at Bottom (pure CSS animation, 0 React re-renders) */}
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#1a202c]">
-          <div
-            className="h-full bg-gradient-to-r from-[#10b981] to-[#39ff14] transition-all duration-75"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-full bg-gradient-to-r from-[#10b981] to-[#39ff14] animate-toast-progress" />
         </div>
       </div>
     </div>

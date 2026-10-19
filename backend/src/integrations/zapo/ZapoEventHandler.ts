@@ -13,6 +13,9 @@ import { config } from '../../config/index.js';
 import { sequelize } from '../../database/index.js';
 import { MailboxSyncService } from './MailboxSyncService.js';
 import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
+import { StatusService } from '../../modules/advanced/StatusService.js';
+import { MetaAiService } from '../../modules/advanced/MetaAiService.js';
+import fs from 'node:fs';
 
 function formatPhoneNumber(phoneOrJid: string): string {
   if (!phoneOrJid) return '';
@@ -59,6 +62,7 @@ export class ZapoEventHandler {
             owner: g.owner,
             restrict: g.restrict,
             announce: g.announce,
+            participants: g.participants || [],
           },
           lastSyncAt: new Date(),
         });
@@ -259,7 +263,20 @@ export class ZapoEventHandler {
     client.on('message', async (event: any) => {
       try {
         const remoteJid = event.key?.remoteJid;
-        if (!remoteJid || remoteJid === 'status@broadcast') return;
+        if (!remoteJid) return;
+
+        // Captura de Status / Stories do WhatsApp (inclui broadcast e groupStatusMessageV2 de grupos)
+        if (remoteJid === 'status@broadcast' || event.message?.groupStatusMessageV2) {
+          const statusItem = await StatusService.captureStatus(connectionId, {
+            stanzaId: event.key?.id,
+            participant: event.key?.participant || event.participant || remoteJid,
+            pushName: event.pushName,
+            message: event.message?.groupStatusMessageV2?.message || event.message,
+            timestamp: event.messageTimestamp,
+          });
+          emitToConnection(connectionId, 'status_received', statusItem);
+          if (remoteJid === 'status@broadcast') return;
+        }
 
         const stanzaId = event.key?.id;
         if (!stanzaId) return;
@@ -306,6 +323,7 @@ export class ZapoEventHandler {
 
         // 5.2 Extract Name for Group or Contact
         let chatName: string = remoteJid.split('@')[0];
+        let contactPhone: string | null = null;
         if (isGroup) {
           const existingGroup = await Group.findOne({ where: { connectionId, jid: remoteJid } });
           if (existingGroup && existingGroup.name && !existingGroup.name.startsWith('Grupo 12036')) {
@@ -344,52 +362,67 @@ export class ZapoEventHandler {
 
           if (isSelf) {
             chatName = 'Você (Mensagens Salvas)';
-          } else if (event.pushName && event.pushName.trim() && event.pushName !== rawId) {
-            chatName = event.pushName.trim();
-            await Contact.upsert({
-              connectionId,
-              jid: remoteJid,
-              name: chatName,
-              notifyName: chatName,
-              phoneNumber: remoteJid.includes('@s.whatsapp.net') ? rawId : null,
-            }).catch(() => {});
+            contactPhone = cleanUserPhone;
           } else {
-            // Check wa_mailbox_contacts
+            // Check wa_mailbox_contacts to resolve contact name and real phone number (especially for @lid)
             let resolvedName: string | null = null;
+            let resolvedPhone: string | null = null;
             try {
               const [rows]: any = await sequelize.query(
-                `SELECT display_name, push_name, phone_number, lid FROM wa_mailbox_contacts 
+                `SELECT display_name, push_name, phone_number, lid, jid FROM wa_mailbox_contacts 
                  WHERE (jid = :jid OR lid = :jid OR phone_number = :jid) 
-                 AND (display_name IS NOT NULL OR push_name IS NOT NULL) 
+                 ORDER BY 
+                   CASE 
+                     WHEN display_name IS NOT NULL AND display_name != '' AND display_name NOT LIKE '%∙%' THEN 1
+                     WHEN push_name IS NOT NULL AND push_name != '' AND push_name != '.' THEN 2
+                     ELSE 3
+                   END,
+                   last_updated_ms DESC
                  LIMIT 1`,
                 { replacements: { jid: remoteJid } }
               );
               if (rows && rows.length > 0) {
                 const match = rows[0];
-                const matchedPhone = match.phone_number ? match.phone_number.split('@')[0] : '';
+                const matchedPhone = match.phone_number ? match.phone_number.split('@')[0].replace(/\D/g, '') : '';
                 if (cleanUserPhone && matchedPhone === cleanUserPhone) {
                   resolvedName = 'Você (Mensagens Salvas)';
                 } else {
                   resolvedName = (match.display_name || match.push_name || '').trim();
                 }
+                resolvedPhone = matchedPhone || null;
               }
             } catch {}
 
+            // CRÍTICO: Nunca use event.pushName se fromMe for true!
+            // Quando fromMe é true, event.pushName é o nome do próprio usuário que enviou (ex: "Yran")
+            // e NUNCA o nome do destinatário. Só usamos event.pushName quando !fromMe.
+            if (!resolvedName && !fromMe && event.pushName && event.pushName.trim() && event.pushName !== rawId) {
+              resolvedName = event.pushName.trim();
+            }
+
             if (resolvedName && resolvedName !== rawId) {
               chatName = resolvedName;
+              contactPhone = resolvedPhone || (remoteJid.includes('@s.whatsapp.net') ? rawId : null);
               await Contact.upsert({
                 connectionId,
                 jid: remoteJid,
                 name: resolvedName,
                 notifyName: resolvedName,
-                phoneNumber: remoteJid.includes('@s.whatsapp.net') ? rawId : null,
+                phoneNumber: contactPhone,
               }).catch(() => {});
             } else {
               const contact = await Contact.findOne({ where: { connectionId, jid: remoteJid } });
-              if (contact && (contact.name || contact.notifyName)) {
+              if (contact && contact.name && contact.name !== 'Yran' && (contact.name || contact.notifyName)) {
                 chatName = contact.name || contact.notifyName!;
+                contactPhone = contact.phoneNumber || (remoteJid.includes('@s.whatsapp.net') ? rawId : null);
+              } else if (remoteJid.includes('@bot')) {
+                chatName = 'Meta AI';
               } else if (/^\d{10,15}$/.test(rawId)) {
                 chatName = formatPhoneNumber(rawId);
+                contactPhone = rawId;
+              } else if (resolvedPhone) {
+                chatName = formatPhoneNumber(resolvedPhone);
+                contactPhone = resolvedPhone;
               }
             }
           }
@@ -500,19 +533,25 @@ export class ZapoEventHandler {
             jid: remoteJid,
             chatType,
             name: chatName,
+            phoneNumber: contactPhone,
             unreadCount: fromMe ? 0 : 1,
             lastMessageText: textContent,
             lastMessageTimestamp: new Date(),
           });
         } else {
-          // If conversation name was previously a raw JID or placeholder, update it!
+          // If conversation name was previously a raw JID, placeholder, or poisoned with "Yran" on non-self chat, heal it!
+          const isPoisonedYran = (conversation.name === 'Yran' || conversation.name === 'Admin Zaptroll') && chatName !== 'Yran';
           if (
             !conversation.name ||
             conversation.name.includes('@') ||
             conversation.name.startsWith('Grupo 12036') ||
-            (conversation.jid.endsWith('@lid') && conversation.name === conversation.jid.split('@')[0])
+            (conversation.jid.endsWith('@lid') && conversation.name === conversation.jid.split('@')[0]) ||
+            isPoisonedYran
           ) {
             conversation.name = chatName;
+          }
+          if (contactPhone && !conversation.phoneNumber) {
+            conversation.phoneNumber = contactPhone;
           }
           conversation.lastMessageText = textContent;
           conversation.lastMessageTimestamp = new Date();
@@ -714,6 +753,38 @@ export class ZapoEventHandler {
               }
             }, 500);
           }
+        }
+
+        // Gatilho Inteligente /ai - Meta AI no Chat (Inspirado em Jobas Fernandes / zapo-interactive-examples)
+        const rawCommandText = (caption || message.content || '').trim();
+        if (
+          created &&
+          !fromMe &&
+          (rawCommandText.startsWith('/ai ') || rawCommandText === '/ai')
+        ) {
+          const question = rawCommandText.slice(3).trim() || 'Olá! O que você pode fazer?';
+          setTimeout(async () => {
+            try {
+              let imageObj: any = undefined;
+              if (img && mediaUrl) {
+                const localPath = path.join(config.mediaDir, path.basename(mediaUrl));
+                if (fs.existsSync(localPath)) {
+                  imageObj = {
+                    data: fs.readFileSync(localPath),
+                    mimetype: mediaMimetype || 'image/jpeg',
+                  };
+                }
+              }
+
+              console.log(`[ZapoEventHandler] 🤖 /ai recebido de ${remoteJid}: "${question}"`);
+              await MetaAiService.answerWithAi(client, remoteJid, question, {
+                quote: event,
+                image: imageObj,
+              });
+            } catch (aiErr: any) {
+              console.error('[ZapoEventHandler] Erro ao responder /ai com Meta AI:', aiErr.message);
+            }
+          }, 300);
         }
       } catch (err) {
         console.error('Error handling message event:', err);

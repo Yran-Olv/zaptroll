@@ -45,7 +45,7 @@ export const EmptyConversationState: React.FC<EmptyConversationStateProps> = ({
 
   if (type === 'empty_chat') {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-auto select-none">
+      <div className="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-auto">
         <div
           onClick={handleNextMeme}
           className="w-24 h-24 rounded-3xl bg-[#161922] border-2 border-dashed border-[#2a3346] hover:border-[#10b981] p-3.5 mb-4 cursor-pointer transition-all hover:scale-105 group relative shadow-xl"
@@ -80,7 +80,7 @@ export const EmptyConversationState: React.FC<EmptyConversationStateProps> = ({
 
   if (type === 'no_results') {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center select-none">
+      <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
         <div className="w-16 h-16 rounded-2xl bg-[#161922] border border-[#2a3346] p-2.5 mb-3">
           <SvgComponent className="w-full h-full object-contain" />
         </div>
@@ -96,7 +96,7 @@ export const EmptyConversationState: React.FC<EmptyConversationStateProps> = ({
 
   // no_selection (Desktop Chat Splash Screen)
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 text-center bg-[#0d0f12] select-none relative overflow-hidden">
+    <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 text-center bg-[#0d0f12] relative overflow-hidden">
       {/* Background Subtle Watermark Pattern */}
       <MemeBackground opacity={0.04} />
 

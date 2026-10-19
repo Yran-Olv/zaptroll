@@ -28,6 +28,7 @@ export interface Conversation {
   jid: string;
   chatType: 'direct' | 'group' | 'newsletter';
   name: string | null;
+  phoneNumber?: string | null;
   unreadCount: number;
   lastMessageText: string | null;
   lastMessageTimestamp: string | null;

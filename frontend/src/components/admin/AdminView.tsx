@@ -69,7 +69,7 @@ export const AdminView: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-y-auto select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-y-auto">
       {/* Header */}
       <div className="lab-glass sticky top-0 z-10 px-4 py-3 border-b border-[#2a3346] flex items-center justify-between">
         <div className="flex items-center gap-2.5">

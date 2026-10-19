@@ -21,10 +21,23 @@ import {
   Search,
   CheckCircle2,
   FileCode,
+  Smartphone,
+  Sliders,
+  FileSpreadsheet,
+  FileText,
+  MessageSquare,
+  Radio,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { ContactProfile, Conversation } from '../../types/index.js';
 import { MemeAvatar } from '../memes/MemeAvatar.js';
+import { ExportContactsModal } from './ExportContactsModal.js';
+import { PostGroupStatusModal } from '../chat/PostGroupStatusModal.js';
+import {
+  downloadGroupContactsVcf,
+  downloadGroupContactsWhaticketCsv,
+  downloadGroupContactsTxt,
+} from '../../utils/contactExport.js';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -51,6 +64,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [showLightbox, setShowLightbox] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
   const [participantSearch, setParticipantSearch] = useState<string>('');
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [showGroupStatusModal, setShowGroupStatusModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && conversation?.jid) {
@@ -168,6 +184,35 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       profile,
     };
     copyToClipboard(JSON.stringify(dataToExport, null, 2), 'json_dev');
+  };
+
+  const handleQuickDownloadVcf = () => {
+    if (participants.length === 0) return;
+    const count = downloadGroupContactsVcf(participants, {
+      groupName: displayName,
+      prefix: displayName,
+    });
+    setExportFeedback(`📱 ${count} contatos .VCF baixados para Celular!`);
+    setTimeout(() => setExportFeedback(null), 3500);
+  };
+
+  const handleQuickDownloadWhaticket = () => {
+    if (participants.length === 0) return;
+    const count = downloadGroupContactsWhaticketCsv(participants, {
+      groupName: displayName,
+      prefix: displayName,
+    });
+    setExportFeedback(`💬 CSV com ${count} contatos para Whaticket baixado!`);
+    setTimeout(() => setExportFeedback(null), 3500);
+  };
+
+  const handleQuickDownloadTxt = () => {
+    if (participants.length === 0) return;
+    const count = downloadGroupContactsTxt(participants, {
+      groupName: displayName,
+    });
+    setExportFeedback(`📄 TXT com ${count} telefones baixado!`);
+    setTimeout(() => setExportFeedback(null), 3500);
   };
 
   return (
@@ -300,27 +345,41 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </p>
                   ) : null}
 
-                  {/* Botões de Ação da Foto */}
-                  {photoUrl && (
-                    <div className="mt-3.5 flex items-center gap-2">
+                  {/* Botões de Ação da Foto e do Grupo */}
+                  <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2">
+                    {photoUrl && (
+                      <>
+                        <button
+                          onClick={handleDownloadPhoto}
+                          disabled={downloading}
+                          className="px-3.5 py-1.5 bg-[#10b981] hover:bg-[#059669] text-white font-semibold text-xs rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                        >
+                          <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce' : ''}`} />
+                          <span>{downloading ? 'Baixando Foto...' : 'Baixar Foto Real (HD)'}</span>
+                        </button>
+                        <button
+                          onClick={() => setShowLightbox(true)}
+                          className="px-3 py-1.5 bg-[#1e2535] hover:bg-[#2a3346] text-gray-300 hover:text-white font-semibold text-xs rounded-xl border border-[#2a3346] flex items-center gap-1.5 transition cursor-pointer"
+                          title="Ver em tela cheia"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          <span>Visualizar</span>
+                        </button>
+                      </>
+                    )}
+
+                    {isGroup && (
                       <button
-                        onClick={handleDownloadPhoto}
-                        disabled={downloading}
-                        className="px-3.5 py-1.5 bg-[#10b981] hover:bg-[#059669] text-white font-semibold text-xs rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                        type="button"
+                        onClick={() => setShowGroupStatusModal(true)}
+                        className="px-3.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white font-semibold text-xs rounded-xl border border-emerald-500/50 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                        title="Postar Status / Story nativo do WhatsApp diretamente neste grupo"
                       >
-                        <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce' : ''}`} />
-                        <span>{downloading ? 'Baixando Foto...' : 'Baixar Foto Real (HD)'}</span>
+                        <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                        <span>Postar Status no Grupo</span>
                       </button>
-                      <button
-                        onClick={() => setShowLightbox(true)}
-                        className="px-3 py-1.5 bg-[#1e2535] hover:bg-[#2a3346] text-gray-300 hover:text-white font-semibold text-xs rounded-xl border border-[#2a3346] flex items-center gap-1.5 transition cursor-pointer"
-                        title="Ver em tela cheia"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                        <span>Visualizar</span>
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Recado / Status do WhatsApp (About) */}
@@ -438,6 +497,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                 {/* Ações Rápidas Inferiores */}
                 <div className="flex items-center gap-2 pt-1">
+                  {isGroup && (
+                    <button
+                      type="button"
+                      onClick={() => setShowGroupStatusModal(true)}
+                      className="py-2.5 px-3.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white border border-emerald-500/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
+                      title="Postar Status / Story diretamente neste grupo sem precisar selecioná-lo"
+                    >
+                      <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      <span>Postar Status</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={handleCopyJson}
                     className="flex-1 py-2.5 px-3 bg-[#1e2535] hover:bg-[#252f44] text-white border border-[#2a3346] rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
@@ -620,46 +691,113 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
                 </div>
 
-                {/* AÇÕES DE DESENVOLVEDOR EM LOTE (SE FOR GRUPO) */}
+                {/* AÇÕES DE EXPORTAÇÃO E DOWNLOAD (SE FOR GRUPO) */}
                 {isGroup && (
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCopyAllJids}
-                        className="flex-1 min-w-[140px] px-3 py-2 rounded-xl bg-[#1a202c] hover:bg-[#242c3d] border border-[#2a3346] text-xs font-mono font-semibold text-white flex items-center justify-center gap-1.5 transition active:scale-95"
-                      >
-                        {copiedKey === 'all_jids' ? <Check className="w-3.5 h-3.5 text-[#39ff14]" /> : <Copy className="w-3.5 h-3.5 text-[#39ff14]" />}
-                        <span>{copiedKey === 'all_jids' ? 'JIDs Copiados!' : 'Copiar Todos os JIDs'}</span>
-                      </button>
+                    {/* Feedback Toast */}
+                    {exportFeedback && (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span className="font-medium">{exportFeedback}</span>
+                      </div>
+                    )}
 
-                      <button
-                        type="button"
-                        onClick={handleCopyAllLids}
-                        className="flex-1 min-w-[140px] px-3 py-2 rounded-xl bg-[#1a202c] hover:bg-[#242c3d] border border-[#2a3346] text-xs font-mono font-semibold text-cyan-300 flex items-center justify-center gap-1.5 transition active:scale-95"
-                      >
-                        {copiedKey === 'all_lids' ? <Check className="w-3.5 h-3.5 text-cyan-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-                        <span>{copiedKey === 'all_lids' ? 'LIDs Copiados!' : 'Copiar Todos os LIDs'}</span>
-                      </button>
+                    {/* Bloco de Download Principal (Celular & Whaticket) */}
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#182130] to-[#121722] border border-[#2c3952] space-y-3 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Download className="w-4 h-4 text-[#39ff14]" />
+                          <h5 className="text-xs font-bold text-white font-mono uppercase tracking-wide">
+                            Exportar & Baixar Contatos ({participants.length})
+                          </h5>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowExportModal(true)}
+                          className="px-2.5 py-1 rounded-lg bg-[#1f293d] hover:bg-[#28354f] border border-[#354668] text-[11px] font-mono text-[#39ff14] hover:text-white flex items-center gap-1.5 transition active:scale-95"
+                          title="Personalizar nomes, prefixos e filtros de exportação"
+                        >
+                          <Sliders className="w-3 h-3" />
+                          <span>Personalizar...</span>
+                        </button>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={handleCopyAllPhones}
-                        className="flex-1 min-w-[140px] px-3 py-2 rounded-xl bg-[#1a202c] hover:bg-[#242c3d] border border-[#2a3346] text-xs font-mono font-semibold text-emerald-300 flex items-center justify-center gap-1.5 transition active:scale-95"
-                      >
-                        {copiedKey === 'all_phones' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-emerald-400" />}
-                        <span>{copiedKey === 'all_phones' ? 'Telefones Copiados!' : 'Copiar Telefones'}</span>
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Botão Baixar VCF para Celular */}
+                        <button
+                          type="button"
+                          onClick={handleQuickDownloadVcf}
+                          className="p-2.5 rounded-xl bg-[#14231e] hover:bg-[#1a3028] border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 hover:text-white flex items-center justify-center gap-2 transition active:scale-95 shadow-sm group"
+                          title="Baixar arquivo .VCF com todos os contatos para importar no celular (Android e iPhone)"
+                        >
+                          <Smartphone className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                          <span>Baixar VCF (Celular)</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={handleCopyJson}
-                        className="px-3 py-2 rounded-xl bg-[#1a202c] hover:bg-[#242c3d] border border-[#2a3346] text-xs font-mono font-semibold text-purple-300 flex items-center justify-center gap-1.5 transition active:scale-95"
-                        title="Exportar JSON do Grupo"
-                      >
-                        {copiedKey === 'json_dev' ? <Check className="w-3.5 h-3.5 text-purple-400" /> : <FileCode className="w-3.5 h-3.5 text-purple-400" />}
-                        <span>JSON</span>
-                      </button>
+                        {/* Botão Baixar CSV para Whaticket */}
+                        <button
+                          type="button"
+                          onClick={handleQuickDownloadWhaticket}
+                          className="p-2.5 rounded-xl bg-[#13232c] hover:bg-[#19303c] border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 hover:text-white flex items-center justify-center gap-2 transition active:scale-95 shadow-sm group"
+                          title="Baixar arquivo .CSV padrão do Whaticket (name,number,email) pronto para importação"
+                        >
+                          <MessageSquare className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                          <span>Baixar CSV (Whaticket)</span>
+                        </button>
+                      </div>
+
+                      {/* Ações Secundárias: TXT, Copiar Telefones, Copiar JIDs, JSON */}
+                      <div className="pt-2 border-t border-[#232c3e] flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleQuickDownloadTxt}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#171d2b] hover:bg-[#20283c] border border-[#273248] text-[11px] font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition active:scale-95"
+                          title="Baixar arquivo .TXT com 1 telefone limpo por linha"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#39ff14]" />
+                          <span>Baixar TXT</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyAllPhones}
+                          className="flex-1 min-w-[130px] px-2.5 py-1.5 rounded-xl bg-[#171d2b] hover:bg-[#20283c] border border-[#273248] text-[11px] font-mono font-semibold text-emerald-300 hover:text-white flex items-center justify-center gap-1.5 transition active:scale-95"
+                          title="Copiar telefones limpos para a área de transferência"
+                        >
+                          {copiedKey === 'all_phones' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-emerald-400" />}
+                          <span>{copiedKey === 'all_phones' ? 'Telefones Copiados!' : 'Copiar Telefones'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyAllJids}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#171d2b] hover:bg-[#20283c] border border-[#273248] text-[11px] font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition active:scale-95"
+                          title="Copiar lista de JIDs do WhatsApp"
+                        >
+                          {copiedKey === 'all_jids' ? <Check className="w-3.5 h-3.5 text-[#39ff14]" /> : <Copy className="w-3.5 h-3.5 text-[#39ff14]" />}
+                          <span>{copiedKey === 'all_jids' ? 'JIDs!' : 'JIDs'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyAllLids}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#171d2b] hover:bg-[#20283c] border border-[#273248] text-[11px] font-mono text-cyan-300 hover:text-white flex items-center gap-1.5 transition active:scale-95"
+                          title="Copiar lista de LIDs"
+                        >
+                          {copiedKey === 'all_lids' ? <Check className="w-3.5 h-3.5 text-cyan-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
+                          <span>{copiedKey === 'all_lids' ? 'LIDs!' : 'LIDs'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyJson}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#171d2b] hover:bg-[#20283c] border border-[#273248] text-[11px] font-mono font-semibold text-purple-300 hover:text-white flex items-center gap-1.5 transition active:scale-95"
+                          title="Exportar JSON do Grupo"
+                        >
+                          {copiedKey === 'json_dev' ? <Check className="w-3.5 h-3.5 text-purple-400" /> : <FileCode className="w-3.5 h-3.5 text-purple-400" />}
+                          <span>JSON</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Lista e Busca de Participantes */}
@@ -852,6 +990,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </p>
           </div>
         </div>
+      )}
+      {/* Modal de Personalização e Download Avançado de Contatos */}
+      {isGroup && (
+        <ExportContactsModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          groupName={displayName}
+          participants={participants}
+          groupMetadata={profile?.groupDetails}
+        />
+      )}
+
+      {/* Modal para Postar Status no Grupo sem precisar selecioná-lo */}
+      {isGroup && (
+        <PostGroupStatusModal
+          isOpen={showGroupStatusModal}
+          onClose={() => setShowGroupStatusModal(false)}
+          connectionId={connectionId}
+          groupJid={conversation.jid}
+          groupName={conversation.name || displayName}
+          groupPicUrl={photoUrl}
+        />
       )}
     </>
   );

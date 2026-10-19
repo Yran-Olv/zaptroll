@@ -19,7 +19,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-[#0b0e14] select-none p-6 text-center">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-[#0b0e14] p-6 text-center">
         {/* Pulsing Trollface */}
         <div className="relative mb-5">
           <div className="w-20 h-20 rounded-3xl bg-[#161922] border-2 border-[#39ff14] flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.3)] animate-pulse p-3">

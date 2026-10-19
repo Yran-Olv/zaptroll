@@ -7,6 +7,7 @@ export interface ConversationAttributes {
   jid: string;
   chatType: 'direct' | 'group' | 'newsletter';
   name: string | null;
+  phoneNumber?: string | null;
   unreadCount: number;
   lastMessageText: string | null;
   lastMessageTimestamp: Date | null;
@@ -18,7 +19,7 @@ export interface ConversationAttributes {
 
 export type ConversationCreationAttributes = Optional<
   ConversationAttributes,
-  'id' | 'chatType' | 'name' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp' | 'profilePicUrl' | 'status'
+  'id' | 'chatType' | 'name' | 'phoneNumber' | 'unreadCount' | 'lastMessageText' | 'lastMessageTimestamp' | 'profilePicUrl' | 'status'
 >;
 
 export class Conversation
@@ -30,6 +31,7 @@ export class Conversation
   declare jid: string;
   declare chatType: 'direct' | 'group' | 'newsletter';
   declare name: string | null;
+  declare phoneNumber?: string | null;
   declare unreadCount: number;
   declare lastMessageText: string | null;
   declare lastMessageTimestamp: Date | null;
@@ -65,6 +67,10 @@ Conversation.init(
       allowNull: false,
     },
     name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    phoneNumber: {
       type: DataTypes.STRING,
       allowNull: true,
     },

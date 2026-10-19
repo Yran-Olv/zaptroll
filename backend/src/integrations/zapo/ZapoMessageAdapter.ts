@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { WaClient, proto } from 'zapo-js';
 
 export class ZapoMessageAdapter {
@@ -465,7 +466,7 @@ export class ZapoMessageAdapter {
     return client.message.send(jid, payload);
   }
 
-  // 7. Single Message Ephemeral (with optional experimental afterRead context)
+  // 7. Single Message Ephemeral (Mensagem Fantasma nativa que desaparece após a leitura)
   static async sendEphemeralMessage(
     client: WaClient,
     jid: string,
@@ -473,25 +474,35 @@ export class ZapoMessageAdapter {
     expirationSeconds: number,
     experimental?: { afterReadDuration?: number; quote?: any }
   ) {
-    const isGroup = jid.endsWith('@g.us');
-    const sendOptions: any = {
-      expirationSeconds,
-      ...(isGroup ? {} : { ephemeralSettingTimestamp: Math.floor(Date.now() / 1000) }),
+    const duration = Number(experimental?.afterReadDuration || expirationSeconds || 5);
+
+    const contextInfo: any = {
+      expiration: 0,
+      ephemeralSettingTimestamp: Math.floor(Date.now() / 1000),
+      disappearingMode: {
+        initiator: 0,
+        trigger: 1,
+      },
+      afterReadDuration: duration,
     };
 
     if (experimental?.quote) {
-      sendOptions.quote = experimental.quote;
+      contextInfo.stanzaId = experimental.quote.id;
+      contextInfo.participant = experimental.quote.participant;
+      contextInfo.remoteJid = experimental.quote.remoteJid;
+      contextInfo.quotedMessage = experimental.quote.message;
     }
 
-    if (experimental?.afterReadDuration) {
-      sendOptions.contextInfo = {
-        expiration: expirationSeconds,
-        ...(isGroup ? {} : { ephemeralSettingTimestamp: Math.floor(Date.now() / 1000) }),
-        disappearingMode: { initiator: 0, trigger: 1 },
-      };
-    }
+    const payload = {
+      extendedTextMessage: {
+        text,
+        previewType: 0,
+        contextInfo,
+        inviteLinkGroupTypeV2: 0,
+      },
+    };
 
-    return client.message.send(jid, { type: 'text', text }, sendOptions);
+    return client.message.send(jid, payload as any);
   }
 
   // 8. Revoke Message (Delete for everyone)
@@ -555,6 +566,160 @@ export class ZapoMessageAdapter {
       media,
       mimetype: options?.mimetype || 'image/webp',
       ...(options?.isAnimated !== undefined ? { isAnimated: options.isAnimated } : {}),
+    } as any);
+  }
+
+  // 12. Send Ghost Mention (Menção Fantasma / Invisível)
+  static async sendGhostMention(
+    client: WaClient,
+    jid: string,
+    text: string,
+    mentionedJids: string[],
+    options?: { quote?: any; ephemeralExpiration?: number }
+  ) {
+    const contextInfo: any = {
+      mentionedJid: mentionedJids,
+    };
+    if (options?.ephemeralExpiration) {
+      contextInfo.expiration = options.ephemeralExpiration;
+      contextInfo.ephemeralSettingTimestamp = Math.floor(Date.now() / 1000);
+    }
+    if (options?.quote) {
+      contextInfo.stanzaId = options.quote.id;
+      contextInfo.participant = options.quote.participant;
+      contextInfo.remoteJid = options.quote.remoteJid;
+      contextInfo.quotedMessage = options.quote.message;
+    }
+
+    const payload = {
+      extendedTextMessage: {
+        text,
+        previewType: 0,
+        contextInfo,
+      },
+    };
+
+    return client.message.send(jid, payload as any);
+  }
+
+  // 13. Send Meta-Hosted Privacy Banner (Inspirado no zapo-interactive-examples por Jobas Fernandes)
+  static async sendMetaHostedBanner(
+    client: WaClient,
+    jid: string,
+    messageText = 'Olá! Esta conversa agora está configurada com serviços seguros da Meta.'
+  ) {
+    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid')) {
+      throw new Error('O banner da Meta só pode ser aplicado em conversas privadas (não em grupos).');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    // Passo 1: Envia o switch text com modo end-to-end (actors=1)
+    await client.message.send(jid, '👋', {
+      customNodes: [
+        {
+          tag: 'biz',
+          attrs: { actual_actors: '1', host_storage: '1', privacy_mode_ts: String(now) },
+        },
+      ],
+    } as any);
+
+    // Passo 2: Envia a mensagem real carimbada como hospedada pela Meta (actors=2)
+    return client.message.send(jid, messageText, {
+      customNodes: [
+        {
+          tag: 'biz',
+          attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: String(now + 1) },
+        },
+      ],
+    } as any);
+  }
+
+  // 14. Send Message with Native "IA" Badge (Inspirado no zapo-interactive-examples por Jobas Fernandes)
+  static async sendWithAiBadge(
+    client: WaClient,
+    jid: string,
+    text: string,
+    options?: { quote?: any }
+  ) {
+    const isGroup = jid.endsWith('@g.us');
+    const sendOptions: any = {};
+    if (options?.quote) {
+      sendOptions.quote = options.quote;
+    }
+    // WhatsApp só aceita o nó biz_bot em conversas privadas (em grupos gera NACK 479)
+    if (!isGroup) {
+      sendOptions.customNodes = [{ tag: 'bot', attrs: { biz_bot: '1' } }];
+    }
+
+    return client.message.send(jid, text, sendOptions);
+  }
+
+  // 15. Send Group Status / Stories (groupStatusMessageV2) (Inspirado no zapo-interactive-examples por Jobas Fernandes)
+  static async sendGroupStatus(
+    client: WaClient,
+    groupJid: string,
+    mediaBytes: Uint8Array | Buffer,
+    caption?: string,
+    options?: {
+      width?: number;
+      height?: number;
+      jpegThumbnail?: Uint8Array;
+      mentionedJids?: string[];
+    }
+  ) {
+    if (!groupJid.endsWith('@g.us')) {
+      throw new Error(`Status de grupo deve ser enviado para um JID de grupo (@g.us). Recebido: ${groupJid}`);
+    }
+
+    const upload = await client.message.upload(mediaBytes, { type: 'image', mimetype: 'image/jpeg' });
+    const payload = {
+      messageContextInfo: { messageSecret: randomBytes(32) },
+      groupStatusMessageV2: {
+        message: {
+          imageMessage: {
+            url: upload.url,
+            directPath: upload.directPath,
+            mediaKey: upload.mediaKey,
+            fileSha256: upload.fileSha256,
+            fileEncSha256: upload.fileEncSha256,
+            fileLength: upload.fileLength,
+            mediaKeyTimestamp: upload.mediaKeyTimestamp,
+            mimetype: upload.mimetype || 'image/jpeg',
+            width: options?.width || 1080,
+            height: options?.height || 1920,
+            caption: caption || '',
+            ...(options?.jpegThumbnail ? { jpegThumbnail: options.jpegThumbnail } : {}),
+            contextInfo: {
+              isGroupStatus: true,
+              ...(options?.mentionedJids && options.mentionedJids.length > 0
+                ? { mentionedJid: options.mentionedJids }
+                : {}),
+            },
+          },
+        },
+      },
+    };
+
+    return client.message.send(groupJid, payload as any, {
+      customNodes: [{ tag: 'meta', attrs: { is_group_status: 'true', origin: 'group_status' }, content: undefined }],
+      disableGroupEphemeralAutoInject: true,
+      ackTimeoutMs: 30000,
+    } as any);
+  }
+
+  // 16. Send Native WhatsApp Poll (Inspirado no zapo-interactive-examples por Jobas Fernandes)
+  static async sendPoll(
+    client: WaClient,
+    jid: string,
+    question: string,
+    options: string[],
+    selectableCount = 1
+  ) {
+    return client.message.send(jid, {
+      type: 'poll',
+      name: question,
+      options: options.map((opt) => (typeof opt === 'string' ? opt : (opt as any).name)),
+      selectableCount,
     } as any);
   }
 }

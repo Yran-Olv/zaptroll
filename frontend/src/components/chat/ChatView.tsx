@@ -29,6 +29,11 @@ import {
   RotateCcw,
   Lock,
   Smartphone,
+  MapPin,
+  Ghost,
+  AtSign,
+  Users,
+  Radio,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, Message, WhatsAppConnection, ContactProfile } from '../../types/index.js';
@@ -38,6 +43,7 @@ import { MemeAvatar } from '../memes/MemeAvatar.js';
 import { MemeBackground } from '../memes/MemeBackground.js';
 import { EmptyConversationState } from '../memes/EmptyConversationState.js';
 import { UserProfileModal } from '../profile/UserProfileModal.js';
+import { PostGroupStatusModal } from './PostGroupStatusModal.js';
 
 interface CarouselExtractedCard {
   title: string;
@@ -132,7 +138,7 @@ interface ChatViewProps {
   connection: WhatsAppConnection;
   onBack?: () => void;
   onConversationUpdated?: (updated: Partial<Conversation> & { id: string }) => void;
-  onOpenDevTools?: (initialQuery?: string) => void;
+  onOpenDevTools?: (initialQuery?: string, initialTab?: any) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -189,6 +195,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [highlightedStanzaId, setHighlightedStanzaId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // Group detection
+  const isGroup = conversation.chatType === 'group' || conversation.jid?.endsWith('@g.us');
+
+  // Quick Ghost Mention for Groups ("Marcar Geral 👻")
+  const [isGhostMentionActive, setIsGhostMentionActive] = useState<boolean>(false);
+  const [showGroupStatusModal, setShowGroupStatusModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    setIsGhostMentionActive(false);
+  }, [conversation.id]);
+
   // Quick Ephemeral Message ("Modo Fantasma Rápido")
   const [isEphemeralActive, setIsEphemeralActive] = useState<boolean>(() => {
     return localStorage.getItem('zaptroll_fast_ephemeral') === 'true';
@@ -208,18 +225,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
     localStorage.setItem('zaptroll_fast_ephemeral_duration', String(ephemeralDuration));
   }, [ephemeralDuration]);
 
-  // Click outside to close ephemeral popover menu
+  // Close ephemeral modal on Escape key
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ephemeralMenuRef.current && !ephemeralMenuRef.current.contains(e.target as Node)) {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setShowEphemeralMenu(false);
       }
     };
     if (showEphemeralMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [showEphemeralMenu]);
 
@@ -348,15 +365,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = false) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    }
   };
 
   const fetchHistory = async () => {
     try {
       const res = await api.get(`/messages/history/${conversation.id}?limit=100`);
       setMessages(res.data.messages);
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => scrollToBottom(false), 80);
     } catch (err) {
       console.error('Failed to load message history:', err);
     } finally {
@@ -418,14 +437,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
     e.preventDefault();
     if (!textInput.trim() || sending) return;
 
-    const textToSend = textInput.trim();
+    let textToSend = textInput.trim();
     const quoteStanza = replyingTo?.stanzaId;
+
+    // Detect @todos / /todos / @geral / /geral trigger in group
+    const isTodosTrigger = isGroup && /^(@todos|@geral|\/todos|\/geral)\b/i.test(textToSend);
+    const shouldGhostMention = (isGhostMentionActive || isTodosTrigger) && isGroup;
+
+    if (isTodosTrigger) {
+      textToSend = textToSend.replace(/^(@todos|@geral|\/todos|\/geral)\s*/i, '').trim() || textToSend;
+    }
+
     setTextInput('');
     setReplyingTo(null);
+    if (isGhostMentionActive) {
+      setIsGhostMentionActive(false);
+    }
     setSending(true);
 
     try {
-      if (isEphemeralActive) {
+      if (shouldGhostMention) {
+        await api.post('/advanced/ghost-mention', {
+          connectionId: connection.id,
+          targetJid: conversation.jid,
+          text: textToSend,
+          mentionAll: true,
+          quotedStanzaId: quoteStanza,
+        });
+      } else if (isEphemeralActive) {
         await api.post('/messages/send', {
           connectionId: connection.id,
           conversationId: conversation.id,
@@ -495,7 +534,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   return (
-    <div className="flex-1 min-w-0 w-full max-w-full flex flex-col h-full bg-[#0d1117] relative overflow-hidden wa-lab-bg select-none">
+    <div className="flex-1 min-w-0 w-full max-w-full flex flex-col h-full bg-[#0d1117] relative overflow-hidden wa-lab-bg">
       {/* Background Meme Watermark */}
       <MemeBackground opacity={0.03} />
 
@@ -538,12 +577,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <span className="text-[10px] text-gray-400 font-mono truncate max-w-[100px] sm:max-w-[160px]">
                   {conversation.jid}
                 </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300">
+                {conversation.phoneNumber && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onOpenDevTools) {
+                        onOpenDevTools(conversation.phoneNumber || conversation.jid, 'location');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-[9px] font-mono text-emerald-400 font-bold cursor-pointer transition"
+                    title="Clique para ver DDD, Estado, Cidade e detalhes deste número"
+                  >
+                    <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                    +{conversation.phoneNumber.replace(/\D/g, '')}
+                    <MapPin className="w-2 h-2 text-emerald-400 opacity-70" />
+                  </button>
+                )}
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300" title={`Enviando através do canal: ${conversation.connection?.name || connection.name}`}>
                   <Smartphone className="w-2.5 h-2.5 text-cyan-400" />
-                  <span className="font-semibold">{conversation.connection?.name || connection.name}</span>
+                  <span className="text-gray-400 text-[8px] uppercase tracking-wider">Canal:</span>
+                  <span className="font-semibold text-cyan-200">{conversation.connection?.name || connection.name}</span>
                   {(conversation.connection?.phoneNumber || connection.phoneNumber) && (
                     <span className="text-gray-400">
-                      • +{(conversation.connection?.phoneNumber || connection.phoneNumber)?.replace(/\D/g, '')}
+                      (+{(conversation.connection?.phoneNumber || connection.phoneNumber)?.replace(/\D/g, '')})
                     </span>
                   )}
                 </span>
@@ -562,8 +619,52 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
 
-        {/* Header Right Actions: Close/Reopen Ticket, Dev Tools & Zapo Tools */}
+        {/* Header Right Actions: Ghost Mention for Groups, Dev Tools, Reopen/Close & Zapo Tools */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick Ghost Mention Button in Group Header */}
+          {isGroup && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsGhostMentionActive((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
+                  return next;
+                });
+              }}
+              className={`p-1.5 sm:px-2.5 sm:py-1.5 border rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer ${
+                isGhostMentionActive
+                  ? 'bg-purple-950/80 border-purple-500 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.4)] ring-1 ring-purple-400'
+                  : 'bg-[#141824] hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 border-purple-500/40 hover:border-purple-500/70'
+              }`}
+              title={
+                isGhostMentionActive
+                  ? 'Menção Fantasma ATIVA (Marcar Geral). Clique para desativar.'
+                  : 'Ativar Menção Fantasma (Marcar Geral): Notifica todos os participantes do grupo em segredo'
+              }
+            >
+              <Ghost className={`w-3.5 h-3.5 text-purple-400 ${isGhostMentionActive ? 'animate-bounce' : ''}`} />
+              <span className="hidden sm:inline">Marcar Geral 👻</span>
+              <span className="sm:hidden font-mono font-black text-[11px]">@GERAL</span>
+            </button>
+          )}
+
+          {/* Quick Post Status Button in Group Header */}
+          {isGroup && (
+            <button
+              type="button"
+              onClick={() => setShowGroupStatusModal(true)}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/50 hover:border-emerald-400 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shrink-0 shadow-sm cursor-pointer"
+              title="Postar Status / Story nativo do WhatsApp diretamente neste grupo"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline">Status</span>
+              <span className="sm:hidden font-mono font-black text-[11px]">STATUS</span>
+            </button>
+          )}
+
           {/* Dev Tools Quick Button */}
           <button
             type="button"
@@ -685,7 +786,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           e.stopPropagation();
                           scrollToMessage(quoted.stanzaId);
                         }}
-                        className="mb-2 p-2 rounded-xl bg-black/40 hover:bg-black/60 cursor-pointer border-l-[3.5px] border-[#39ff14] transition select-none flex flex-col group/quote"
+                        className="mb-2 p-2 rounded-xl bg-black/40 hover:bg-black/60 cursor-pointer border-l-[3.5px] border-[#39ff14] transition select-text flex flex-col group/quote"
                         title="Clique para ir até a mensagem respondida"
                       >
                         <div className="flex items-center justify-between text-[11px] font-bold text-[#39ff14] mb-0.5">
@@ -799,6 +900,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   {(msg.messageType === 'sticker' || msg.mediaMimetype === 'image/webp') && msg.mediaUrl && (
                     <div className="mb-1 p-1">
                       <img src={msg.mediaUrl} alt="Sticker" className="w-28 h-28 object-contain" />
+                    </div>
+                  )}
+
+                  {/* Ghost Mention (Marcar Geral) Badge */}
+                  {(msg.messageType === 'ghost_mention' ||
+                    (msg.rawPayload as any)?.isGhostMention ||
+                    (msg.rawPayload as any)?.mentionedCount ||
+                    msg.content?.startsWith('👻 [Menção Fantasma')) && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-purple-300 font-mono mb-2 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-lg w-fit shadow-sm">
+                      <Ghost className="w-3 h-3 text-purple-400 animate-pulse" />
+                      <span>
+                        Menção Fantasma{' '}
+                        {(msg.rawPayload as any)?.mentionedCount
+                          ? `(${(msg.rawPayload as any).mentionedCount} marcados)`
+                          : '(Geral)'}
+                      </span>
                     </div>
                   )}
 
@@ -965,14 +1082,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       (hasCarouselCards && Boolean(msg.content?.includes('[Carrossel:')));
 
                     const hasRenderedMedia = Boolean(msg.mediaUrl || msg.thumbnailUrl || hasCarouselCards);
-                    const displayContent =
+                    let displayContent =
                       msg.caption ||
                       (!isGenericFallback || !hasRenderedMedia ? msg.content : null);
+
+                    if (displayContent && displayContent.startsWith('👻 [Menção Fantasma')) {
+                      displayContent = displayContent.replace(/^👻 \[Menção Fantasma \(.*?\)\]:\s*/, '');
+                    }
 
                     if (!displayContent) return null;
 
                     return (
-                      <div className="whitespace-pre-wrap break-words leading-relaxed font-sans text-[13px] mt-0.5">
+                      <div className="whitespace-pre-wrap break-words leading-relaxed font-sans text-[13px] mt-0.5 select-text">
                         {displayContent}
                       </div>
                     );
@@ -1064,7 +1185,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Composition Field Fixed at Bottom */}
       <div
-        className="relative bg-[#131722]/95 backdrop-blur-xl border-t border-[#2a3346] px-2 sm:px-3 pt-2 pb-5 sm:pb-3 z-20 w-full max-w-full min-w-0 overflow-hidden"
+        className="relative bg-[#131722]/95 backdrop-blur-xl border-t border-[#2a3346] px-2 sm:px-3 pt-2 pb-5 sm:pb-3 z-20 w-full max-w-full min-w-0 overflow-visible"
         style={{ paddingBottom: 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem))' }}
       >
         {/* Ephemeral Active Floating Banner */}
@@ -1121,6 +1242,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
+        {/* Active Ghost Mention Mode Banner */}
+        {isGhostMentionActive && (
+          <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-r from-purple-950/90 via-[#1a142e] to-purple-950/90 border border-purple-500/50 rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.3)] text-xs font-mono text-purple-200 animate-in fade-in slide-in-from-bottom-2 max-w-4xl mx-auto w-full">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-xl bg-purple-600/30 border border-purple-400/50 flex items-center justify-center shrink-0">
+                <Ghost className="w-4 h-4 text-purple-300 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-purple-200 flex items-center gap-1.5 flex-wrap text-xs">
+                  <span>👻 Menção Fantasma Ativa</span>
+                  <span className="text-[10px] bg-purple-500/30 text-purple-200 px-2 py-0.5 rounded-full border border-purple-400/40 font-mono font-bold">
+                    Marcar Geral ({conversation.name || 'Grupo'})
+                  </span>
+                </div>
+                <div className="text-[10px] text-purple-300/80 truncate mt-0.5">
+                  Todos os membros receberão notificação secreta sem poluir a mensagem com @nomes visíveis.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsGhostMentionActive(false)}
+              className="px-2.5 py-1 text-[11px] font-bold bg-purple-900/60 hover:bg-purple-800 text-purple-200 hover:text-white rounded-xl border border-purple-500/40 transition shrink-0 cursor-pointer shadow-sm"
+              title="Cancelar modo fantasma"
+            >
+              Desativar
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSendText} className="relative flex items-center gap-1.5 sm:gap-2 w-full max-w-4xl mx-auto min-w-0">
           {/* Tool Button (+ / Tools) triggering Advanced Features Modal */}
           <button
@@ -1144,128 +1295,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
             🐊
           </button>
 
-          {/* Clock Icon Button for Quick Ephemeral Message Toggle & Config */}
-          <div className="relative shrink-0" ref={ephemeralMenuRef}>
+          {/* Ghost Mention Shortcut Button for Groups */}
+          {isGroup && (
             <button
               type="button"
-              onClick={() => setShowEphemeralMenu(!showEphemeralMenu)}
-              className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition shadow-sm border cursor-pointer ${
-                isEphemeralActive
-                  ? 'bg-[#39ff14]/20 border-[#39ff14] text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.35)]'
-                  : 'bg-[#161922] hover:bg-[#1f2533] text-gray-400 hover:text-white border-[#2a3346] hover:border-gray-500'
+              onClick={() => {
+                setIsGhostMentionActive((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
+                  return next;
+                });
+              }}
+              className={`h-9 sm:h-10 px-2 sm:px-2.5 rounded-2xl flex items-center gap-1 transition shadow-sm shrink-0 border cursor-pointer font-mono font-bold text-xs ${
+                isGhostMentionActive
+                  ? 'bg-purple-600/30 border-purple-500 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.4)] ring-1 ring-purple-400'
+                  : 'bg-[#161922] hover:bg-purple-950/40 text-purple-400 hover:text-purple-300 border-[#2a3346] hover:border-purple-500/60'
               }`}
               title={
-                isEphemeralActive
-                  ? `Modo Fantasma Ativo (${formatDuration(ephemeralDuration)}). Clique para ajustar ou desativar.`
-                  : 'Configurar Mensagens Temporárias Rápidas (Modo Fantasma)'
+                isGhostMentionActive
+                  ? 'Menção Fantasma ATIVA (Marcar Geral). Clique para desativar.'
+                  : 'Ativar Menção Fantasma (Marcar Geral): Notifica todos do grupo sem @ no texto'
               }
             >
-              <Clock className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isEphemeralActive ? 'text-[#39ff14]' : ''}`} />
-              {isEphemeralActive && (
-                <span className="absolute -top-1 -right-1 bg-[#39ff14] text-black font-black font-mono text-[8px] px-1 rounded-full shadow-sm leading-tight border border-black">
-                  {formatShortDuration(ephemeralDuration)}
-                </span>
-              )}
+              <Ghost className={`w-3.5 h-3.5 text-purple-400 ${isGhostMentionActive ? 'animate-bounce' : ''}`} />
+              <span className="text-[11px] font-black">@GERAL</span>
             </button>
+          )}
 
-            {/* Quick Ephemeral Popover */}
-            {showEphemeralMenu && (
-              <div className="absolute bottom-full mb-2 left-0 z-30 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-[#12151c] border border-[#2a3346] rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 font-mono">
-                {/* Header with Title and Toggle Switch */}
-                <div className="flex items-center justify-between pb-2.5 border-b border-[#2a3346]">
-                  <div className="flex items-center gap-1.5 text-white text-xs font-bold">
-                    <Clock className="w-3.5 h-3.5 text-[#39ff14]" />
-                    <span>Mensagem Temporária</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsEphemeralActive(!isEphemeralActive)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isEphemeralActive ? 'bg-[#39ff14]' : 'bg-[#2a3346]'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-black shadow ring-0 transition duration-200 ease-in-out ${
-                        isEphemeralActive ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Duration Presets */}
-                <div className="mt-2.5 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-gray-400">
-                    <span>Tempo de expiração:</span>
-                    <span className="text-[#39ff14] font-bold">{formatDuration(ephemeralDuration)}</span>
-                  </div>
-
-                  {/* Quick Seconds & Time Options */}
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {[
-                      { label: '1s', val: 1 },
-                      { label: '2s', val: 2 },
-                      { label: '3s', val: 3 },
-                      { label: '4s', val: 4 },
-                      { label: '5s', val: 5 },
-                      { label: '10s', val: 10 },
-                      { label: '30s', val: 30 },
-                      { label: '1m', val: 60 },
-                      { label: '5m', val: 300 },
-                      { label: '1h', val: 3600 },
-                      { label: '24h', val: 86400 },
-                      { label: '7d', val: 604800 },
-                    ].map((opt) => (
-                      <button
-                        key={opt.val}
-                        type="button"
-                        onClick={() => {
-                          setEphemeralDuration(opt.val);
-                          setIsEphemeralActive(true);
-                        }}
-                        className={`py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
-                          ephemeralDuration === opt.val && isEphemeralActive
-                            ? 'border-[#39ff14] bg-[#39ff14]/25 text-[#39ff14]'
-                            : 'border-[#2a3346] bg-[#161922] text-gray-300 hover:border-gray-500'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Custom Seconds Input */}
-                  <div className="pt-1 flex items-center justify-between bg-[#161922] p-2 rounded-xl border border-[#2a3346]">
-                    <span className="text-[10px] text-gray-400">Personalizado:</span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={1}
-                        value={ephemeralDuration}
-                        onChange={(e) => {
-                          const val = Math.max(1, parseInt(e.target.value) || 1);
-                          setEphemeralDuration(val);
-                          setIsEphemeralActive(true);
-                        }}
-                        className="w-16 px-2 py-0.5 bg-[#0e1118] border border-[#2a3346] focus:border-[#39ff14] rounded-lg text-[11px] text-[#39ff14] font-bold text-center focus:outline-none"
-                      />
-                      <span className="text-[10px] text-gray-400">seg</span>
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-gray-400 pt-0.5 leading-tight">
-                    {isEphemeralActive
-                      ? '⚡ Ativo: mensagens enviadas se autodestruirão após o tempo configurado.'
-                      : 'ℹ️ Ative o toggle para que todas as mensagens enviadas se apaguem automaticamente.'}
-                  </p>
-                </div>
-              </div>
+          {/* Clock Icon Button triggering Ephemeral Message Modal */}
+          <button
+            type="button"
+            onClick={() => setShowEphemeralMenu(true)}
+            className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition shadow-sm border cursor-pointer shrink-0 ${
+              isEphemeralActive
+                ? 'bg-[#39ff14]/20 border-[#39ff14] text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.35)]'
+                : 'bg-[#161922] hover:bg-[#1f2533] text-gray-400 hover:text-white border-[#2a3346] hover:border-gray-500'
+            }`}
+            title={
+              isEphemeralActive
+                ? `Modo Fantasma Ativo (${formatDuration(ephemeralDuration)}). Clique para abrir modal de configuração.`
+                : 'Configurar Mensagens Temporárias (Modo Fantasma)'
+            }
+          >
+            <Clock className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isEphemeralActive ? 'text-[#39ff14]' : ''}`} />
+            {isEphemeralActive && (
+              <span className="absolute -top-1 -right-1 bg-[#39ff14] text-black font-black font-mono text-[8px] px-1 rounded-full shadow-sm leading-tight border border-black">
+                {formatShortDuration(ephemeralDuration)}
+              </span>
             )}
-          </div>
+          </button>
 
           {/* Text Input */}
           <div
             className={`flex-1 min-w-0 bg-[#161922] rounded-2xl flex items-center px-2.5 sm:px-3.5 py-1 border transition ${
-              isEphemeralActive
+              isGhostMentionActive
+                ? 'border-purple-500/70 shadow-[0_0_12px_rgba(168,85,247,0.25)] focus-within:border-purple-400'
+                : isEphemeralActive
                 ? 'border-[#39ff14]/60 shadow-[0_0_8px_rgba(57,255,20,0.15)] focus-within:border-[#39ff14]'
                 : 'border-[#2a3346] focus-within:border-[#39ff14]'
             }`}
@@ -1274,12 +1361,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
               ref={inputRef}
               type="text"
               placeholder={
-                isEphemeralActive
+                isGhostMentionActive
+                  ? '👻 Digite a mensagem para marcar geral (fantasma)...'
+                  : isEphemeralActive
                   ? `Temporária (${formatShortDuration(ephemeralDuration)})...`
                   : 'Digite uma mensagem...'
               }
               value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setTextInput(val);
+                if (isGroup && !isGhostMentionActive && /^(@todos|@geral|\/todos|\/geral)$/i.test(val.trim())) {
+                  setIsGhostMentionActive(true);
+                }
+              }}
               className="w-full min-w-0 bg-transparent py-1.5 sm:py-2 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none font-sans"
             />
           </div>
@@ -1289,16 +1384,195 @@ export const ChatView: React.FC<ChatViewProps> = ({
             type="submit"
             disabled={!textInput.trim() || sending}
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition shrink-0 cursor-pointer ${
-              isEphemeralActive
+              isGhostMentionActive
+                ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                : isEphemeralActive
                 ? 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[0_0_15px_rgba(57,255,20,0.5)]'
                 : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[0_0_12px_rgba(57,255,20,0.3)]'
             } disabled:opacity-40`}
-            title={isEphemeralActive ? `Enviar Mensagem Temporária (${formatShortDuration(ephemeralDuration)})` : 'Enviar'}
+            title={
+              isGhostMentionActive
+                ? 'Enviar Mensagem com Menção Fantasma (Marcar Geral)'
+                : isEphemeralActive
+                ? `Enviar Mensagem Temporária (${formatShortDuration(ephemeralDuration)})`
+                : 'Enviar'
+            }
           >
-            <Send className="w-4 h-4" />
+            {isGhostMentionActive ? <Ghost className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </button>
         </form>
       </div>
+
+      {/* Ephemeral Message Configuration Modal */}
+      {showEphemeralMenu && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setShowEphemeralMenu(false)}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#12151c] border border-[#2a3346] rounded-3xl p-4 sm:p-6 shadow-2xl font-mono animate-in zoom-in-95 duration-200 space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#2a3346]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-[#39ff14]/15 border border-[#39ff14]/40 flex items-center justify-center text-[#39ff14] shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                  <Clock className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Mensagem Temporária</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]/40">
+                      Modo Fantasma
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-sans">
+                    Configuração de autodestruição automática
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEphemeralMenu(false)}
+                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Toggle Switch Card */}
+            <div className="p-3.5 rounded-2xl bg-[#161a24] border border-[#2a3346] flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Status do Modo Temporário:</span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isEphemeralActive
+                        ? 'bg-[#39ff14]/20 text-[#39ff14] border border-[#39ff14]/40'
+                        : 'bg-gray-800 text-gray-400'
+                    }`}
+                  >
+                    {isEphemeralActive ? 'ATIVADO' : 'DESATIVADO'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-400 font-sans">
+                  {isEphemeralActive
+                    ? `Novas mensagens somem em ${formatDuration(ephemeralDuration)}.`
+                    : 'Mensagens permanecem normais no chat.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsEphemeralActive(!isEphemeralActive)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isEphemeralActive ? 'bg-[#39ff14]' : 'bg-[#2a3346]'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-black shadow ring-0 transition duration-200 ease-in-out ${
+                    isEphemeralActive ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Presets */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-300 font-bold">Tempo de Duração:</span>
+                <span className="text-[#39ff14] font-black text-sm">
+                  {formatDuration(ephemeralDuration)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {[
+                  { label: '⚡ 1s', val: 1 },
+                  { label: '⚡ 2s', val: 2 },
+                  { label: '⚡ 3s', val: 3 },
+                  { label: '⚡ 5s', val: 5 },
+                  { label: '10s', val: 10 },
+                  { label: '30s', val: 30 },
+                  { label: '1 min', val: 60 },
+                  { label: '5 min', val: 300 },
+                  { label: '15 min', val: 900 },
+                  { label: '1 hora', val: 3600 },
+                  { label: '24 horas', val: 86400 },
+                  { label: '7 dias', val: 604800 },
+                ].map((opt) => (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    onClick={() => {
+                      setEphemeralDuration(opt.val);
+                      setIsEphemeralActive(true);
+                    }}
+                    className={`py-2 px-1 text-xs font-bold rounded-xl border transition text-center cursor-pointer ${
+                      ephemeralDuration === opt.val && isEphemeralActive
+                        ? 'border-[#39ff14] bg-[#39ff14]/20 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.25)]'
+                        : 'border-[#2a3346] bg-[#161a24] text-gray-300 hover:border-gray-500 hover:text-white'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Input */}
+            <div className="p-3 bg-[#161a24] rounded-2xl border border-[#2a3346] flex items-center justify-between">
+              <span className="text-xs text-gray-300">Tempo personalizado:</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={ephemeralDuration}
+                  onChange={(e) => {
+                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                    setEphemeralDuration(val);
+                    setIsEphemeralActive(true);
+                  }}
+                  className="w-20 px-2.5 py-1.5 bg-[#0e1118] border border-[#2a3346] focus:border-[#39ff14] rounded-xl text-xs text-[#39ff14] font-bold text-center focus:outline-none"
+                />
+                <span className="text-xs text-gray-400">segundos</span>
+              </div>
+            </div>
+
+            {/* Explanatory Protocol Note */}
+            <p className="text-[11px] text-gray-400 leading-relaxed font-sans bg-black/20 p-2.5 rounded-xl border border-white/5">
+              ℹ️ Quando ativado, cada mensagem enviada por você neste chat será agendada para autodestruição automática após o tempo escolhido.
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2a3346]">
+              {isEphemeralActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEphemeralActive(false);
+                    setShowEphemeralMenu(false);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition cursor-pointer"
+                >
+                  Desativar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEphemeralActive(true);
+                  setShowEphemeralMenu(false);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-[#39ff14] hover:bg-[#32e012] text-black font-bold text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Salvar & Ativar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Advanced Features Modal */}
       <AdvancedFeaturesModal
@@ -1396,6 +1670,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
           }
         }}
       />
+
+      {/* Post Group Status Modal */}
+      {isGroup && (
+        <PostGroupStatusModal
+          isOpen={showGroupStatusModal}
+          onClose={() => setShowGroupStatusModal(false)}
+          connectionId={connection.id}
+          groupJid={conversation.jid}
+          groupName={conversation.name || conversation.jid}
+          groupPicUrl={contactProfilePic || conversation.profilePicUrl}
+        />
+      )}
     </div>
   );
 };

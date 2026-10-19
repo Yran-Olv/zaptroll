@@ -23,6 +23,8 @@ import {
   Lock,
   X,
   Check,
+  Phone,
+  Radio,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Conversation, WhatsAppConnection, Contact, Group } from '../../types/index.js';
@@ -64,6 +66,9 @@ export const MainLayout: React.FC = () => {
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showDevToolsModal, setShowDevToolsModal] = useState(false);
   const [devToolsInitialQuery, setDevToolsInitialQuery] = useState('');
+  const [devToolsInitialTab, setDevToolsInitialTab] = useState<
+    'resolver' | 'location' | 'server_health' | 'ghost_mention' | 'status_stories' | 'groups' | 'generator'
+  >('resolver');
   const [easterEggActive, setEasterEggActive] = useState(false);
   const [activeNotification, setActiveNotification] = useState<TrollNotification | null>(null);
   const [syncingMailbox, setSyncingMailbox] = useState(false);
@@ -530,7 +535,7 @@ export const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="h-full w-full max-w-full flex bg-[#0b0e14] overflow-hidden select-none text-white">
+    <div className="h-full w-full max-w-full flex bg-[#0b0e14] overflow-hidden text-white">
       {/* LEFT PANEL / SIDEBAR (Conversations, Navigation) */}
       <div
         className={`w-full md:w-[380px] lg:w-[420px] bg-[#131722] border-r border-[#2a3346] flex flex-col h-full shrink-0 ${
@@ -579,6 +584,20 @@ export const MainLayout: React.FC = () => {
             >
               <Terminal className="w-4 h-4 text-[#39ff14]" />
               <span className="hidden sm:inline text-xs font-mono font-bold text-gray-200">Dev Tools</span>
+            </button>
+
+            {/* Status & Stories Quick Header Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setDevToolsInitialTab('status_stories');
+                setShowDevToolsModal(true);
+              }}
+              className="px-2.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/70 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+              title="Abrir Status & Stories do WhatsApp (Ver e Postar)"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <span>Status</span>
             </button>
 
             {/* Meme Gallery Shortcut Button */}
@@ -700,6 +719,17 @@ export const MainLayout: React.FC = () => {
           >
             <Users className="w-3.5 h-3.5" />
             <span>Grupos</span>
+          </button>
+          <button
+            onClick={() => {
+              setDevToolsInitialTab('status_stories');
+              setShowDevToolsModal(true);
+            }}
+            className="flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap text-emerald-400 hover:text-emerald-300 hover:bg-[#161922] border border-transparent hover:border-emerald-500/40 cursor-pointer"
+            title="Ver e Postar Status / Stories no WhatsApp"
+          >
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>Status</span>
           </button>
           <button
             onClick={() => setCurrentTab('connections')}
@@ -1028,15 +1058,17 @@ export const MainLayout: React.FC = () => {
 
                         {/* Connection & Status Badges */}
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {conv.phoneNumber && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-950/50 border border-emerald-500/30 text-[9px] font-mono text-emerald-400" title="Telefone do contato">
+                              <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                              +{conv.phoneNumber.replace(/\D/g, '')}
+                            </span>
+                          )}
                           {conv.connection && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#162033] border border-[#2a3f66] text-[9px] font-mono text-cyan-300" title={`Canal de envio: ${conv.connection.name}`}>
                               <Smartphone className="w-2.5 h-2.5 text-cyan-400" />
-                              <span className="font-semibold">{conv.connection.name}</span>
-                              {conv.connection.phoneNumber && (
-                                <span className="text-gray-400">
-                                  • {conv.connection.phoneNumber.slice(-4)}
-                                </span>
-                              )}
+                              <span className="text-gray-400 text-[8px] uppercase tracking-wider">Canal:</span>
+                              <span className="font-semibold text-cyan-200">{conv.connection.name}</span>
                             </span>
                           )}
 
@@ -1117,8 +1149,9 @@ export const MainLayout: React.FC = () => {
               connections[0]
             }
             onBack={() => setSelectedConversation(null)}
-            onOpenDevTools={(initialQuery) => {
+            onOpenDevTools={(initialQuery, initialTab) => {
               setDevToolsInitialQuery(initialQuery || '');
+              if (initialTab) setDevToolsInitialTab(initialTab);
               setShowDevToolsModal(true);
             }}
             onConversationUpdated={(updatedConv) => {
@@ -1158,6 +1191,7 @@ export const MainLayout: React.FC = () => {
         connections={connections}
         activeConnectionId={selectedConversation?.connectionId || selectedConnection?.id}
         initialQuery={devToolsInitialQuery}
+        initialTab={devToolsInitialTab}
       />
 
       {/* Modal: Confirm Close All Conversations */}
