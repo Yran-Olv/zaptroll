@@ -25,6 +25,18 @@ export function initSocket(server: HttpServer): Server {
 
   // JWT Authentication middleware for Socket.IO
   io.use(async (socket: AuthenticatedSocket, next) => {
+    const battleId =
+      socket.handshake.auth?.battleId ||
+      (socket.handshake.query?.battleId as string);
+
+    // Suporte a conexão direta da WebView de RPG sem login
+    if (battleId) {
+      socket.battleId = battleId;
+      socket.battleRole = (socket.handshake.auth?.role || socket.handshake.query?.role || 'fighter') as string;
+      socket.battlePhone = (socket.handshake.auth?.phone || socket.handshake.query?.phone) as string;
+      return next();
+    }
+
     const token =
       socket.handshake.auth?.token ||
       socket.handshake.headers.authorization?.split(' ')[1] ||

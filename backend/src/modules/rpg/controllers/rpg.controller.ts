@@ -24,23 +24,21 @@ export class RpgController {
     try {
       const { battleId } = req.params;
       const token = (req.query.t || req.headers.authorization?.replace(/^Bearer\s+/, '')) as string;
+      const phoneParam = (req.query.p || req.query.phone || req.headers['x-player-phone'] || req.body?.phone) as string;
 
-      if (!token) {
-        res.status(401).json({ error: 'Token de acesso à batalha não fornecido.' });
-        return;
-      }
+      let viewerPhone: string | undefined;
+      let viewerRole: 'fighter' | 'spectator' = 'spectator';
 
-      let decoded;
-      try {
-        decoded = RpgTokenService.verifyBattleToken(token);
-      } catch (err: any) {
-        res.status(401).json({ error: err.message });
-        return;
-      }
-
-      if (decoded.battleId !== battleId) {
-        res.status(403).json({ error: 'Token não corresponde a esta arena de combate.' });
-        return;
+      if (token) {
+        try {
+          const decoded = RpgTokenService.verifyBattleToken(token);
+          if (decoded.battleId === battleId) {
+            viewerPhone = decoded.phone;
+            viewerRole = decoded.role;
+          }
+        } catch (err: any) {
+          // Token inválido ou ausente: prossegue com identificação direta por telefone
+        }
       }
 
       const battle = await RpgBattle.findByPk(battleId, {
@@ -58,11 +56,33 @@ export class RpgController {
       }
 
       const participants = (battle.get('participants') as RpgBattleParticipant[]) || [];
+
+      // Identificação automática do jogador (sem exigir login!):
+      if (!viewerPhone) {
+        if (phoneParam) {
+          const matched = participants.find((p) => p.phone === phoneParam);
+          if (matched && matched.phone) {
+            viewerPhone = matched.phone;
+            viewerRole = 'fighter';
+          }
+        } else {
+          // Se uma das partes for bot, o humano é o lutador da WebView
+          const humanPart = participants.find((p) => !p.isBot);
+          if (humanPart && humanPart.phone) {
+            viewerPhone = humanPart.phone;
+            viewerRole = 'fighter';
+          } else if (participants.length > 0 && participants[0].phone) {
+            viewerPhone = participants[0].phone;
+            viewerRole = 'fighter';
+          }
+        }
+      }
+
       const participantsData = [];
 
       for (const p of participants) {
         const char = await RpgCharacter.findByPk(p.characterId);
-        const isSelf = decoded.phone && p.phone === decoded.phone;
+        const isSelf = Boolean(viewerPhone && p.phone === viewerPhone);
 
         let cardsInHand: any[] = [];
         if (isSelf) {
@@ -140,8 +160,8 @@ export class RpgController {
           logSummary: t.logSummary,
         })),
         viewer: {
-          role: decoded.role,
-          phone: decoded.phone,
+          role: viewerRole,
+          phone: viewerPhone,
         },
       });
     } catch (err: any) {
@@ -159,31 +179,46 @@ export class RpgController {
       const { battleId } = req.params;
       const { cardId } = req.body;
       const token = (req.query.t || req.headers.authorization?.replace(/^Bearer\s+/, '')) as string;
-
-      if (!token) {
-        res.status(401).json({ error: 'Token de autenticação ausente.' });
-        return;
-      }
+      let playerPhone = (req.body?.phone || req.query.p || req.query.phone || req.headers['x-player-phone']) as string;
 
       if (!cardId) {
         res.status(400).json({ error: 'ID da carta não informado.' });
         return;
       }
 
-      const decoded = RpgTokenService.verifyBattleToken(token);
-      if (decoded.battleId !== battleId) {
-        res.status(403).json({ error: 'Token não corresponde a esta arena.' });
-        return;
+      if (token) {
+        try {
+          const decoded = RpgTokenService.verifyBattleToken(token);
+          if (decoded.battleId === battleId && decoded.phone) {
+            playerPhone = decoded.phone;
+          }
+        } catch (e) {
+          // Token inválido, prossegue com identificação direta por telefone
+        }
       }
 
-      if (decoded.role === 'spectator' || !decoded.phone) {
-        res.status(403).json({ error: 'Espectadores não podem jogar cartas.' });
+      if (!playerPhone) {
+        // Se uma das partes for bot, o humano é o jogador ativo da WebView
+        const battle = await RpgBattle.findByPk(battleId, {
+          include: [{ model: RpgBattleParticipant, as: 'participants' }],
+        });
+        const participants = (battle?.get('participants') as RpgBattleParticipant[]) || [];
+        const human = participants.find((p) => !p.isBot);
+        if (human && human.phone) {
+          playerPhone = human.phone;
+        } else if (participants.length > 0 && participants[0].phone) {
+          playerPhone = participants[0].phone;
+        }
+      }
+
+      if (!playerPhone) {
+        res.status(400).json({ error: 'Telefone do jogador não identificado para travar carta.' });
         return;
       }
 
       const result = await TurnResolutionService.lockCard({
         battleId,
-        phone: decoded.phone,
+        phone: playerPhone,
         cardId,
       });
 

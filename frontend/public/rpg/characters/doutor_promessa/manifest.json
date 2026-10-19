@@ -1,0 +1,35 @@
+{
+  "id": "doutor_promessa",
+  "name": "Doutor Promessa",
+  "anchor": { "x": 0.5, "y": 0.95 },
+  "scale": 1.0,
+  "fallbackMode": "png_transform",
+  "offsets": {
+    "idle": { "x": 0, "y": 0, "scale": 1.0 },
+    "punch": { "x": 0, "y": 0, "scale": 1.0 },
+    "kick": { "x": 0, "y": 0, "scale": 1.0 },
+    "block": { "x": 0, "y": 0, "scale": 1.0 },
+    "dodge": { "x": 0, "y": 0, "scale": 1.0 },
+    "special": { "x": 0, "y": 0, "scale": 1.05 }
+  },
+  "actions": {
+    "idle": { "png": "idle.png" },
+    "punch": { "png": "punch.png", "impactPoint": "hand_r", "impactEffect": "hit_heavy", "shake": 6 },
+    "kick": { "png": "kick.png", "impactPoint": "foot_r", "impactEffect": "hit_heavy", "shake": 7 },
+    "charge": { "png": "charge.png", "impactPoint": "shoulder_r", "impactEffect": "hit_heavy", "shake": 8 },
+    "block": { "png": "block.png", "impactEffect": "hit_blocked", "shake": 3 },
+    "dodge": { "png": "dodge.png" },
+    "counter": { "png": "counter.png", "impactPoint": "hand_r", "impactEffect": "hit_crit", "shake": 9 },
+    "hit": { "png": "hit.png", "shake": 5 },
+    "special": { "png": "special.png", "impactPoint": "hand_r", "impactEffect": "special_blast", "shake": 12 },
+    "summon": { "png": "summon.png" },
+    "ally_enter": { "png": "ally_enter.png", "impactPoint": "hand_r", "impactEffect": "hit_heavy", "shake": 7 },
+    "combo_punch": { "png": "combo_punch.png", "impactPoint": "hand_r", "impactEffect": "hit_heavy", "shake": 9 },
+    "buff": { "png": "buff.png" },
+    "debuff": { "png": "debuff.png" },
+    "stunned": { "png": "stunned.png" },
+    "taunt": { "png": "taunt.png" },
+    "ko": { "png": "ko.png", "shake": 7 },
+    "victory": { "png": "victory.png" }
+  }
+}

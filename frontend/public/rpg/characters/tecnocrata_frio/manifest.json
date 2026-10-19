@@ -1,0 +1,98 @@
+{
+  "id": "tecnocrata_frio",
+  "name": "Tecnocrata Frio",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.95
+  },
+  "scale": 1,
+  "fallbackMode": "png_transform",
+  "offsets": {
+    "idle": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "punch": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "kick": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "block": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "dodge": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "special": {
+      "x": 0,
+      "y": 0,
+      "scale": 1.05
+    }
+  },
+  "actions": {
+    "idle": {
+      "png": "idle.png"
+    },
+    "punch": {
+      "png": "punch.png"
+    },
+    "kick": {
+      "png": "kick.png"
+    },
+    "charge": {
+      "png": "charge.png"
+    },
+    "block": {
+      "png": "block.png"
+    },
+    "dodge": {
+      "png": "dodge.png"
+    },
+    "counter": {
+      "png": "counter.png"
+    },
+    "hit": {
+      "png": "hit.png"
+    },
+    "special": {
+      "png": "special.png"
+    },
+    "summon": {
+      "png": "summon.png"
+    },
+    "ally_enter": {
+      "png": "ally_enter.png"
+    },
+    "combo_punch": {
+      "png": "combo_punch.png"
+    },
+    "buff": {
+      "png": "buff.png"
+    },
+    "debuff": {
+      "png": "debuff.png"
+    },
+    "stunned": {
+      "png": "stunned.png"
+    },
+    "taunt": {
+      "png": "taunt.png"
+    },
+    "ko": {
+      "png": "ko.png"
+    },
+    "victory": {
+      "png": "victory.png"
+    }
+  }
+}

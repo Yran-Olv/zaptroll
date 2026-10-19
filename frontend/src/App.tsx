@@ -6,10 +6,17 @@ import { MainLayout } from './components/layout/MainLayout.js';
 import { TrollfaceSvg } from './components/memes/memeVectors.js';
 import { LAB_QUOTES } from './components/memes/memeData.js';
 import { RpgArenaView } from './components/rpg/RpgArenaView.js';
+import { PoseEditorView } from './components/rpg/editor/PoseEditorView.js';
 
 const AppContent: React.FC = () => {
-  // Rota pública para a Arena de RPG via WebView no WhatsApp
   const pathname = window.location.pathname;
+
+  // Rota do Editor de Poses e Coreografia
+  if (pathname.startsWith('/rpg/admin/pose-editor')) {
+    return <PoseEditorView />;
+  }
+
+  // Rota pública para a Arena de RPG via WebView no WhatsApp
   if (pathname.startsWith('/rpg/batalha/')) {
     const battleId = pathname.replace('/rpg/batalha/', '').split('/')[0].split('?')[0];
     const searchParams = new URLSearchParams(window.location.search);

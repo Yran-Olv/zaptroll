@@ -1,0 +1,702 @@
+{
+  "version": "1.0.0",
+  "viewBox": { "width": 140, "height": 220 },
+  "anchor": { "x": 70, "y": 210 },
+  "poses": {
+    "guard": {
+      "head": { "x": 70, "y": 42 },
+      "neck": { "x": 70, "y": 62 },
+      "shoulder_l": { "x": 52, "y": 74 },
+      "shoulder_r": { "x": 88, "y": 74 },
+      "elbow_l": { "x": 42, "y": 102 },
+      "elbow_r": { "x": 98, "y": 100 },
+      "hand_l": { "x": 50, "y": 120 },
+      "hand_r": { "x": 105, "y": 110 },
+      "hip": { "x": 70, "y": 130 },
+      "knee_l": { "x": 56, "y": 168 },
+      "knee_r": { "x": 84, "y": 168 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "guard_low": {
+      "head": { "x": 70, "y": 45 },
+      "neck": { "x": 70, "y": 65 },
+      "shoulder_l": { "x": 52, "y": 77 },
+      "shoulder_r": { "x": 88, "y": 77 },
+      "elbow_l": { "x": 42, "y": 105 },
+      "elbow_r": { "x": 98, "y": 103 },
+      "hand_l": { "x": 50, "y": 123 },
+      "hand_r": { "x": 105, "y": 113 },
+      "hip": { "x": 70, "y": 133 },
+      "knee_l": { "x": 54, "y": 170 },
+      "knee_r": { "x": 86, "y": 170 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "punch_windup": {
+      "head": { "x": 62, "y": 44 },
+      "neck": { "x": 62, "y": 64 },
+      "shoulder_l": { "x": 46, "y": 76 },
+      "shoulder_r": { "x": 80, "y": 76 },
+      "elbow_l": { "x": 38, "y": 104 },
+      "elbow_r": { "x": 60, "y": 95 },
+      "hand_l": { "x": 48, "y": 118 },
+      "hand_r": { "x": 42, "y": 105 },
+      "hip": { "x": 64, "y": 132 },
+      "knee_l": { "x": 52, "y": 172 },
+      "knee_r": { "x": 82, "y": 172 },
+      "foot_l": { "x": 45, "y": 210 },
+      "foot_r": { "x": 88, "y": 210 }
+    },
+    "punch_strike": {
+      "head": { "x": 82, "y": 42 },
+      "neck": { "x": 80, "y": 62 },
+      "shoulder_l": { "x": 65, "y": 74 },
+      "shoulder_r": { "x": 95, "y": 74 },
+      "elbow_l": { "x": 50, "y": 105 },
+      "elbow_r": { "x": 118, "y": 78 },
+      "hand_l": { "x": 62, "y": 125 },
+      "hand_r": { "x": 138, "y": 80 },
+      "hip": { "x": 74, "y": 130 },
+      "knee_l": { "x": 65, "y": 168 },
+      "knee_r": { "x": 102, "y": 172 },
+      "foot_l": { "x": 55, "y": 210 },
+      "foot_r": { "x": 115, "y": 210 }
+    },
+    "punch_recover": {
+      "head": { "x": 72, "y": 43 },
+      "neck": { "x": 71, "y": 63 },
+      "shoulder_l": { "x": 54, "y": 75 },
+      "shoulder_r": { "x": 89, "y": 75 },
+      "elbow_l": { "x": 44, "y": 103 },
+      "elbow_r": { "x": 104, "y": 92 },
+      "hand_l": { "x": 52, "y": 121 },
+      "hand_r": { "x": 115, "y": 100 },
+      "hip": { "x": 71, "y": 131 },
+      "knee_l": { "x": 57, "y": 169 },
+      "knee_r": { "x": 86, "y": 169 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 92, "y": 210 }
+    },
+    "kick_chamber": {
+      "head": { "x": 60, "y": 44 },
+      "neck": { "x": 60, "y": 64 },
+      "shoulder_l": { "x": 46, "y": 76 },
+      "shoulder_r": { "x": 78, "y": 76 },
+      "elbow_l": { "x": 38, "y": 104 },
+      "elbow_r": { "x": 72, "y": 102 },
+      "hand_l": { "x": 45, "y": 125 },
+      "hand_r": { "x": 82, "y": 115 },
+      "hip": { "x": 62, "y": 130 },
+      "knee_l": { "x": 58, "y": 170 },
+      "knee_r": { "x": 92, "y": 110 },
+      "foot_l": { "x": 54, "y": 210 },
+      "foot_r": { "x": 78, "y": 140 }
+    },
+    "kick_strike": {
+      "head": { "x": 55, "y": 48 },
+      "neck": { "x": 56, "y": 68 },
+      "shoulder_l": { "x": 42, "y": 78 },
+      "shoulder_r": { "x": 72, "y": 78 },
+      "elbow_l": { "x": 35, "y": 108 },
+      "elbow_r": { "x": 62, "y": 105 },
+      "hand_l": { "x": 40, "y": 128 },
+      "hand_r": { "x": 70, "y": 120 },
+      "hip": { "x": 62, "y": 132 },
+      "knee_l": { "x": 58, "y": 172 },
+      "knee_r": { "x": 106, "y": 92 },
+      "foot_l": { "x": 52, "y": 210 },
+      "foot_r": { "x": 136, "y": 78 }
+    },
+    "kick_recover": {
+      "head": { "x": 65, "y": 44 },
+      "neck": { "x": 66, "y": 64 },
+      "shoulder_l": { "x": 48, "y": 76 },
+      "shoulder_r": { "x": 84, "y": 76 },
+      "elbow_l": { "x": 40, "y": 104 },
+      "elbow_r": { "x": 85, "y": 102 },
+      "hand_l": { "x": 48, "y": 122 },
+      "hand_r": { "x": 95, "y": 115 },
+      "hip": { "x": 66, "y": 131 },
+      "knee_l": { "x": 56, "y": 170 },
+      "knee_r": { "x": 88, "y": 150 },
+      "foot_l": { "x": 52, "y": 210 },
+      "foot_r": { "x": 84, "y": 195 }
+    },
+    "charge_crouch": {
+      "head": { "x": 78, "y": 65 },
+      "neck": { "x": 74, "y": 85 },
+      "shoulder_l": { "x": 58, "y": 95 },
+      "shoulder_r": { "x": 90, "y": 95 },
+      "elbow_l": { "x": 45, "y": 118 },
+      "elbow_r": { "x": 95, "y": 115 },
+      "hand_l": { "x": 52, "y": 138 },
+      "hand_r": { "x": 102, "y": 130 },
+      "hip": { "x": 65, "y": 142 },
+      "knee_l": { "x": 48, "y": 175 },
+      "knee_r": { "x": 88, "y": 175 },
+      "foot_l": { "x": 40, "y": 210 },
+      "foot_r": { "x": 95, "y": 210 }
+    },
+    "charge_dash": {
+      "head": { "x": 95, "y": 55 },
+      "neck": { "x": 88, "y": 75 },
+      "shoulder_l": { "x": 70, "y": 84 },
+      "shoulder_r": { "x": 102, "y": 84 },
+      "elbow_l": { "x": 52, "y": 105 },
+      "elbow_r": { "x": 115, "y": 100 },
+      "hand_l": { "x": 42, "y": 122 },
+      "hand_r": { "x": 128, "y": 115 },
+      "hip": { "x": 72, "y": 132 },
+      "knee_l": { "x": 55, "y": 168 },
+      "knee_r": { "x": 98, "y": 165 },
+      "foot_l": { "x": 42, "y": 205 },
+      "foot_r": { "x": 118, "y": 205 }
+    },
+    "charge_impact": {
+      "head": { "x": 102, "y": 58 },
+      "neck": { "x": 95, "y": 78 },
+      "shoulder_l": { "x": 75, "y": 86 },
+      "shoulder_r": { "x": 115, "y": 82 },
+      "elbow_l": { "x": 62, "y": 112 },
+      "elbow_r": { "x": 122, "y": 105 },
+      "hand_l": { "x": 55, "y": 130 },
+      "hand_r": { "x": 132, "y": 118 },
+      "hip": { "x": 78, "y": 134 },
+      "knee_l": { "x": 60, "y": 170 },
+      "knee_r": { "x": 108, "y": 168 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 122, "y": 210 }
+    },
+    "block_pose": {
+      "head": { "x": 68, "y": 50 },
+      "neck": { "x": 68, "y": 70 },
+      "shoulder_l": { "x": 54, "y": 80 },
+      "shoulder_r": { "x": 84, "y": 80 },
+      "elbow_l": { "x": 52, "y": 105 },
+      "elbow_r": { "x": 86, "y": 105 },
+      "hand_l": { "x": 76, "y": 72 },
+      "hand_r": { "x": 62, "y": 72 },
+      "hip": { "x": 68, "y": 135 },
+      "knee_l": { "x": 52, "y": 172 },
+      "knee_r": { "x": 84, "y": 172 },
+      "foot_l": { "x": 48, "y": 210 },
+      "foot_r": { "x": 88, "y": 210 }
+    },
+    "dodge_hop": {
+      "head": { "x": 45, "y": 30 },
+      "neck": { "x": 48, "y": 50 },
+      "shoulder_l": { "x": 35, "y": 62 },
+      "shoulder_r": { "x": 65, "y": 62 },
+      "elbow_l": { "x": 25, "y": 88 },
+      "elbow_r": { "x": 75, "y": 86 },
+      "hand_l": { "x": 30, "y": 108 },
+      "hand_r": { "x": 82, "y": 102 },
+      "hip": { "x": 52, "y": 112 },
+      "knee_l": { "x": 38, "y": 142 },
+      "knee_r": { "x": 68, "y": 145 },
+      "foot_l": { "x": 32, "y": 175 },
+      "foot_r": { "x": 72, "y": 180 }
+    },
+    "dodge_land": {
+      "head": { "x": 55, "y": 52 },
+      "neck": { "x": 56, "y": 72 },
+      "shoulder_l": { "x": 42, "y": 82 },
+      "shoulder_r": { "x": 72, "y": 82 },
+      "elbow_l": { "x": 32, "y": 108 },
+      "elbow_r": { "x": 82, "y": 106 },
+      "hand_l": { "x": 38, "y": 128 },
+      "hand_r": { "x": 88, "y": 122 },
+      "hip": { "x": 58, "y": 138 },
+      "knee_l": { "x": 44, "y": 174 },
+      "knee_r": { "x": 76, "y": 174 },
+      "foot_l": { "x": 38, "y": 210 },
+      "foot_r": { "x": 80, "y": 210 }
+    },
+    "counter_parry": {
+      "head": { "x": 66, "y": 46 },
+      "neck": { "x": 66, "y": 66 },
+      "shoulder_l": { "x": 50, "y": 78 },
+      "shoulder_r": { "x": 84, "y": 78 },
+      "elbow_l": { "x": 44, "y": 105 },
+      "elbow_r": { "x": 92, "y": 95 },
+      "hand_l": { "x": 52, "y": 122 },
+      "hand_r": { "x": 98, "y": 76 },
+      "hip": { "x": 67, "y": 133 },
+      "knee_l": { "x": 54, "y": 171 },
+      "knee_r": { "x": 82, "y": 171 },
+      "foot_l": { "x": 48, "y": 210 },
+      "foot_r": { "x": 88, "y": 210 }
+    },
+    "counter_strike": {
+      "head": { "x": 88, "y": 42 },
+      "neck": { "x": 85, "y": 62 },
+      "shoulder_l": { "x": 70, "y": 74 },
+      "shoulder_r": { "x": 100, "y": 74 },
+      "elbow_l": { "x": 55, "y": 104 },
+      "elbow_r": { "x": 122, "y": 75 },
+      "hand_l": { "x": 65, "y": 122 },
+      "hand_r": { "x": 140, "y": 75 },
+      "hip": { "x": 76, "y": 130 },
+      "knee_l": { "x": 68, "y": 168 },
+      "knee_r": { "x": 105, "y": 170 },
+      "foot_l": { "x": 58, "y": 210 },
+      "foot_r": { "x": 118, "y": 210 }
+    },
+    "hit_recoil": {
+      "head": { "x": 48, "y": 38 },
+      "neck": { "x": 52, "y": 58 },
+      "shoulder_l": { "x": 38, "y": 70 },
+      "shoulder_r": { "x": 70, "y": 72 },
+      "elbow_l": { "x": 24, "y": 95 },
+      "elbow_r": { "x": 85, "y": 95 },
+      "hand_l": { "x": 20, "y": 120 },
+      "hand_r": { "x": 92, "y": 118 },
+      "hip": { "x": 58, "y": 128 },
+      "knee_l": { "x": 46, "y": 168 },
+      "knee_r": { "x": 76, "y": 170 },
+      "foot_l": { "x": 40, "y": 210 },
+      "foot_r": { "x": 82, "y": 210 }
+    },
+    "hit_heavy": {
+      "head": { "x": 38, "y": 42 },
+      "neck": { "x": 44, "y": 62 },
+      "shoulder_l": { "x": 30, "y": 74 },
+      "shoulder_r": { "x": 62, "y": 76 },
+      "elbow_l": { "x": 18, "y": 100 },
+      "elbow_r": { "x": 78, "y": 98 },
+      "hand_l": { "x": 12, "y": 125 },
+      "hand_r": { "x": 88, "y": 120 },
+      "hip": { "x": 52, "y": 132 },
+      "knee_l": { "x": 40, "y": 172 },
+      "knee_r": { "x": 70, "y": 174 },
+      "foot_l": { "x": 34, "y": 210 },
+      "foot_r": { "x": 76, "y": 210 }
+    },
+    "special_charge": {
+      "head": { "x": 70, "y": 35 },
+      "neck": { "x": 70, "y": 55 },
+      "shoulder_l": { "x": 48, "y": 68 },
+      "shoulder_r": { "x": 92, "y": 68 },
+      "elbow_l": { "x": 30, "y": 85 },
+      "elbow_r": { "x": 110, "y": 85 },
+      "hand_l": { "x": 24, "y": 60 },
+      "hand_r": { "x": 116, "y": 60 },
+      "hip": { "x": 70, "y": 125 },
+      "knee_l": { "x": 50, "y": 165 },
+      "knee_r": { "x": 90, "y": 165 },
+      "foot_l": { "x": 42, "y": 210 },
+      "foot_r": { "x": 98, "y": 210 }
+    },
+    "special_blast": {
+      "head": { "x": 85, "y": 40 },
+      "neck": { "x": 82, "y": 60 },
+      "shoulder_l": { "x": 68, "y": 72 },
+      "shoulder_r": { "x": 98, "y": 72 },
+      "elbow_l": { "x": 105, "y": 74 },
+      "elbow_r": { "x": 118, "y": 74 },
+      "hand_l": { "x": 136, "y": 78 },
+      "hand_r": { "x": 140, "y": 82 },
+      "hip": { "x": 75, "y": 130 },
+      "knee_l": { "x": 65, "y": 168 },
+      "knee_r": { "x": 105, "y": 172 },
+      "foot_l": { "x": 54, "y": 210 },
+      "foot_r": { "x": 120, "y": 210 }
+    },
+    "summon_call": {
+      "head": { "x": 68, "y": 38 },
+      "neck": { "x": 68, "y": 58 },
+      "shoulder_l": { "x": 50, "y": 72 },
+      "shoulder_r": { "x": 86, "y": 72 },
+      "elbow_l": { "x": 38, "y": 100 },
+      "elbow_r": { "x": 102, "y": 52 },
+      "hand_l": { "x": 48, "y": 118 },
+      "hand_r": { "x": 108, "y": 25 },
+      "hip": { "x": 68, "y": 128 },
+      "knee_l": { "x": 54, "y": 168 },
+      "knee_r": { "x": 84, "y": 168 },
+      "foot_l": { "x": 48, "y": 210 },
+      "foot_r": { "x": 88, "y": 210 }
+    },
+    "ally_drop": {
+      "head": { "x": 70, "y": 60 },
+      "neck": { "x": 70, "y": 80 },
+      "shoulder_l": { "x": 52, "y": 92 },
+      "shoulder_r": { "x": 88, "y": 92 },
+      "elbow_l": { "x": 40, "y": 118 },
+      "elbow_r": { "x": 100, "y": 118 },
+      "hand_l": { "x": 48, "y": 140 },
+      "hand_r": { "x": 92, "y": 140 },
+      "hip": { "x": 70, "y": 142 },
+      "knee_l": { "x": 48, "y": 178 },
+      "knee_r": { "x": 92, "y": 178 },
+      "foot_l": { "x": 42, "y": 210 },
+      "foot_r": { "x": 98, "y": 210 }
+    },
+    "combo_jab": {
+      "head": { "x": 76, "y": 42 },
+      "neck": { "x": 74, "y": 62 },
+      "shoulder_l": { "x": 60, "y": 74 },
+      "shoulder_r": { "x": 90, "y": 74 },
+      "elbow_l": { "x": 98, "y": 78 },
+      "elbow_r": { "x": 88, "y": 98 },
+      "hand_l": { "x": 132, "y": 80 },
+      "hand_r": { "x": 95, "y": 115 },
+      "hip": { "x": 72, "y": 130 },
+      "knee_l": { "x": 60, "y": 168 },
+      "knee_r": { "x": 92, "y": 170 },
+      "foot_l": { "x": 52, "y": 210 },
+      "foot_r": { "x": 100, "y": 210 }
+    },
+    "combo_cross": {
+      "head": { "x": 82, "y": 42 },
+      "neck": { "x": 78, "y": 62 },
+      "shoulder_l": { "x": 62, "y": 74 },
+      "shoulder_r": { "x": 94, "y": 74 },
+      "elbow_l": { "x": 48, "y": 102 },
+      "elbow_r": { "x": 116, "y": 78 },
+      "hand_l": { "x": 58, "y": 120 },
+      "hand_r": { "x": 138, "y": 80 },
+      "hip": { "x": 74, "y": 130 },
+      "knee_l": { "x": 64, "y": 168 },
+      "knee_r": { "x": 102, "y": 172 },
+      "foot_l": { "x": 54, "y": 210 },
+      "foot_r": { "x": 112, "y": 210 }
+    },
+    "combo_upper": {
+      "head": { "x": 78, "y": 38 },
+      "neck": { "x": 76, "y": 58 },
+      "shoulder_l": { "x": 58, "y": 72 },
+      "shoulder_r": { "x": 92, "y": 72 },
+      "elbow_l": { "x": 45, "y": 100 },
+      "elbow_r": { "x": 105, "y": 85 },
+      "hand_l": { "x": 55, "y": 120 },
+      "hand_r": { "x": 115, "y": 45 },
+      "hip": { "x": 72, "y": 128 },
+      "knee_l": { "x": 62, "y": 166 },
+      "knee_r": { "x": 96, "y": 168 },
+      "foot_l": { "x": 52, "y": 210 },
+      "foot_r": { "x": 108, "y": 210 }
+    },
+    "buff_pose": {
+      "head": { "x": 70, "y": 36 },
+      "neck": { "x": 70, "y": 56 },
+      "shoulder_l": { "x": 48, "y": 70 },
+      "shoulder_r": { "x": 92, "y": 70 },
+      "elbow_l": { "x": 32, "y": 88 },
+      "elbow_r": { "x": 108, "y": 88 },
+      "hand_l": { "x": 26, "y": 68 },
+      "hand_r": { "x": 114, "y": 68 },
+      "hip": { "x": 70, "y": 126 },
+      "knee_l": { "x": 52, "y": 166 },
+      "knee_r": { "x": 88, "y": 166 },
+      "foot_l": { "x": 44, "y": 210 },
+      "foot_r": { "x": 96, "y": 210 }
+    },
+    "debuff_slump": {
+      "head": { "x": 70, "y": 56 },
+      "neck": { "x": 70, "y": 76 },
+      "shoulder_l": { "x": 54, "y": 88 },
+      "shoulder_r": { "x": 86, "y": 88 },
+      "elbow_l": { "x": 45, "y": 118 },
+      "elbow_r": { "x": 95, "y": 118 },
+      "hand_l": { "x": 48, "y": 142 },
+      "hand_r": { "x": 92, "y": 142 },
+      "hip": { "x": 70, "y": 138 },
+      "knee_l": { "x": 55, "y": 174 },
+      "knee_r": { "x": 85, "y": 174 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "stunned_left": {
+      "head": { "x": 62, "y": 42 },
+      "neck": { "x": 64, "y": 62 },
+      "shoulder_l": { "x": 48, "y": 74 },
+      "shoulder_r": { "x": 82, "y": 74 },
+      "elbow_l": { "x": 36, "y": 102 },
+      "elbow_r": { "x": 96, "y": 100 },
+      "hand_l": { "x": 42, "y": 125 },
+      "hand_r": { "x": 98, "y": 122 },
+      "hip": { "x": 68, "y": 130 },
+      "knee_l": { "x": 54, "y": 168 },
+      "knee_r": { "x": 84, "y": 168 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "stunned_right": {
+      "head": { "x": 78, "y": 42 },
+      "neck": { "x": 76, "y": 62 },
+      "shoulder_l": { "x": 58, "y": 74 },
+      "shoulder_r": { "x": 92, "y": 74 },
+      "elbow_l": { "x": 44, "y": 100 },
+      "elbow_r": { "x": 104, "y": 102 },
+      "hand_l": { "x": 42, "y": 122 },
+      "hand_r": { "x": 98, "y": 125 },
+      "hip": { "x": 72, "y": 130 },
+      "knee_l": { "x": 56, "y": 168 },
+      "knee_r": { "x": 86, "y": 168 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "taunt_point": {
+      "head": { "x": 70, "y": 40 },
+      "neck": { "x": 70, "y": 60 },
+      "shoulder_l": { "x": 52, "y": 72 },
+      "shoulder_r": { "x": 88, "y": 72 },
+      "elbow_l": { "x": 42, "y": 98 },
+      "elbow_r": { "x": 112, "y": 74 },
+      "hand_l": { "x": 54, "y": 125 },
+      "hand_r": { "x": 136, "y": 74 },
+      "hip": { "x": 68, "y": 130 },
+      "knee_l": { "x": 55, "y": 168 },
+      "knee_r": { "x": 85, "y": 168 },
+      "foot_l": { "x": 50, "y": 210 },
+      "foot_r": { "x": 90, "y": 210 }
+    },
+    "ko_fall": {
+      "head": { "x": 30, "y": 75 },
+      "neck": { "x": 42, "y": 90 },
+      "shoulder_l": { "x": 35, "y": 105 },
+      "shoulder_r": { "x": 58, "y": 102 },
+      "elbow_l": { "x": 22, "y": 125 },
+      "elbow_r": { "x": 72, "y": 122 },
+      "hand_l": { "x": 15, "y": 145 },
+      "hand_r": { "x": 80, "y": 140 },
+      "hip": { "x": 62, "y": 145 },
+      "knee_l": { "x": 50, "y": 178 },
+      "knee_r": { "x": 78, "y": 176 },
+      "foot_l": { "x": 42, "y": 210 },
+      "foot_r": { "x": 86, "y": 210 }
+    },
+    "ko_ground": {
+      "head": { "x": 20, "y": 190 },
+      "neck": { "x": 35, "y": 195 },
+      "shoulder_l": { "x": 45, "y": 190 },
+      "shoulder_r": { "x": 45, "y": 205 },
+      "elbow_l": { "x": 35, "y": 180 },
+      "elbow_r": { "x": 48, "y": 215 },
+      "hand_l": { "x": 25, "y": 182 },
+      "hand_r": { "x": 58, "y": 218 },
+      "hip": { "x": 75, "y": 200 },
+      "knee_l": { "x": 98, "y": 196 },
+      "knee_r": { "x": 102, "y": 205 },
+      "foot_l": { "x": 125, "y": 198 },
+      "foot_r": { "x": 128, "y": 208 }
+    },
+    "victory_pose": {
+      "head": { "x": 70, "y": 35 },
+      "neck": { "x": 70, "y": 55 },
+      "shoulder_l": { "x": 50, "y": 68 },
+      "shoulder_r": { "x": 90, "y": 68 },
+      "elbow_l": { "x": 34, "y": 42 },
+      "elbow_r": { "x": 106, "y": 42 },
+      "hand_l": { "x": 24, "y": 18 },
+      "hand_r": { "x": 116, "y": 18 },
+      "hip": { "x": 70, "y": 128 },
+      "knee_l": { "x": 52, "y": 168 },
+      "knee_r": { "x": 88, "y": 168 },
+      "foot_l": { "x": 46, "y": 210 },
+      "foot_r": { "x": 94, "y": 210 }
+    }
+  },
+  "actions": {
+    "idle": {
+      "png": "idle.png",
+      "loop": true,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 400, "pose": "guard_low", "png": "idle.png", "move": { "x": 0, "y": 2 } },
+        { "t": 800, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "punch": {
+      "png": "punch.png",
+      "impactPoint": "hand_r",
+      "impactEffect": "hit_heavy",
+      "shake": 6,
+      "hitstopMs": 80,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 120, "pose": "punch_windup", "png": "punch_windup.png", "move": { "x": -15, "y": 0 } },
+        { "t": 240, "pose": "punch_strike", "png": "punch.png", "move": { "x": 95, "y": 0 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 440, "pose": "punch_recover", "png": "idle.png", "move": { "x": 20, "y": 0 } },
+        { "t": 560, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "kick": {
+      "png": "kick.png",
+      "impactPoint": "foot_r",
+      "impactEffect": "hit_heavy",
+      "shake": 7,
+      "hitstopMs": 90,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 140, "pose": "kick_chamber", "png": "kick.png", "move": { "x": 20, "y": -12 } },
+        { "t": 280, "pose": "kick_strike", "png": "kick.png", "move": { "x": 90, "y": -6 }, "impact": true, "impactPoint": "foot_r" },
+        { "t": 480, "pose": "kick_recover", "png": "idle.png", "move": { "x": 30, "y": 0 } },
+        { "t": 620, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "charge": {
+      "png": "charge.png",
+      "impactPoint": "shoulder_r",
+      "impactEffect": "hit_heavy",
+      "shake": 8,
+      "hitstopMs": 100,
+      "frames": [
+        { "t": 0, "pose": "charge_crouch", "png": "charge.png", "move": { "x": -10, "y": 0 } },
+        { "t": 120, "pose": "charge_dash", "png": "charge.png", "move": { "x": 50, "y": 0 } },
+        { "t": 260, "pose": "charge_impact", "png": "charge.png", "move": { "x": 120, "y": 0 }, "impact": true, "impactPoint": "shoulder_r" },
+        { "t": 480, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "block": {
+      "png": "block.png",
+      "impactEffect": "hit_blocked",
+      "shake": 3,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 80, "pose": "block_pose", "png": "block.png", "move": { "x": -8, "y": 0 } },
+        { "t": 350, "pose": "block_pose", "png": "block.png", "move": { "x": -5, "y": 0 } },
+        { "t": 480, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "dodge": {
+      "png": "dodge.png",
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 100, "pose": "dodge_hop", "png": "dodge.png", "move": { "x": -75, "y": -18 } },
+        { "t": 280, "pose": "dodge_land", "png": "dodge.png", "move": { "x": -60, "y": 0 } },
+        { "t": 480, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "counter": {
+      "png": "counter.png",
+      "impactPoint": "hand_r",
+      "impactEffect": "hit_crit",
+      "shake": 9,
+      "hitstopMs": 110,
+      "frames": [
+        { "t": 0, "pose": "counter_parry", "png": "block.png", "move": { "x": -5, "y": 0 } },
+        { "t": 160, "pose": "counter_strike", "png": "punch.png", "move": { "x": 100, "y": 0 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 420, "pose": "punch_recover", "png": "idle.png", "move": { "x": 20, "y": 0 } },
+        { "t": 560, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "hit": {
+      "png": "hit.png",
+      "shake": 5,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 60, "pose": "hit_recoil", "png": "hit.png", "move": { "x": -25, "y": -4 } },
+        { "t": 180, "pose": "hit_heavy", "png": "hit.png", "move": { "x": -18, "y": 0 } },
+        { "t": 420, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "special": {
+      "png": "special.png",
+      "impactPoint": "hand_r",
+      "impactEffect": "special_blast",
+      "shake": 12,
+      "hitstopMs": 150,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 180, "pose": "special_charge", "png": "special.png", "move": { "x": -20, "y": -10 } },
+        { "t": 450, "pose": "special_charge", "png": "special.png", "move": { "x": -15, "y": -5 } },
+        { "t": 620, "pose": "special_blast", "png": "special.png", "move": { "x": 110, "y": 0 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 950, "pose": "punch_recover", "png": "idle.png", "move": { "x": 20, "y": 0 } },
+        { "t": 1150, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "summon": {
+      "png": "summon.png",
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 150, "pose": "summon_call", "png": "summon.png", "move": { "x": 0, "y": -6 } },
+        { "t": 550, "pose": "summon_call", "png": "summon.png", "move": { "x": 0, "y": -4 } },
+        { "t": 750, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "ally_enter": {
+      "png": "ally_enter.png",
+      "impactPoint": "hand_r",
+      "impactEffect": "hit_heavy",
+      "shake": 7,
+      "frames": [
+        { "t": 0, "pose": "ally_drop", "png": "ally_enter.png", "move": { "x": 80, "y": -50 }, "opacity": 0 },
+        { "t": 180, "pose": "ally_drop", "png": "ally_enter.png", "move": { "x": 90, "y": 0 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 450, "pose": "punch_strike", "png": "punch.png", "move": { "x": 105, "y": 0 } },
+        { "t": 700, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "combo_punch": {
+      "png": "combo_punch.png",
+      "impactPoint": "hand_r",
+      "impactEffect": "hit_heavy",
+      "shake": 9,
+      "hitstopMs": 80,
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 120, "pose": "combo_jab", "png": "punch.png", "move": { "x": 70, "y": 0 }, "impact": true, "impactPoint": "hand_l" },
+        { "t": 280, "pose": "combo_cross", "png": "punch.png", "move": { "x": 95, "y": 0 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 460, "pose": "combo_upper", "png": "punch.png", "move": { "x": 110, "y": -10 }, "impact": true, "impactPoint": "hand_r" },
+        { "t": 720, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "buff": {
+      "png": "buff.png",
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 150, "pose": "buff_pose", "png": "buff.png", "move": { "x": 0, "y": -8 } },
+        { "t": 550, "pose": "buff_pose", "png": "buff.png", "move": { "x": 0, "y": -6 } },
+        { "t": 750, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "debuff": {
+      "png": "debuff.png",
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 150, "pose": "debuff_slump", "png": "debuff.png", "move": { "x": -5, "y": 6 } },
+        { "t": 550, "pose": "debuff_slump", "png": "debuff.png", "move": { "x": -4, "y": 4 } },
+        { "t": 750, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "stunned": {
+      "png": "stunned.png",
+      "loop": true,
+      "frames": [
+        { "t": 0, "pose": "stunned_left", "png": "stunned.png", "move": { "x": -6, "y": 2 } },
+        { "t": 350, "pose": "stunned_right", "png": "stunned.png", "move": { "x": 6, "y": 2 } },
+        { "t": 700, "pose": "stunned_left", "png": "stunned.png", "move": { "x": -6, "y": 2 } }
+      ]
+    },
+    "taunt": {
+      "png": "taunt.png",
+      "frames": [
+        { "t": 0, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } },
+        { "t": 160, "pose": "taunt_point", "png": "taunt.png", "move": { "x": 10, "y": 0 } },
+        { "t": 650, "pose": "taunt_point", "png": "taunt.png", "move": { "x": 10, "y": 0 } },
+        { "t": 850, "pose": "guard", "png": "idle.png", "move": { "x": 0, "y": 0 } }
+      ]
+    },
+    "ko": {
+      "png": "ko.png",
+      "shake": 7,
+      "frames": [
+        { "t": 0, "pose": "hit_heavy", "png": "hit.png", "move": { "x": -30, "y": -8 } },
+        { "t": 250, "pose": "ko_fall", "png": "ko.png", "move": { "x": -70, "y": -4 } },
+        { "t": 550, "pose": "ko_ground", "png": "ko.png", "move": { "x": -90, "y": 10 }, "impact": true },
+        { "t": 2000, "pose": "ko_ground", "png": "ko.png", "move": { "x": -90, "y": 10 } }
+      ]
+    },
+    "victory": {
+      "png": "victory.png",
+      "loop": true,
+      "frames": [
+        { "t": 0, "pose": "victory_pose", "png": "victory.png", "move": { "x": 0, "y": -8 } },
+        { "t": 400, "pose": "victory_pose", "png": "victory.png", "move": { "x": 0, "y": -12 } },
+        { "t": 800, "pose": "victory_pose", "png": "victory.png", "move": { "x": 0, "y": -8 } }
+      ]
+    }
+  }
+}

@@ -37,6 +37,8 @@ services:
       FIRST_ADMIN_NAME: ${FIRST_ADMIN_NAME:-Admin Zaptroll}
       FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:?FIRST_ADMIN_EMAIL must be defined}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD:?FIRST_ADMIN_PASSWORD must be defined}
+      ALLOW_DEFAULT_CREDENTIALS: ${ALLOW_DEFAULT_CREDENTIALS:-true}
+      APP_URL: ${APP_URL:-https://zaptroll.multivus.com.br}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
     depends_on:
       postgres:

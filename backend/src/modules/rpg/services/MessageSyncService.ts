@@ -1,7 +1,5 @@
 import { WaClient } from 'zapo-js';
-import crypto from 'crypto';
-import { RpgBattle, RpgBattleParticipant, RpgCharacter } from '../models/index.js';
-import { RpgTokenService } from './RpgTokenService.js';
+import { RpgBattle, RpgBattleParticipant, RpgCharacter, RpgCard } from '../models/index.js';
 import { config } from '../../../config/index.js';
 import { CombatTurnResult } from '../engine/CombatEngine.js';
 
@@ -23,38 +21,7 @@ export class MessageSyncService {
   }
 
   /**
-   * Constrói o payload com o Botão Nativo de Webview (cta_url em tela cheia)
-   */
-  public static buildInteractivePayload(text: string, arenaUrl: string) {
-    return {
-      messageContextInfo: {
-        messageSecret: crypto.randomBytes(32),
-      },
-      interactiveMessage: {
-        body: { text },
-        footer: { text: '🏛️ Arena Zaptroll RPG • Luta Política' },
-        nativeFlowMessage: {
-          buttons: [
-            {
-              name: 'cta_url',
-              buttonParamsJson: JSON.stringify({
-                display_text: '⚔️ Abrir Arena Web',
-                url: arenaUrl,
-                merchant_url: arenaUrl,
-                webview_presentation: 'full',
-                webview_interaction: true,
-              }),
-            },
-          ],
-          messageVersion: 1,
-          messageParamsJson: '{}',
-        },
-      },
-    };
-  }
-
-  /**
-   * Formata a mensagem de status da arena de batalha
+   * Formata a mensagem de status da arena de batalha com link limpo e direto
    */
   public static async formatBattleMessage(
     battle: RpgBattle,
@@ -66,8 +33,8 @@ export class MessageSyncService {
     const p2Char = await RpgCharacter.findByPk(p2.characterId);
 
     const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
-    const token = RpgTokenService.generateBattleToken(battle.id, human?.phone || undefined, false);
-    const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}?t=${token}`;
+    // URL limpa e curta (sem JWT gigante)
+    const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}${human?.phone ? `?p=${human.phone}` : ''}`;
 
     const lines: string[] = [];
     lines.push('🥊 *ZAPTROLL RPG — ARENA POLÍTICA* 🏛️');
@@ -106,19 +73,27 @@ export class MessageSyncService {
         lines.push('⚖️ *FIM DE LUTA:* Empate regimental!');
       }
     } else {
-      lines.push('🃏 *ESCOLHA SUAS CARTAS:*');
-      lines.push('📲 Toque no botão *⚔️ Abrir Arena Web* abaixo para ver suas cartas e jogar ao vivo!');
-      lines.push(`🔗 ${arenaUrl}`);
-      lines.push('');
+      lines.push(`🃏 *SUAS CARTAS NA MÃO (${human?.name || 'Jogador'}):*`);
+      if (human && human.hand && human.hand.length > 0) {
+        const cards = await RpgCard.findAll({ where: { id: human.hand } });
+        cards.forEach((c, idx) => {
+          lines.push(`${idx + 1}️⃣ ${c.emoji} *${c.name}* (⚡${c.energyCost}) — ${c.description || 'Poder: ' + c.power}`);
+        });
+        lines.push('');
+      }
+
       lines.push('⏱️ *Tempo para decisão:* 45 segundos');
-      lines.push('👉 *Ou responda com 1, 2, 3 ou 4 neste grupo para jogar rápido!*');
+      lines.push('👉 *Responda com 1, 2, 3 ou 4 neste grupo para jogar!*');
+      lines.push('');
+      lines.push('⚔️ *Ou assista/jogue ao vivo na Arena 2.5D:*');
+      lines.push(`🔗 ${arenaUrl}`);
     }
 
     return lines.join('\n');
   }
 
   /**
-   * Envia uma nova mensagem com Botão Nativo ou edita a existente em tempo real no WhatsApp
+   * Envia uma mensagem no WhatsApp ou EDITA a existente em tempo real sem criar mensagens novas
    */
   public static async sendOrEditBattleMessage(
     client: WaClient,
@@ -132,87 +107,39 @@ export class MessageSyncService {
 
     try {
       const text = await this.formatBattleMessage(battle, p1, p2, summary);
-      const human = !p1.isBot ? p1 : !p2.isBot ? p2 : p1;
-      const token = RpgTokenService.generateBattleToken(battle.id, human?.phone || undefined, false);
-      const arenaUrl = `${config.appUrl}/rpg/batalha/${battle.id}?t=${token}`;
-
-      const interactivePayload = this.buildInteractivePayload(text, arenaUrl);
-
-      const creds = client.getCredentials?.() || null;
-      const ownParticipant = creds?.meLid || creds?.meJid;
-      const isGroup = targetJid.endsWith('@g.us');
-
       let edited = false;
 
-      // 1. Se já existe mensagem anterior da batalha, tenta EDITAR a mensagem no WhatsApp
+      // 1. Se já existe mensagem anterior da batalha, EDITA a mensagem nativamente no WhatsApp!
       if (battle.lastMessageId) {
-        // Tentativa A: Editar preservando o card interativo com o botão
         try {
-          await client.message.send(
-            targetJid,
-            interactivePayload as any,
-            {
-              editKey: {
-                id: battle.lastMessageId,
-                ...(isGroup && ownParticipant ? { participant: ownParticipant } : {}),
-              },
-            }
-          );
-          edited = true;
-          battle.lastMessageTimestamp = new Date();
-          await battle.save();
-        } catch (interactiveEditErr: any) {
-          // Tentativa B: Fallback de texto se o cliente do WhatsApp não aceitar edição de interactiveMessage
-          try {
-            await client.message.send(
-              targetJid,
-              {
-                type: 'text',
-                text,
-                linkPreview: true,
-              } as any,
-              {
-                editKey: {
-                  id: battle.lastMessageId,
-                  ...(isGroup && ownParticipant ? { participant: ownParticipant } : {}),
-                },
-              }
-            );
+          const editRes = await client.message.send(targetJid, text, {
+            editKey: { id: battle.lastMessageId },
+          } as any);
+
+          if (editRes?.id) {
             edited = true;
             battle.lastMessageTimestamp = new Date();
             await battle.save();
-          } catch (textEditErr: any) {
-            console.warn(
-              `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}:`,
-              textEditErr?.message || textEditErr
-            );
-            edited = false;
           }
+        } catch (editErr: any) {
+          console.warn(
+            `[MessageSyncService] Falha ao editar mensagem ${battle.lastMessageId}:`,
+            editErr?.message || editErr
+          );
+          edited = false;
         }
       }
 
-      // 2. Se for a mensagem inaugural (Turno 1) ou se a edição não pôde ser aplicada:
+      // 2. Se for a mensagem inaugural ou se a edição não puder ser aplicada (ex: mensagem expirada)
       if (!edited) {
-        try {
-          const sendResult = await client.message.send(targetJid, interactivePayload as any);
-          if (sendResult?.id) {
-            battle.lastMessageId = sendResult.id;
-            battle.lastMessageTimestamp = new Date();
-            await battle.save();
-          }
-        } catch (buttonErr: any) {
-          console.warn('[MessageSyncService] Envio com botão nativo falhou, enviando com link preview:', buttonErr);
-          const sendResult = await client.message.send(targetJid, {
-            type: 'text',
-            text,
-            linkPreview: true,
-          } as any);
+        const sendResult = await client.message.send(targetJid, text, {
+          linkPreview: true,
+        } as any);
 
-          if (sendResult?.id) {
-            battle.lastMessageId = sendResult.id;
-            battle.lastMessageTimestamp = new Date();
-            await battle.save();
-          }
+        if (sendResult?.id) {
+          battle.lastMessageId = sendResult.id;
+          battle.lastMessageTimestamp = new Date();
+          await battle.save();
         }
       }
     } catch (err: any) {

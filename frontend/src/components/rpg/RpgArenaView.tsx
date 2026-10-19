@@ -16,8 +16,28 @@ import {
   RotateCcw,
   ThumbsUp,
   Award,
+  FastForward,
+  Bone,
 } from 'lucide-react';
 import { rpgAudio } from '../../utils/rpgAudio.js';
+import { CharacterFighter } from './animation/CharacterFighter.js';
+import {
+  AnimationDirector,
+  TurnResolutionPayload,
+} from './animation/AnimationDirector.js';
+import {
+  ArenaFighterVisualState,
+  CharacterManifest,
+  DefaultRigConfig,
+  ImpactEffectType,
+} from './animation/types.js';
+import { arenaToScreen } from './animation/arenaMath.js';
+import {
+  CombatVfx,
+  HitEffectInstance,
+  FloatingNumberInstance,
+} from './effects/CombatVfx.js';
+import { SpecialBanner } from './effects/SpecialBanner.js';
 
 interface CardData {
   id: string;
@@ -100,7 +120,33 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
   const [audioMuted, setAudioMuted] = useState(false);
   const [floatingDamage, setFloatingDamage] = useState<{ id: number; text: string; target: 'p1' | 'p2'; isCrit?: boolean }[]>([]);
 
+  // Estado do Sistema de Animação e Poses
+  const [defaultRig, setDefaultRig] = useState<DefaultRigConfig | null>(null);
+  const [p1Manifest, setP1Manifest] = useState<CharacterManifest | null>(null);
+  const [p2Manifest, setP2Manifest] = useState<CharacterManifest | null>(null);
+
+  const [p1Visual, setP1Visual] = useState<ArenaFighterVisualState | null>(null);
+  const [p2Visual, setP2Visual] = useState<ArenaFighterVisualState | null>(null);
+
+  const [hitEffects, setHitEffects] = useState<HitEffectInstance[]>([]);
+  const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumberInstance[]>([]);
+  const [specialBannerInfo, setSpecialBannerInfo] = useState<{
+    characterName: string;
+    avatarEmoji?: string;
+    attackName: string;
+    side: 'p1' | 'p2';
+  } | null>(null);
+
+  const [screenShake, setScreenShake] = useState<number>(0);
+  const [showSkeletonDebug, setShowSkeletonDebug] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === 'skeleton';
+  });
+  const [skeletonOpacity, setSkeletonOpacity] = useState<number>(0.65);
+  const [lastTurnPayload, setLastTurnPayload] = useState<TurnResolutionPayload | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
+  const directorRef = useRef<AnimationDirector | null>(null);
+  const arenaContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Toggle Som
   const toggleAudio = () => {
@@ -108,18 +154,215 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     setAudioMuted(!rpgAudio.enabled);
   };
 
-  // Carregar dados da batalha
+  // Carregar Rig Mestre e Manifestos dos Lutadores
+  useEffect(() => {
+    async function loadRig() {
+      try {
+        const rigRes = await axios.get('/rpg/poses/default_rig.json');
+        setDefaultRig(rigRes.data);
+      } catch (err) {
+        console.error('Erro ao carregar default_rig.json:', err);
+      }
+    }
+    loadRig();
+  }, []);
+
+  useEffect(() => {
+    if (!p1 || !p2) return;
+    const char1Id = p1.characterId;
+    const char2Id = p2.characterId;
+
+    async function loadManifests() {
+      try {
+        const [m1, m2] = await Promise.allSettled([
+          axios.get(`/rpg/characters/${char1Id}/manifest.json`),
+          axios.get(`/rpg/characters/${char2Id}/manifest.json`),
+        ]);
+
+        if (m1.status === 'fulfilled') {
+          setP1Manifest(m1.value.data);
+          // Pré-carregar imagens do personagem P1
+          preloadCharacterImages(char1Id, m1.value.data);
+        }
+        if (m2.status === 'fulfilled') {
+          setP2Manifest(m2.value.data);
+          // Pré-carregar imagens do personagem P2
+          preloadCharacterImages(char2Id, m2.value.data);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar manifestos dos personagens:', err);
+      }
+    }
+    loadManifests();
+  }, [p1?.characterId, p2?.characterId]);
+
+  // Função utilitária para pré-carregar PNGs e decodificá-los na GPU
+  const preloadCharacterImages = (charId: string, manifestData: CharacterManifest) => {
+    if (typeof window === 'undefined') return;
+    const actions = manifestData.actions || {};
+    Object.values(actions).forEach((act) => {
+      const pngFile = act.png;
+      if (pngFile) {
+        const img = new Image();
+        img.src = `/rpg/characters/${charId}/${pngFile}`;
+        if (img.decode) {
+          img.decode().catch(() => {});
+        }
+      }
+    });
+  };
+
+  // Inicializar / Sincronizar estado visual dos lutadores
+  useEffect(() => {
+    if (!p1 || !p2) return;
+
+    setP1Visual((prev) => {
+      if (prev && prev.characterId === p1.characterId) {
+        return {
+          ...prev,
+          currentHp: p1.currentHp,
+          maxHp: p1.maxHp,
+          currentEnergy: p1.currentEnergy,
+          maxEnergy: p1.maxEnergy,
+          popularity: p1.popularity,
+          name: p1.name,
+        };
+      }
+      return {
+        side: 'p1',
+        name: p1.name,
+        characterId: p1.characterId,
+        characterName: p1.characterName,
+        avatarEmoji: p1.avatarEmoji,
+        maxHp: p1.maxHp,
+        currentHp: p1.currentHp,
+        displayedHp: p1.currentHp,
+        maxEnergy: p1.maxEnergy,
+        currentEnergy: p1.currentEnergy,
+        popularity: p1.popularity,
+        action: 'idle',
+        actionTimeMs: 0,
+        x: 240,
+        y: 350,
+        baseX: 240,
+        baseY: 350,
+        flipX: false,
+        isHit: false,
+        isGuarding: false,
+        activeStatuses: p1.activeStatuses || [],
+      };
+    });
+
+    setP2Visual((prev) => {
+      if (prev && prev.characterId === p2.characterId) {
+        return {
+          ...prev,
+          currentHp: p2.currentHp,
+          maxHp: p2.maxHp,
+          currentEnergy: p2.currentEnergy,
+          maxEnergy: p2.maxEnergy,
+          popularity: p2.popularity,
+          name: p2.name,
+        };
+      }
+      return {
+        side: 'p2',
+        name: p2.name,
+        characterId: p2.characterId,
+        characterName: p2.characterName,
+        avatarEmoji: p2.avatarEmoji,
+        maxHp: p2.maxHp,
+        currentHp: p2.currentHp,
+        displayedHp: p2.currentHp,
+        maxEnergy: p2.maxEnergy,
+        currentEnergy: p2.currentEnergy,
+        popularity: p2.popularity,
+        action: 'idle',
+        actionTimeMs: 0,
+        x: 760,
+        y: 350,
+        baseX: 760,
+        baseY: 350,
+        flipX: true,
+        isHit: false,
+        isGuarding: false,
+        activeStatuses: p2.activeStatuses || [],
+      };
+    });
+  }, [p1, p2]);
+
+  // Inicializar o Diretor de Animação
+  useEffect(() => {
+    if (!p1Visual || !p2Visual) return;
+
+    directorRef.current = new AnimationDirector(p1Visual, p2Visual, {
+      onUpdateFighters: (updatedP1, updatedP2) => {
+        setP1Visual(updatedP1);
+        setP2Visual(updatedP2);
+      },
+      onScreenShake: (intensity) => {
+        setScreenShake(intensity);
+        setTimeout(() => setScreenShake(0), 280);
+      },
+      onHitEffect: (x, y, type) => {
+        const id = `${Date.now()}-${Math.random()}`;
+        setHitEffects((prev) => [...prev, { id, x, y, type, createdAt: Date.now() }]);
+        setTimeout(() => {
+          setHitEffects((prev) => prev.filter((h) => h.id !== id));
+        }, 650);
+      },
+      onFloatingNumber: (x, y, text, type) => {
+        const id = `${Date.now()}-${Math.random()}`;
+        setFloatingNumbers((prev) => [...prev, { id, x, y, text, type, createdAt: Date.now() }]);
+        setTimeout(() => {
+          setFloatingNumbers((prev) => prev.filter((fn) => fn.id !== id));
+        }, 1300);
+      },
+      onSpecialBanner: (info) => {
+        setSpecialBannerInfo(info);
+      },
+      onTurnFinished: () => {
+        // Conclusão limpa
+      },
+    });
+
+    return () => {
+      directorRef.current?.destroy();
+    };
+  }, [p1?.id, p2?.id]);
+
+  // Pular animação do turno
+  const handleSkipAnimation = () => {
+    if (directorRef.current && lastTurnPayload) {
+      directorRef.current.skip(lastTurnPayload);
+    }
+  };
+
+  // Carregar dados da batalha (Suporta link limpo sem JWT)
   const fetchBattle = async () => {
     try {
       setLoading(true);
+      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+      const urlToken = searchParams.get('t') || token || '';
+      const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('rpg_phone') || '' : '';
+      const urlPhone = searchParams.get('p') || searchParams.get('phone') || savedPhone || '';
+
       const res = await axios.get(`/api/rpg/batalha/${battleId}`, {
-        params: { t: token },
+        params: {
+          t: urlToken || undefined,
+          p: urlPhone || undefined,
+        },
       });
 
       const data = res.data;
       setBattle(data.battle);
       setViewerRole(data.viewer?.role || 'spectator');
-      setMyPhone(data.viewer?.phone || null);
+      const resolvedPhone = data.viewer?.phone || urlPhone || null;
+      setMyPhone(resolvedPhone);
+
+      if (resolvedPhone && typeof window !== 'undefined') {
+        localStorage.setItem('rpg_phone', resolvedPhone);
+      }
 
       if (data.participants && data.participants.length >= 2) {
         setP1(data.participants[0]);
@@ -147,9 +390,17 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
   useEffect(() => {
     fetchBattle();
 
-    // Conectar ao Socket.IO da batalha
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('rpg_phone') || '' : '';
+    const activePhone = searchParams.get('p') || searchParams.get('phone') || savedPhone || '';
+
+    // Conectar ao Socket.IO da batalha diretamente pelo ID da batalha
     const s = io({
-      auth: { token },
+      auth: {
+        token: token || undefined,
+        battleId,
+        phone: activePhone || undefined,
+      },
       transports: ['websocket', 'polling'],
     });
 
@@ -164,6 +415,8 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
     });
 
     s.on('battle:turn_resolved', (payload: any) => {
+      setLastTurnPayload(payload);
+
       // Tocar sons de impacto
       rpgAudio.playGavel();
       setTimeout(() => rpgAudio.playHit(), 300);
@@ -173,24 +426,9 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
         setCombatLogs((prev) => [...prev, `--- Turno ${payload.currentTurn} ---`, ...payload.logSummary]);
       }
 
-      // Adicionar número flutuante de dano animado
-      if (payload.events) {
-        payload.events.forEach((ev: any, idx: number) => {
-          if (ev.damage > 0) {
-            setTimeout(() => {
-              if (ev.isCrit) rpgAudio.playCrit();
-              setFloatingDamage((fd) => [
-                ...fd,
-                {
-                  id: Date.now() + idx,
-                  text: `${ev.isCrit ? '💥 CRÍTICO! ' : ''}-${ev.damage} HP`,
-                  target: ev.targetFighterId === payload.p1.id ? 'p1' : 'p2',
-                  isCrit: ev.isCrit,
-                },
-              ]);
-            }, idx * 400);
-          }
-        });
+      // Executar a coreografia completa das poses!
+      if (directorRef.current) {
+        directorRef.current.playTurn(payload);
       }
 
       // Atualizar participantes
@@ -202,7 +440,7 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
       setBattle((b) => (b ? { ...b, currentTurn: payload.currentTurn, status: payload.status } : null));
 
       if (payload.winner && payload.winner !== 'none') {
-        setTimeout(() => rpgAudio.playVictory(), 1000);
+        setTimeout(() => rpgAudio.playVictory(), 1400);
       }
     });
 
@@ -232,8 +470,16 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
       rpgAudio.playCardSelect();
       const res = await axios.post(
         `/api/rpg/batalha/${battleId}/jogar`,
-        { cardId: selectedCardId },
-        { params: { t: token } }
+        {
+          cardId: selectedCardId,
+          phone: myPhone || undefined,
+        },
+        {
+          params: {
+            t: token || undefined,
+            p: myPhone || undefined,
+          },
+        }
       );
 
       if (res.data.success) {
@@ -306,6 +552,28 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Botão Pular Animação */}
+          <button
+            onClick={handleSkipAnimation}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition shadow"
+            title="Pular animação e ir para o estado final do turno"
+          >
+            <FastForward className="w-3.5 h-3.5" /> Pular
+          </button>
+
+          {/* Botão Modo Esqueleto Debug */}
+          <button
+            onClick={() => setShowSkeletonDebug(!showSkeletonDebug)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition shadow ${
+              showSkeletonDebug
+                ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-gray-400'
+            }`}
+            title="Ligar/Desligar Esqueleto do Boneco de Palito por cima do PNG (?debug=skeleton)"
+          >
+            <Bone className="w-3.5 h-3.5" /> {showSkeletonDebug ? 'Palito ON' : 'Palito'}
+          </button>
+
           {viewerRole === 'spectator' && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-500/40 text-[11px] text-purple-300">
               <Users className="w-3 h-3" /> Espectador
@@ -322,178 +590,252 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ battleId, token }) => {
         </div>
       </header>
 
+      {/* Popover de Controle de Opacidade do Esqueleto Debug */}
+      {showSkeletonDebug && (
+        <div className="fixed top-16 right-4 z-40 bg-black/85 backdrop-blur-md border border-emerald-500/50 rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-mono shadow-2xl animate-fadeIn">
+          <span className="text-emerald-400 font-bold">Opacidade Palito:</span>
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.05"
+            value={skeletonOpacity}
+            onChange={(e) => setSkeletonOpacity(parseFloat(e.target.value))}
+            className="w-20 accent-emerald-400 cursor-pointer"
+          />
+          <span className="text-white w-8 text-right font-bold">{Math.round(skeletonOpacity * 100)}%</span>
+        </div>
+      )}
+
       {/* 2. RINGUE / PALCO 2.5D COM OS DOIS LUTADORES */}
-      <main className="flex-1 relative flex flex-col justify-between p-4 md:p-8 overflow-hidden">
-        {/* Fundo do Ringue com Grid Isométrico & Iluminação */}
-        <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-600 via-transparent to-transparent" />
-        <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]" />
+      <main
+        className="flex-1 relative flex flex-col justify-between p-2 md:p-6 overflow-hidden"
+        style={{
+          transform: screenShake > 0 ? `translate3d(${(Math.random() - 0.5) * screenShake}px, ${(Math.random() - 0.5) * screenShake}px, 0)` : 'none',
+          transition: 'transform 0.05s linear',
+        }}
+        onClick={() => {
+          // Toque na tela pode pular animação se estiver no meio
+          if (directorRef.current && lastTurnPayload) {
+            handleSkipAnimation();
+          }
+        }}
+      >
+        {/* Banner Dramático de Ataque Especial */}
+        <SpecialBanner
+          visible={Boolean(specialBannerInfo)}
+          characterName={specialBannerInfo?.characterName || ''}
+          avatarEmoji={specialBannerInfo?.avatarEmoji}
+          attackName={specialBannerInfo?.attackName || ''}
+          side={specialBannerInfo?.side || 'p1'}
+        />
 
-        {/* Efeitos Flutuantes de Dano */}
-        {floatingDamage.map((d) => (
-          <div
-            key={d.id}
-            className={`absolute z-30 font-black text-2xl md:text-3xl animate-bounce drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${
-              d.target === 'p1' ? 'left-1/4 top-1/3' : 'right-1/4 top-1/3'
-            } ${d.isCrit ? 'text-amber-400 scale-125' : 'text-red-500'}`}
-          >
-            {d.text}
-          </div>
-        ))}
+        {/* Efeitos de Combate (Faíscas, Escudo, Supernova e Números de Dano) */}
+        <CombatVfx
+          hitEffects={hitEffects}
+          floatingNumbers={floatingNumbers}
+          shakeIntensity={screenShake}
+        />
 
-        {/* ÁREA DOS LUTADORES (P1 à esquerda, P2 à direita) */}
-        <div className="relative z-10 grid grid-cols-2 gap-4 md:gap-12 w-full max-w-5xl mx-auto my-auto items-center">
-          {/* LUTADOR 1 (ESQUERDA) */}
-          <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur shadow-2xl relative">
-            {p1.cardLocked && (
-              <span className="absolute -top-3 px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-xs font-bold animate-pulse">
-                🔒 Carta Pronta
-              </span>
-            )}
-
-            <div className="relative mb-3">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-gradient-to-tr from-[#141b26] to-[#1f2a3a] border-2 border-emerald-500/50 flex items-center justify-center text-5xl md:text-6xl shadow-[0_0_30px_rgba(16,185,129,0.2)] animate-pulse">
-                {p1.avatarEmoji}
+        {/* HUD SUPERIOR DE BARRAS DE VIDA (HP) E ENERGIA DOS LUTADORES */}
+        <div className="relative z-30 grid grid-cols-2 gap-3 md:gap-8 w-full max-w-4xl mx-auto">
+          {/* HUD LUTADOR 1 (ESQUERDA) */}
+          <div className="p-3 rounded-2xl bg-black/60 border border-emerald-500/30 backdrop-blur shadow-xl relative">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xl">{p1.avatarEmoji}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-extrabold text-xs md:text-sm text-white truncate">{p1.name}</h3>
+                  {p1.cardLocked && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse font-mono font-bold">
+                      🔒 PRONTO
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-emerald-400/90 font-medium truncate">{p1.characterName}</p>
               </div>
-              <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-md bg-emerald-600 text-white font-mono text-[10px] uppercase font-bold shadow">
-                {p1.affinity || 'Retórica'}
-              </span>
             </div>
 
-            <h2 className="font-extrabold text-base md:text-lg text-white truncate max-w-full">{p1.name}</h2>
-            <p className="text-xs text-emerald-400/90 font-medium">{p1.characterName}</p>
-
-            {/* Barra de Vida (HP) */}
-            <div className="w-full mt-3">
-              <div className="flex justify-between text-xs mb-1 font-mono">
+            {/* Barra de Vida (HP) - SINCRONIZADA EXATAMENTE NO IMPACTO! */}
+            <div className="w-full">
+              <div className="flex justify-between text-[11px] mb-0.5 font-mono">
                 <span className="text-gray-400 font-semibold flex items-center gap-1">
                   <Shield className="w-3 h-3 text-emerald-400" /> HP
                 </span>
                 <span className="font-bold text-emerald-300">
-                  {p1.currentHp} / {p1.maxHp}
+                  {p1Visual ? p1Visual.displayedHp : p1.currentHp} / {p1.maxHp}
                 </span>
               </div>
-              <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div className="w-full h-2.5 bg-black/80 rounded-full overflow-hidden p-0.5 border border-white/10">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    p1.currentHp / p1.maxHp < 0.25
-                      ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse'
-                      : p1.currentHp / p1.maxHp < 0.5
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    (p1Visual ? p1Visual.displayedHp : p1.currentHp) / p1.maxHp < 0.25
+                      ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] animate-pulse'
+                      : (p1Visual ? p1Visual.displayedHp : p1.currentHp) / p1.maxHp < 0.5
                       ? 'bg-amber-500'
                       : 'bg-emerald-500'
                   }`}
-                  style={{ width: `${Math.max(0, Math.min(100, (p1.currentHp / p1.maxHp) * 100))}%` }}
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(100, ((p1Visual ? p1Visual.displayedHp : p1.currentHp) / p1.maxHp) * 100)
+                    )}%`,
+                  }}
                 />
               </div>
             </div>
 
-            {/* Barra de Energia */}
-            <div className="w-full mt-2">
-              <div className="flex justify-between text-[11px] mb-1 font-mono">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-cyan-400" /> Energia
-                </span>
-                <span className="text-cyan-300 font-bold">
-                  {p1.currentEnergy} / {p1.maxEnergy}
-                </span>
-              </div>
-              <div className="flex gap-1 justify-center">
-                {Array.from({ length: p1.maxEnergy }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex-1 h-1.5 rounded-full transition-all ${
-                      idx < p1.currentEnergy ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-gray-800'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Ibope / Popularidade */}
-            <div className="w-full mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono">
-              <span className="text-gray-400">Ibope:</span>
-              <span className="text-yellow-400 font-bold">📊 {p1.popularity}%</span>
+            {/* Energia & Ibope */}
+            <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-gray-400">
+              <span className="flex items-center gap-1 text-cyan-400">
+                <Zap className="w-2.5 h-2.5" /> {p1.currentEnergy}/{p1.maxEnergy}
+              </span>
+              <span className="text-yellow-400 font-semibold">📊 {p1.popularity}% Ibope</span>
             </div>
           </div>
 
-          {/* LUTADOR 2 (DIREITA) */}
-          <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur shadow-2xl relative">
-            {p2.cardLocked && (
-              <span className="absolute -top-3 px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-xs font-bold animate-pulse">
-                🔒 Carta Pronta
-              </span>
-            )}
-
-            <div className="relative mb-3">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-gradient-to-tr from-[#1f1414] to-[#3a1f1f] border-2 border-red-500/50 flex items-center justify-center text-5xl md:text-6xl shadow-[0_0_30px_rgba(239,68,68,0.2)] animate-pulse">
-                {p2.avatarEmoji}
+          {/* HUD LUTADOR 2 (DIREITA) */}
+          <div className="p-3 rounded-2xl bg-black/60 border border-purple-500/30 backdrop-blur shadow-xl relative text-right">
+            <div className="flex items-center justify-end gap-2 mb-1.5 flex-row-reverse">
+              <span className="text-xl">{p2.avatarEmoji}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between flex-row-reverse">
+                  <h3 className="font-extrabold text-xs md:text-sm text-white truncate">{p2.name}</h3>
+                  {p2.cardLocked && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-400 border border-purple-500/40 animate-pulse font-mono font-bold">
+                      🔒 PRONTO
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-purple-400/90 font-medium truncate">{p2.characterName}</p>
               </div>
-              <span className="absolute -bottom-2 -left-2 px-2 py-0.5 rounded-md bg-red-600 text-white font-mono text-[10px] uppercase font-bold shadow">
-                {p2.affinity || 'Povão'}
-              </span>
             </div>
 
-            <h2 className="font-extrabold text-base md:text-lg text-white truncate max-w-full">{p2.name}</h2>
-            <p className="text-xs text-red-400/90 font-medium">{p2.characterName}</p>
-
-            {/* Barra de Vida (HP) */}
-            <div className="w-full mt-3">
-              <div className="flex justify-between text-xs mb-1 font-mono">
+            {/* Barra de Vida (HP) - SINCRONIZADA EXATAMENTE NO IMPACTO! */}
+            <div className="w-full">
+              <div className="flex justify-between text-[11px] mb-0.5 font-mono flex-row-reverse">
                 <span className="text-gray-400 font-semibold flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-red-400" /> HP
+                  <Shield className="w-3 h-3 text-purple-400" /> HP
                 </span>
-                <span className="font-bold text-red-300">
-                  {p2.currentHp} / {p2.maxHp}
+                <span className="font-bold text-purple-300">
+                  {p2Visual ? p2Visual.displayedHp : p2.currentHp} / {p2.maxHp}
                 </span>
               </div>
-              <div className="w-full h-3 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div className="w-full h-2.5 bg-black/80 rounded-full overflow-hidden p-0.5 border border-white/10">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    p2.currentHp / p2.maxHp < 0.25
-                      ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse'
-                      : p2.currentHp / p2.maxHp < 0.5
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    (p2Visual ? p2Visual.displayedHp : p2.currentHp) / p2.maxHp < 0.25
+                      ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] animate-pulse'
+                      : (p2Visual ? p2Visual.displayedHp : p2.currentHp) / p2.maxHp < 0.5
                       ? 'bg-amber-500'
-                      : 'bg-red-500'
+                      : 'bg-purple-500'
                   }`}
-                  style={{ width: `${Math.max(0, Math.min(100, (p2.currentHp / p2.maxHp) * 100))}%` }}
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(100, ((p2Visual ? p2Visual.displayedHp : p2.currentHp) / p2.maxHp) * 100)
+                    )}%`,
+                  }}
                 />
               </div>
             </div>
 
-            {/* Barra de Energia */}
-            <div className="w-full mt-2">
-              <div className="flex justify-between text-[11px] mb-1 font-mono">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-cyan-400" /> Energia
-                </span>
-                <span className="text-cyan-300 font-bold">
-                  {p2.currentEnergy} / {p2.maxEnergy}
-                </span>
-              </div>
-              <div className="flex gap-1 justify-center">
-                {Array.from({ length: p2.maxEnergy }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex-1 h-1.5 rounded-full transition-all ${
-                      idx < p2.currentEnergy ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-gray-800'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Ibope / Popularidade */}
-            <div className="w-full mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono">
-              <span className="text-gray-400">Ibope:</span>
-              <span className="text-yellow-400 font-bold">📊 {p2.popularity}%</span>
+            {/* Energia & Ibope */}
+            <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-gray-400">
+              <span className="text-yellow-400 font-semibold">📊 {p2.popularity}% Ibope</span>
+              <span className="flex items-center gap-1 text-cyan-400">
+                <Zap className="w-2.5 h-2.5" /> {p2.currentEnergy}/{p2.maxEnergy}
+              </span>
             </div>
           </div>
         </div>
 
+        {/* ============================================================
+            PALCO DA ARENA 2.5D (1000x500 COORDENADAS LÓGICAS RESPONSIVAS)
+            ============================================================ */}
+        <div
+          ref={arenaContainerRef}
+          className="relative w-full max-w-4xl h-[280px] md:h-[380px] mx-auto my-auto flex items-center justify-center overflow-visible"
+        >
+          {/* PISO ISOMÉTRICO 2.5D COM PROFUNDIDADE */}
+          <div
+            className="absolute inset-x-8 bottom-6 h-36 rounded-[50px] border-t-2 border-emerald-500/20 pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.08) 0%, rgba(0,0,0,0.6) 80%)',
+              transform: 'perspective(400px) rotateX(40deg)',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
+            }}
+          />
+
+          {/* PALCO CENTRAL COM LINHA DE CENTRO */}
+          <div className="absolute inset-x-16 bottom-16 h-1 border-b border-dashed border-white/10 pointer-events-none" />
+
+          {/* LUTADOR 1 (P1 - JOGADOR DA ESQUERDA) */}
+          {defaultRig && p1Visual && (
+            <div
+              className="absolute pointer-events-none transition-all duration-150"
+              style={{
+                left: `${(p1Visual.x / 1000) * 100}%`,
+                bottom: `${500 - p1Visual.y}px`,
+                transform: 'translate(-50%, 100%)',
+                zIndex: Math.round(p1Visual.y),
+              }}
+            >
+              <CharacterFighter
+                side="p1"
+                characterId={p1.characterId}
+                characterName={p1.characterName}
+                action={p1Visual.action}
+                actionTimeMs={p1Visual.actionTimeMs}
+                manifest={p1Manifest}
+                defaultRig={defaultRig}
+                skeletonOpacity={skeletonOpacity}
+                showDebugSkeleton={showSkeletonDebug}
+                flipX={p1Visual.flipX}
+                isHit={p1Visual.isHit}
+                isGuarding={p1Visual.isGuarding}
+                auraEffect={p1Visual.auraEffect}
+                speechBubble={p1Visual.speechBubble}
+              />
+            </div>
+          )}
+
+          {/* LUTADOR 2 (P2 - JOGADOR DA DIREITA) */}
+          {defaultRig && p2Visual && (
+            <div
+              className="absolute pointer-events-none transition-all duration-150"
+              style={{
+                left: `${(p2Visual.x / 1000) * 100}%`,
+                bottom: `${500 - p2Visual.y}px`,
+                transform: 'translate(-50%, 100%)',
+                zIndex: Math.round(p2Visual.y),
+              }}
+            >
+              <CharacterFighter
+                side="p2"
+                characterId={p2.characterId}
+                characterName={p2.characterName}
+                action={p2Visual.action}
+                actionTimeMs={p2Visual.actionTimeMs}
+                manifest={p2Manifest}
+                defaultRig={defaultRig}
+                skeletonOpacity={skeletonOpacity}
+                showDebugSkeleton={showSkeletonDebug}
+                flipX={p2Visual.flipX}
+                isHit={p2Visual.isHit}
+                isGuarding={p2Visual.isGuarding}
+                auraEffect={p2Visual.auraEffect}
+                speechBubble={p2Visual.speechBubble}
+              />
+            </div>
+          )}
+        </div>
+
         {/* FEED DE RESUMO / REPLAY DO COMBATE */}
         {combatLogs.length > 0 && (
-          <div className="relative z-10 w-full max-w-xl mx-auto my-3 max-h-24 overflow-y-auto rounded-xl bg-black/60 border border-white/10 p-2.5 text-xs font-mono text-gray-300 space-y-1">
-            {combatLogs.slice(-4).map((log, idx) => (
-              <div key={idx} className="leading-relaxed">
+          <div className="relative z-10 w-full max-w-xl mx-auto my-1 max-h-20 overflow-y-auto rounded-xl bg-black/60 border border-white/10 p-2 text-xs font-mono text-gray-300 space-y-0.5">
+            {combatLogs.slice(-3).map((log, idx) => (
+              <div key={idx} className="leading-tight truncate">
                 {log}
               </div>
             ))}
