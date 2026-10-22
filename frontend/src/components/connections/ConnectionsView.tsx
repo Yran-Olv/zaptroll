@@ -196,21 +196,21 @@ export const ConnectionsView: React.FC<ConnectionsViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-y-auto">
       {/* Header */}
-      <div className="lab-glass sticky top-0 z-10 px-4 py-3 border-b border-[#2a3346] flex items-center justify-between">
-        <div>
-          <h1 className="text-base sm:text-lg font-bold font-mono text-white flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-[#39ff14]" />
-            <span>Sessões WhatsApp Zapo</span>
+      <div className="lab-glass sticky top-0 z-10 px-3.5 py-2.5 border-b border-[#2a3346] flex items-center justify-between gap-2 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base font-bold font-mono text-white flex items-center gap-2 truncate">
+            <Smartphone className="w-4 h-4 text-[#39ff14] shrink-0" />
+            <span className="truncate">Sessões WhatsApp</span>
           </h1>
-          <p className="text-xs text-gray-400 font-mono">
-            Gerencie instâncias conectadas para testes e trollagens
+          <p className="text-[10px] sm:text-xs text-gray-400 font-mono truncate">
+            Instâncias conectadas para testes e trollagens
           </p>
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="px-3.5 py-1.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-[0_0_12px_rgba(57,255,20,0.3)] transition cursor-pointer"
+          className="px-3 py-1.5 bg-[#39ff14] hover:bg-[#32e012] text-black font-mono font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-[0_0_12px_rgba(57,255,20,0.3)] transition cursor-pointer shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Nova Sessão</span>
         </button>
       </div>

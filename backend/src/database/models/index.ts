@@ -9,6 +9,7 @@ import { Conversation } from './Conversation.js';
 import { Message } from './Message.js';
 import { MessageTemplate } from './MessageTemplate.js';
 import { AuditLog } from './AuditLog.js';
+import { AutoDestructTask } from './AutoDestructTask.js';
 import { config } from '../../config/index.js';
 import {
   RpgPlayer,
@@ -27,6 +28,13 @@ import {
   RpgAuditLog,
 } from '../../modules/rpg/models/index.js';
 import { RpgSeedService } from '../../modules/rpg/services/RpgSeedService.js';
+import {
+  Flow,
+  FlowVersion,
+  FlowSession,
+  FlowExecutionEvent,
+  FormSubmission,
+} from '../../modules/flows/models/index.js';
 
 // Define Associations
 User.hasMany(WhatsAppConnection, { foreignKey: 'userId', as: 'connections', onDelete: 'CASCADE' });
@@ -103,6 +111,7 @@ export {
   Message,
   MessageTemplate,
   AuditLog,
+  AutoDestructTask,
   // RPG Models
   RpgPlayer,
   RpgCharacter,
@@ -118,4 +127,10 @@ export {
   RpgCampaignProgress,
   RpgConfig,
   RpgAuditLog,
+  // Flow Builder Models
+  Flow,
+  FlowVersion,
+  FlowSession,
+  FlowExecutionEvent,
+  FormSubmission,
 };

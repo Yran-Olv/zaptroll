@@ -182,11 +182,12 @@ export class StatusService {
   /**
    * Posta um novo Status / Stories
    * Suporta postar para status@broadcast (pessoal) e NATIVO em Grupos (groupStatusMessageV2)
+   * Suporta Texto, Imagem e Vídeo com legenda
    */
   public static async postStatus(
     connectionId: string,
     params: {
-      type?: 'text' | 'image';
+      type?: 'text' | 'image' | 'video';
       text?: string;
       caption?: string;
       backgroundColor?: string;
@@ -196,6 +197,10 @@ export class StatusService {
       mentionAll?: boolean;
       imageUrl?: string;
       imageBase64?: string;
+      videoUrl?: string;
+      videoBase64?: string;
+      videoMimetype?: string;
+      seconds?: number;
       alsoPostToPersonal?: boolean;
     }
   ) {
@@ -205,11 +210,46 @@ export class StatusService {
       throw new Error('Conexão WhatsApp não conectada.');
     }
 
+    const isVideo = params.type === 'video' || Boolean(params.videoBase64 || params.videoUrl);
     let statusResult: any = null;
     const hasTargetGroups = Boolean(params.targetGroups && params.targetGroups.length > 0);
 
+    // Validação e extração de buffer de vídeo se for vídeo
+    let videoBuffer: Buffer | null = null;
+    if (isVideo) {
+      if (params.videoBase64) {
+        const cleanBase64 = params.videoBase64.replace(/^data:video\/[a-zA-Z0-9.-]+;base64,/, '');
+        videoBuffer = Buffer.from(cleanBase64, 'base64');
+      } else if (params.videoUrl) {
+        const parsed = new URL(params.videoUrl);
+        const host = parsed.hostname.toLowerCase();
+        if (
+          host === '169.254.169.254' ||
+          host === 'metadata.google.internal' ||
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host.startsWith('10.') ||
+          host.startsWith('192.168.')
+        ) {
+          throw new Error('URL de vídeo restrita por proteção de segurança SSRF.');
+        }
+        const fetchRes = await fetch(params.videoUrl);
+        if (!fetchRes.ok) {
+          throw new Error(`Falha ao baixar vídeo da URL: HTTP ${fetchRes.status}`);
+        }
+        videoBuffer = Buffer.from(await fetchRes.arrayBuffer());
+      }
+
+      if (!videoBuffer || videoBuffer.length === 0) {
+        throw new Error('Nenhum dado de vídeo válido fornecido para o Story.');
+      }
+
+      if (videoBuffer.length > 16 * 1024 * 1024) {
+        throw new Error(`O arquivo de vídeo excede o limite máximo permitido pelo WhatsApp (16MB). Tamanho atual: ${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB`);
+      }
+    }
+
     // 1. Postar para status@broadcast (Status Pessoal do Número)
-    // Se grupos foram selecionados, NUNCA posta no status pessoal a não ser que alsoPostToPersonal === true
     if (!hasTargetGroups || params.alsoPostToPersonal) {
       let recipients = params.recipients && params.recipients.length > 0 ? params.recipients : [];
 
@@ -238,7 +278,39 @@ export class StatusService {
       }
 
       try {
-        if (client.status && typeof client.status.send === 'function' && !params.imageUrl && !params.imageBase64) {
+        if (isVideo && videoBuffer) {
+          // Envio de Vídeo para status@broadcast
+          statusResult = await ZapoMessageAdapter.sendStatusVideo(
+            client,
+            recipients.slice(0, 100),
+            videoBuffer,
+            params.caption || params.text || '',
+            {
+              mimetype: params.videoMimetype || 'video/mp4',
+              seconds: params.seconds,
+            }
+          );
+        } else if (params.imageUrl || params.imageBase64) {
+          let imageBytes: Buffer;
+          if (params.imageBase64) {
+            const cleanBase64 = params.imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+            imageBytes = Buffer.from(cleanBase64, 'base64');
+          } else {
+            const fetchRes = await fetch(params.imageUrl!);
+            imageBytes = Buffer.from(await fetchRes.arrayBuffer());
+          }
+          if (client.status && typeof client.status.send === 'function') {
+            statusResult = await client.status.send({
+              content: {
+                type: 'image',
+                media: imageBytes,
+                caption: text,
+              } as any,
+              recipients: recipients.slice(0, 100),
+              statusSetting: 'contacts',
+            });
+          }
+        } else if (client.status && typeof client.status.send === 'function') {
           statusResult = await client.status.send({
             content: {
               type: 'text',
@@ -266,26 +338,28 @@ export class StatusService {
     // 2. Postar NATIVO em Grupos via groupStatusMessageV2 (Story de Grupo)
     const groupResults: Array<{ groupJid: string; statusId?: string; error?: string }> = [];
     if (hasTargetGroups && params.targetGroups) {
-      let imageBytes: Buffer;
+      let imageBytes: Buffer | undefined;
       let thumbBytes: Buffer | undefined;
 
-      if (params.imageBase64) {
-        const cleanBase64 = params.imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-        imageBytes = Buffer.from(cleanBase64, 'base64');
-      } else if (params.imageUrl) {
-        try {
-          const fetchRes = await fetch(params.imageUrl);
-          imageBytes = Buffer.from(await fetchRes.arrayBuffer());
-        } catch (fetchErr: any) {
-          console.warn('[StatusService] Falha ao baixar imagem, usando banner padrão:', fetchErr.message);
+      if (!isVideo) {
+        if (params.imageBase64) {
+          const cleanBase64 = params.imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+          imageBytes = Buffer.from(cleanBase64, 'base64');
+        } else if (params.imageUrl) {
+          try {
+            const fetchRes = await fetch(params.imageUrl);
+            imageBytes = Buffer.from(await fetchRes.arrayBuffer());
+          } catch (fetchErr: any) {
+            console.warn('[StatusService] Falha ao baixar imagem, usando banner padrão:', fetchErr.message);
+            const def = StatusService.getDefaultGroupMedia();
+            imageBytes = def.banner;
+            thumbBytes = def.thumb;
+          }
+        } else {
           const def = StatusService.getDefaultGroupMedia();
           imageBytes = def.banner;
           thumbBytes = def.thumb;
         }
-      } else {
-        const def = StatusService.getDefaultGroupMedia();
-        imageBytes = def.banner;
-        thumbBytes = def.thumb;
       }
 
       const caption = params.caption || params.text || '';
@@ -308,19 +382,35 @@ export class StatusService {
             }
           }
 
-          // Envio nativo do Story do Grupo (groupStatusMessageV2)
-          const sendRes = await ZapoMessageAdapter.sendGroupStatus(
-            client,
-            groupJid,
-            imageBytes,
-            caption,
-            {
-              width: 1080,
-              height: 1920,
-              jpegThumbnail: thumbBytes,
-              mentionedJids,
-            }
-          );
+          let sendRes: any;
+          if (isVideo && videoBuffer) {
+            // Envio nativo de vídeo para o Story do Grupo
+            sendRes = await ZapoMessageAdapter.sendGroupStatusVideo(
+              client,
+              groupJid,
+              videoBuffer,
+              caption,
+              {
+                mimetype: params.videoMimetype || 'video/mp4',
+                seconds: params.seconds,
+                mentionedJids,
+              }
+            );
+          } else {
+            // Envio de imagem para o Story do Grupo
+            sendRes = await ZapoMessageAdapter.sendGroupStatus(
+              client,
+              groupJid,
+              imageBytes!,
+              caption,
+              {
+                width: 1080,
+                height: 1920,
+                jpegThumbnail: thumbBytes,
+                mentionedJids,
+              }
+            );
+          }
 
           const stanzaId = (sendRes as any)?.id || (sendRes as any)?.key?.id || `GRP_STATUS_${Date.now()}`;
 
@@ -341,12 +431,13 @@ export class StatusService {
             senderJid: groupJid,
             stanzaId,
             fromMe: true,
-            messageType: 'group_status',
-            content: caption || '🟢 Status de Grupo Postado',
+            messageType: isVideo ? 'group_status_video' : 'group_status',
+            content: caption || (isVideo ? '🎥 Vídeo no Status de Grupo Postado' : '🟢 Status de Grupo Postado'),
             status: 'sent',
             timestamp: new Date(),
             rawPayload: {
               isGroupStatus: true,
+              isVideo,
               caption,
               mentionedCount: mentionedJids.length,
               mentionedJids,

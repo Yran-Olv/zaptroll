@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <radialGradient id="amberGlow" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.85"/>
+      <stop offset="35%" stop-color="#b45309" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#1c1106" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="amberBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <filter id="shadowBlur">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="600" fill="url(#amberGlow)"/>
+
+  <!-- Optical Illusion Spiral / Swirl -->
+  <circle cx="300" cy="270" r="160" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="15,25" opacity="0.4"/>
+  <circle cx="300" cy="270" r="110" fill="none" stroke="#fef08a" stroke-width="3" stroke-dasharray="8,16" opacity="0.6"/>
+
+  <!-- Golden Sparkles and Smoke -->
+  <ellipse cx="220" cy="380" rx="90" ry="40" fill="#fde68a" opacity="0.3" filter="url(#shadowBlur)"/>
+  <ellipse cx="380" cy="370" rx="80" ry="35" fill="#fde68a" opacity="0.3" filter="url(#shadowBlur)"/>
+
+  <!-- Cardboard Dummy (left illusion) -->
+  <g transform="translate(140, 180) rotate(-10)">
+    <rect x="0" y="40" width="110" height="170" rx="12" fill="#78350f" stroke="#d97706" stroke-width="4"/>
+    <!-- Cardboard Cutout Seams -->
+    <line x1="10" y1="50" x2="10" y2="200" stroke="#b45309" stroke-width="2" stroke-dasharray="6,4"/>
+    <circle cx="55" cy="20" r="30" fill="#fef08a" stroke="#d97706" stroke-width="3"/>
+    <!-- Goofy drawn smiley face on cardboard -->
+    <circle cx="45" cy="15" r="4" fill="#78350f"/>
+    <circle cx="65" cy="15" r="4" fill="#78350f"/>
+    <path d="M 40,28 Q 55,42 70,28" stroke="#78350f" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- Drawn tie -->
+    <polygon points="50,45 60,45 57,110 50,110" fill="#dc2626"/>
+    <text x="55" y="160" font-family="sans-serif" font-weight="900" font-size="16" fill="#fde68a" text-anchor="middle">FAKE</text>
+  </g>
+
+  <!-- Real Trickster Politician (Right side, phasing out with a smirk) -->
+  <g transform="translate(310, 140)">
+    <!-- Ghostly aura -->
+    <path d="M 20,70 Q 70,20 130,60 Q 160,130 140,220 Q 90,260 20,240 Z" fill="#d97706" opacity="0.4" filter="url(#shadowBlur)"/>
+    
+    <!-- Body in sleek dark suit with golden lapels -->
+    <path d="M 30,100 L 130,95 L 140,240 L 40,245 Z" fill="#18181b" stroke="#f59e0b" stroke-width="3"/>
+    <polygon points="65,98 90,98 80,140 70,140" fill="#fef3c7"/>
+    <polygon points="75,105 82,105 80,165 74,165" fill="#f59e0b"/>
+
+    <!-- Head & Mask -->
+    <circle cx="80" cy="65" r="28" fill="#fef08a" stroke="#b45309" stroke-width="2"/>
+    <!-- Elegant Masquerade Eye Mask -->
+    <path d="M 58,62 Q 80,72 102,62 Q 95,52 80,56 Q 65,52 58,62 Z" fill="#18181b" stroke="#fbbf24" stroke-width="2"/>
+    <circle cx="70" cy="62" r="3" fill="#38bdf8"/>
+    <circle cx="90" cy="62" r="3" fill="#38bdf8"/>
+    <!-- Sly smile -->
+    <path d="M 68,78 Q 80,88 94,76" stroke="#92400e" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+    <!-- Top Hat -->
+    <path d="M 45,46 L 115,46" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
+    <rect x="55" y="10" width="50" height="36" fill="#18181b" stroke="#fbbf24" stroke-width="2"/>
+    <rect x="55" y="34" width="50" height="8" fill="#f59e0b"/>
+
+    <!-- Left hand holding a giant glowing Joker card -->
+    <g transform="translate(-40, 60) rotate(-15)">
+      <rect x="0" y="0" width="65" height="95" rx="8" fill="url(#cardGrad)" stroke="#78350f" stroke-width="3" filter="url(#shadowBlur)"/>
+      <rect x="4" y="4" width="57" height="87" rx="6" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="14" y="24" font-family="sans-serif" font-weight="900" font-size="18" fill="#b45309">J</text>
+      <text x="32" y="55" font-family="sans-serif" font-weight="900" font-size="28" fill="#dc2626" text-anchor="middle">🃏</text>
+      <text x="50" y="82" font-family="sans-serif" font-weight="900" font-size="18" fill="#b45309">J</text>
+    </g>
+  </g>
+
+  <!-- Glowing Smoke & Floating Dice/Stars -->
+  <text x="100" y="140" font-size="28" fill="#fef08a">✨</text>
+  <text x="470" y="120" font-size="34" fill="#fef08a">✨</text>
+  <text x="480" y="380" font-size="24" fill="#fde68a">💨</text>
+  <text x="120" y="420" font-size="24" fill="#fde68a">💨</text>
+
+  <!-- Top Title Banner -->
+  <rect x="130" y="24" width="340" height="42" rx="10" fill="#1c1106" stroke="url(#amberBorder)" stroke-width="3"/>
+  <text x="300" y="52" font-family="sans-serif" font-weight="900" font-size="20" fill="#fef08a" text-anchor="middle" letter-spacing="3">FINTA DO MANDATO</text>
+
+  <!-- Ornate Card Game Border -->
+  <rect x="12" y="12" width="576" height="576" rx="24" fill="none" stroke="url(#amberBorder)" stroke-width="12"/>
+  <rect x="24" y="24" width="552" height="552" rx="16" fill="none" stroke="#f59e0b" stroke-width="3" opacity="0.6"/>
+  <!-- Corner Ornaments -->
+  <circle cx="32" cy="32" r="14" fill="#b45309" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="568" cy="32" r="14" fill="#b45309" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="32" cy="568" r="14" fill="#b45309" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="568" cy="568" r="14" fill="#b45309" stroke="#fef08a" stroke-width="3"/>
+
+  <!-- Bottom Stat Label -->
+  <rect x="140" y="525" width="320" height="38" rx="8" fill="#1c1106" stroke="url(#amberBorder)" stroke-width="2"/>
+  <text x="300" y="550" font-family="sans-serif" font-weight="800" font-size="14" fill="#f59e0b" text-anchor="middle" letter-spacing="1.5">🃏 BLEFE // +2 ENERGIA</text>
+</svg>

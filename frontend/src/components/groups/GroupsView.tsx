@@ -125,31 +125,31 @@ export const GroupsView: React.FC<GroupsViewProps> = ({ connection, onSelectGrou
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-hidden relative">
       {/* Search & Actions Header */}
-      <div className="lab-glass sticky top-0 z-10 px-4 py-3 border-b border-[#2a3346]">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-base font-bold font-mono text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#39ff14]" />
-            <span>Grupos de Teste ({groups.length})</span>
+      <div className="lab-glass sticky top-0 z-10 px-3.5 py-2.5 border-b border-[#2a3346]">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h1 className="text-sm sm:text-base font-bold font-mono text-white flex items-center gap-1.5 truncate">
+            <Users className="w-4 h-4 text-[#39ff14] shrink-0" />
+            <span className="truncate">Grupos ({groups.length})</span>
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="px-2.5 py-1 bg-[#39ff14]/10 hover:bg-[#39ff14]/20 border border-[#39ff14]/50 text-[#39ff14] text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition"
+              className="px-2.5 py-1 bg-[#39ff14]/10 hover:bg-[#39ff14]/20 border border-[#39ff14]/50 text-[#39ff14] text-xs font-mono font-bold rounded-xl flex items-center gap-1 shadow-sm transition"
               title="Criar novo grupo de WhatsApp"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Criar Grupo</span>
+              <span>Novo</span>
             </button>
             <button
               type="button"
               onClick={handleSyncGroups}
               disabled={syncing}
-              className="px-2.5 py-1 bg-[#161922] hover:bg-[#1a202c] border border-[#2a3346] hover:border-[#39ff14] text-[#39ff14] text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+              className="px-2.5 py-1 bg-[#161922] hover:bg-[#1a202c] border border-[#2a3346] hover:border-[#39ff14] text-[#39ff14] text-xs font-mono font-bold rounded-xl flex items-center gap-1 shadow-sm transition disabled:opacity-50"
               title="Sincronizar grupos do WhatsApp"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              <span>{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
+              <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
             </button>
           </div>
         </div>

@@ -16,6 +16,7 @@ import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
 import { StatusService } from '../../modules/advanced/StatusService.js';
 import { MetaAiService } from '../../modules/advanced/MetaAiService.js';
 import { RpgCommandDispatcher } from '../../modules/rpg/commands/RpgCommandDispatcher.js';
+import { FlowEngine } from '../../modules/flows/services/FlowEngine.js';
 import { extractMessageContent } from './ViewOnceInterceptor.js';
 import fs from 'node:fs';
 
@@ -1027,6 +1028,19 @@ export class ZapoEventHandler {
               console.error('[ZapoEventHandler] Erro no processamento RPG:', rpgErr.message);
             }
           }, 150);
+        }
+
+        // Gatilho do Motor de Fluxos Conversacionais (FlowEngine)
+        if (created && !fromMe && !isGroup && rawCommandText) {
+          FlowEngine.processMessage({
+            connectionId,
+            userJid: remoteJid,
+            userInput: rawCommandText,
+            inputPayload: enrichedRawPayload,
+            isSimulation: false,
+          }).catch((flowErr) => {
+            console.error('[ZapoEventHandler] Erro no processamento do FlowEngine:', flowErr?.message || flowErr);
+          });
         }
       } catch (err) {
         console.error('Error handling message event:', err);

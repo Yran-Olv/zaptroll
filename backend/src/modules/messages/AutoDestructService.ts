@@ -1,11 +1,13 @@
+import { Op } from 'sequelize';
 import { ZapoConnectionManager } from '../../integrations/zapo/ZapoConnectionManager.js';
 import { ZapoMessageAdapter } from '../../integrations/zapo/ZapoMessageAdapter.js';
-import { Message, Conversation } from '../../database/models/index.js';
+import { Message, Conversation, AutoDestructTask } from '../../database/models/index.js';
+import { AutoDestructTaskStatus } from '../../database/models/AutoDestructTask.js';
 import { emitToConnection } from '../realtime/socket.js';
 
-export interface AutoDestructTask {
+export interface ScheduleAutoDestructInput {
   connectionId: string;
-  conversationId: string;
+  conversationId?: string;
   targetJid?: string;
   stanzaId: string;
   delaySeconds: number;
@@ -13,39 +15,31 @@ export interface AutoDestructTask {
 
 export class AutoDestructService {
   private static activeTimers = new Map<string, NodeJS.Timeout>();
-  private static retryCounts = new Map<string, number>();
 
-  // Limite máximo suportado pelo setTimeout em 32-bit signed int (~24.85 dias)
-  public static readonly MAX_TIMEOUT_MS = 2147483647;
+  public static readonly MAX_TIMEOUT_MS = 2147483647; // ~24.85 days
   public static readonly MAX_RETRIES = 5;
   public static readonly RETRY_DELAYS_SEC = [10, 30, 60, 120, 300];
 
-  /**
-   * Gera a chave composta única da tarefa baseada em [connectionId, stanzaId]
-   */
   public static getTaskKey(connectionId: string, stanzaId: string): string {
     return JSON.stringify([connectionId, stanzaId]);
   }
 
-  /**
-   * Retorna a quantidade de timers ativos no momento (útil para testes e diagnósticos)
-   */
   public static getActiveTimersCount(): number {
     return this.activeTimers.size;
   }
 
   /**
-   * Agenda a revogação automática (apagar para todos no WhatsApp) da mensagem após delaySeconds.
-   * Suporta prazos de qualquer duração dividindo em fatias seguras para o Node.js setTimeout.
+   * Agenda a revogação automática com persistência segura no PostgreSQL.
    */
-  public static scheduleAutoDestruct(task: AutoDestructTask) {
-    const { connectionId, stanzaId, delaySeconds } = task;
-
-    if (!connectionId || !stanzaId || !delaySeconds || delaySeconds <= 0) return;
+  public static scheduleAutoDestruct(input: ScheduleAutoDestructInput) {
+    const { connectionId, stanzaId, delaySeconds } = input;
+    if (!connectionId || !stanzaId || !delaySeconds || delaySeconds <= 0) {
+      return null;
+    }
 
     const taskKey = this.getTaskKey(connectionId, stanzaId);
 
-    // Cancela timer anterior caso já exista para esta chave composta
+    // Limpa timer em memória anterior se já existir
     if (this.activeTimers.has(taskKey)) {
       clearTimeout(this.activeTimers.get(taskKey)!);
       this.activeTimers.delete(taskKey);
@@ -53,85 +47,154 @@ export class AutoDestructService {
 
     const totalMs = delaySeconds * 1000;
 
-    // Se o prazo for superior ao limite do Node.js (~24.8 dias), agenda fatia máxima e reagenda o restante
     if (totalMs > this.MAX_TIMEOUT_MS) {
-      console.log(`[AutoDestruct] ⏳ Mensagem ${stanzaId} tem expiração longa (${delaySeconds}s). Agendando fatia de ${Math.floor(this.MAX_TIMEOUT_MS / 1000)}s...`);
+      console.log(`[AutoDestruct] ⏳ Tarefa longa para ${stanzaId} (${delaySeconds}s). Agendando fatia de ${Math.floor(this.MAX_TIMEOUT_MS / 1000)}s...`);
       const timer = setTimeout(() => {
         this.activeTimers.delete(taskKey);
         const remainingSeconds = Math.max(1, delaySeconds - Math.floor(this.MAX_TIMEOUT_MS / 1000));
-        this.scheduleAutoDestruct({ ...task, delaySeconds: remainingSeconds });
+        this.scheduleAutoDestruct({ ...input, delaySeconds: remainingSeconds });
       }, this.MAX_TIMEOUT_MS);
 
       this.activeTimers.set(taskKey, timer);
-      return;
+    } else {
+      console.log(`[AutoDestruct] ⏳ Mensagem ${stanzaId} [${connectionId}] persistida e agendada para expirar em ${delaySeconds}s`);
+      const timer = setTimeout(async () => {
+        this.activeTimers.delete(taskKey);
+        await this.executeRevoke(connectionId, stanzaId);
+      }, totalMs);
+
+      this.activeTimers.set(taskKey, timer);
     }
 
-    console.log(`[AutoDestruct] ⏳ Mensagem ${stanzaId} [${connectionId}] programada para sumir no WhatsApp em ${delaySeconds}s`);
+    // Persistência assíncrona no PostgreSQL (desacoplada para nunca bloquear o timer em memória)
+    if (process.env.NODE_ENV !== 'test') {
+      const executeAt = new Date(Date.now() + delaySeconds * 1000);
+      const targetJid = input.targetJid || 'unknown@s.whatsapp.net';
+      AutoDestructTask.upsert({
+        connectionId,
+        conversationId: input.conversationId,
+        stanzaId,
+        targetJid,
+        status: 'scheduled',
+        delaySeconds,
+        executeAt,
+        attempts: 0,
+        maxAttempts: this.MAX_RETRIES,
+        lastError: null,
+        requestSentAt: null,
+        confirmedAt: null,
+      }).catch((err: any) => {
+        console.warn(`[AutoDestruct] Aviso: Falha na persistência no banco: ${err?.message || err}`);
+      });
+    }
 
-    const timer = setTimeout(async () => {
-      this.activeTimers.delete(taskKey);
-      await this.executeRevoke(task);
-    }, totalMs);
-
-    this.activeTimers.set(taskKey, timer);
+    return null;
   }
 
   /**
-   * Executa a revogação da mensagem para todos no WhatsApp com retentativas progressivas em caso de falha.
+   * Executa a revogação de uma mensagem no WhatsApp com transição de estados no PostgreSQL.
    */
-  public static async executeRevoke(task: AutoDestructTask) {
-    const { connectionId, conversationId, stanzaId, delaySeconds } = task;
+  public static async executeRevoke(connectionId: string, stanzaId: string): Promise<boolean> {
     const taskKey = this.getTaskKey(connectionId, stanzaId);
-    let targetJid = task.targetJid;
-
+    let dbTask: AutoDestructTask | null = null;
     try {
-      const zapoManager = ZapoConnectionManager.getInstance();
-      const client = zapoManager.getClient(connectionId);
-      if (!client) {
-        console.warn(`[AutoDestruct] Cliente WhatsApp não conectado para conexão ${connectionId}. Reagendando tentativa...`);
-        this.scheduleRetry(task, 'Cliente WhatsApp não conectado');
-        return;
-      }
+      dbTask = await AutoDestructTask.findOne({ where: { connectionId, stanzaId } });
+    } catch {}
 
-      if (!targetJid && conversationId) {
-        const conv = await Conversation.findOne({ where: { id: conversationId, connectionId } });
-        if (conv?.jid) targetJid = conv.jid;
+    if (dbTask) {
+      if (dbTask.status === 'cancelled' || dbTask.status === 'confirmed') {
+        return true;
       }
+      try {
+        await dbTask.update({
+          status: 'processing',
+          attempts: dbTask.attempts + 1,
+        });
+      } catch {}
+    }
 
-      if (!targetJid) {
-        const msg = await Message.findOne({ where: { connectionId, stanzaId } });
-        if (msg?.conversationId) {
-          const conv = await Conversation.findOne({ where: { id: msg.conversationId, connectionId } });
+    const zapoManager = ZapoConnectionManager.getInstance();
+    const client = zapoManager.getClient(connectionId);
+
+    if (!client) {
+      const reason = 'Cliente WhatsApp não conectado';
+      console.warn(`[AutoDestruct] ${reason} para conexão ${connectionId}. Reagendando...`);
+      if (dbTask) await this.handleRetry(dbTask, reason);
+      return false;
+    }
+
+    let targetJid = dbTask?.targetJid;
+    if (!targetJid || targetJid === 'unknown@s.whatsapp.net') {
+      try {
+        if (dbTask?.conversationId) {
+          const conv = await Conversation.findOne({ where: { id: dbTask.conversationId, connectionId } });
           if (conv?.jid) targetJid = conv.jid;
         }
+        if (!targetJid) {
+          const msg = await Message.findOne({ where: { connectionId, stanzaId } });
+          if (msg?.conversationId) {
+            const conv = await Conversation.findOne({ where: { id: msg.conversationId, connectionId } });
+            if (conv?.jid) targetJid = conv.jid;
+          }
+        }
+      } catch {}
+    }
+
+    if (!targetJid || targetJid === 'unknown@s.whatsapp.net') {
+      if (dbTask) {
+        try {
+          await dbTask.update({
+            status: 'failed',
+            lastError: 'TargetJid não pôde ser determinado',
+          });
+        } catch {}
+      }
+      return false;
+    }
+
+    try {
+      console.log(`[AutoDestruct] 🚀 Enviando revogação para WhatsApp: mensagem ${stanzaId} em ${targetJid}...`);
+
+      if (dbTask) {
+        try {
+          await dbTask.update({
+            status: 'request_sent',
+            requestSentAt: new Date(),
+            targetJid,
+          });
+        } catch {}
       }
 
-      if (!targetJid) {
-        console.warn(`[AutoDestruct] Não foi possível determinar targetJid para revogar ${stanzaId}`);
-        return;
-      }
-
-      console.log(`[AutoDestruct] 🚀 Executando revogação no WhatsApp para apagar mensagem ${stanzaId} em ${targetJid}...`);
-
-      // Dispara a revogação no protocolo WhatsApp (apagar para todos)
       await ZapoMessageAdapter.revokeMessage(client, targetJid, {
         stanzaId,
         fromMe: true,
       });
 
-      // Sucesso na revogação: limpar estados e retries
-      this.retryCounts.delete(taskKey);
+      // Confirmação do servidor WhatsApp obtida
+      const now = new Date();
+      if (dbTask) {
+        try {
+          await dbTask.update({
+            status: 'confirmed',
+            confirmedAt: now,
+            lastError: null,
+          });
+        } catch {}
+      }
+
       this.activeTimers.delete(taskKey);
 
-      // Atualiza o registro no banco de dados local
-      const msg = await Message.findOne({ where: { connectionId, stanzaId } });
-      if (msg) {
-        await msg.update({
-          isRevoked: true,
-          status: 'revoked',
-          content: '🚫 Esta mensagem foi apagada',
-        });
-      }
+      // Atualiza registro da mensagem no banco local
+      try {
+        const msg = await Message.findOne({ where: { connectionId, stanzaId } });
+        if (msg) {
+          await msg.update({
+            isRevoked: true,
+            status: 'revoked',
+            content: '🚫 Esta mensagem foi apagada',
+          });
+        }
+      } catch {}
 
       // Emite atualização em tempo real via Socket.io
       emitToConnection(connectionId, 'message_status', {
@@ -140,144 +203,173 @@ export class AutoDestructService {
         status: 'revoked',
         isRevoked: true,
         content: '🚫 Esta mensagem foi apagada',
+        autoDestructStatus: 'confirmed',
       });
 
-      console.log(`[AutoDestruct] ✅ Mensagem ${stanzaId} apagada com sucesso no celular após ${delaySeconds}s!`);
+      console.log(`[AutoDestruct] ✅ Mensagem ${stanzaId} revogada e confirmada pelo servidor WhatsApp!`);
+      return true;
     } catch (err: any) {
-      console.error(`[AutoDestruct] Erro ao revogar automaticamente ${stanzaId}:`, err?.message || err);
-      this.scheduleRetry(task, err?.message || 'Falha no envio de revogação');
+      console.error(`[AutoDestruct] Erro ao revogar mensagem ${stanzaId}:`, err?.message || err);
+      if (dbTask) await this.handleRetry(dbTask, err?.message || 'Falha no envio da revogação');
+      return false;
     }
   }
 
   /**
-   * Reagenda tentativa de revogação com backoff progressivo quando o cliente estiver temporariamente desconectado
+   * Trata falhas de revogação com retentativas progressivas (backoff exponencial).
    */
-  private static scheduleRetry(task: AutoDestructTask, reason: string) {
-    const { connectionId, stanzaId } = task;
+  private static async handleRetry(dbTask: AutoDestructTask, reason: string) {
+    const { connectionId, stanzaId, attempts, maxAttempts } = dbTask;
     const taskKey = this.getTaskKey(connectionId, stanzaId);
-    const currentRetries = this.retryCounts.get(taskKey) || 0;
 
-    if (currentRetries >= this.MAX_RETRIES) {
-      console.error(`[AutoDestruct] ❌ Limite de ${this.MAX_RETRIES} tentativas excedido para ${stanzaId} (${connectionId}). Motivo: ${reason}`);
-      this.retryCounts.delete(taskKey);
+    if (attempts >= maxAttempts) {
+      console.error(`[AutoDestruct] ❌ Limite de ${maxAttempts} tentativas excedido para ${stanzaId} (${connectionId}). Motivo: ${reason}`);
+      try {
+        await dbTask.update({
+          status: 'failed',
+          lastError: reason,
+        });
+      } catch {}
+      this.activeTimers.delete(taskKey);
       return;
     }
 
-    const backoffSec = this.RETRY_DELAYS_SEC[currentRetries] || 300;
-    this.retryCounts.set(taskKey, currentRetries + 1);
+    const backoffSec = this.RETRY_DELAYS_SEC[attempts] || 300;
+    const nextExecuteAt = new Date(Date.now() + backoffSec * 1000);
 
-    console.log(`[AutoDestruct] 🔄 Reagendando tentativa ${currentRetries + 1}/${this.MAX_RETRIES} para ${stanzaId} em ${backoffSec}s (motivo: ${reason})...`);
+    try {
+      await dbTask.update({
+        status: 'retrying',
+        executeAt: nextExecuteAt,
+        lastError: reason,
+      });
+    } catch {}
+
+    console.log(`[AutoDestruct] 🔄 Reagendando tentativa ${attempts + 1}/${maxAttempts} para ${stanzaId} em ${backoffSec}s (motivo: ${reason})...`);
 
     const timer = setTimeout(async () => {
       this.activeTimers.delete(taskKey);
-      await this.executeRevoke(task);
+      await this.executeRevoke(connectionId, stanzaId);
     }, backoffSec * 1000);
 
     this.activeTimers.set(taskKey, timer);
   }
 
   /**
-   * Cancela o timer de autodestruição para uma conexão e mensagem específicas
+   * Cancela uma tarefa de autodestruição para uma conexão e mensagem.
    */
-  public static cancel(connectionId: string, stanzaId?: string) {
-    if (!stanzaId) {
-      // Compatibilidade retroativa caso chamado apenas com stanzaId
-      const targetStanza = connectionId;
-      for (const [key, timer] of this.activeTimers.entries()) {
-        try {
-          const parsed = JSON.parse(key);
-          if (parsed[1] === targetStanza) {
-            clearTimeout(timer);
-            this.activeTimers.delete(key);
-            this.retryCounts.delete(key);
-            console.log(`[AutoDestruct] Timer de autodestruição cancelado para ${targetStanza}`);
-          }
-        } catch {}
-      }
-      return;
-    }
-
+  public static cancel(connectionId: string, stanzaId: string): boolean {
     const taskKey = this.getTaskKey(connectionId, stanzaId);
+    let removed = false;
     if (this.activeTimers.has(taskKey)) {
       clearTimeout(this.activeTimers.get(taskKey)!);
       this.activeTimers.delete(taskKey);
-      this.retryCounts.delete(taskKey);
-      console.log(`[AutoDestruct] Timer de autodestruição cancelado para ${stanzaId} [${connectionId}]`);
+      removed = true;
     }
+
+    if (process.env.NODE_ENV !== 'test') {
+      AutoDestructTask.update(
+        { status: 'cancelled' },
+        { where: { connectionId, stanzaId, status: ['scheduled', 'retrying', 'processing'] } }
+      ).catch(() => {});
+    }
+
+    return removed;
   }
 
   /**
-   * Varredura inicial paginada ao subir o servidor para agendar todas as mensagens temporárias pendentes
-   * que ainda não expiraram ou revogar aquelas cujo tempo já se esgotou.
+   * Cancela todas as tarefas ativas de uma conexão quando a conexão é desvinculada ou encerrada.
+   */
+  public static async cancelAllForConnection(connectionId: string): Promise<number> {
+    let cancelledCount = 0;
+    for (const [key, timer] of this.activeTimers.entries()) {
+      try {
+        const [conn] = JSON.parse(key);
+        if (conn === connectionId) {
+          clearTimeout(timer);
+          this.activeTimers.delete(key);
+          cancelledCount++;
+        }
+      } catch {}
+    }
+
+    const [updated] = await AutoDestructTask.update(
+      { status: 'cancelled', lastError: 'Conexão encerrada' },
+      { where: { connectionId, status: ['scheduled', 'retrying'] } }
+    );
+
+    console.log(`[AutoDestruct] ${updated} tarefas canceladas para a conexão ${connectionId}`);
+    return updated;
+  }
+
+  /**
+   * Consulta o estado atual de uma tarefa de autodestruição.
+   */
+  public static async getTaskStatus(connectionId: string, stanzaId: string): Promise<AutoDestructTask | null> {
+    return AutoDestructTask.findOne({ where: { connectionId, stanzaId } });
+  }
+
+  /**
+   * Varredura paginada na inicialização do servidor para restaurar tarefas pendentes persistidas no PostgreSQL.
    */
   public static async init() {
     try {
-      console.log('[AutoDestruct] Verificando mensagens temporárias pendentes em lotes...');
+      console.log('[AutoDestruct] Restaurando tarefas de autodestruição persistidas no banco...');
       const BATCH_SIZE = 100;
       let offset = 0;
-      let totalProcessed = 0;
+      let totalRecovered = 0;
       let hasMore = true;
+      const now = Date.now();
 
       while (hasMore) {
-        const pendingMessages = await Message.findAll({
+        const pendingTasks = await AutoDestructTask.findAll({
           where: {
-            fromMe: true,
-            isRevoked: false,
+            status: ['scheduled', 'retrying'],
           },
-          order: [['timestamp', 'ASC']],
+          order: [['executeAt', 'ASC']],
           limit: BATCH_SIZE,
           offset,
         });
 
-        if (pendingMessages.length === 0) {
+        if (pendingTasks.length === 0) {
           hasMore = false;
           break;
         }
 
-        for (const msg of pendingMessages) {
-          if (msg.messageType === 'ephemeral_message') continue;
-          const raw = msg.rawPayload;
-          if (!raw) continue;
-          const expSeconds = raw.expirationSeconds || raw.duration || raw.seconds;
-          if (!expSeconds || Number(expSeconds) <= 0) continue;
+        for (const task of pendingTasks) {
+          const taskKey = this.getTaskKey(task.connectionId, task.stanzaId);
+          const executeMs = new Date(task.executeAt).getTime();
+          const remainingMs = executeMs - now;
 
-          const seconds = Number(expSeconds);
-          const sentAt = new Date(msg.timestamp).getTime();
-          const now = Date.now();
-          const elapsed = Math.floor((now - sentAt) / 1000);
-          const remaining = seconds - elapsed;
-
-          if (remaining <= 0) {
-            console.log(`[AutoDestruct] Mensagem pendente expirada ${msg.stanzaId} (expirou há ${-remaining}s). Revogando em 3s...`);
+          if (remainingMs <= 0) {
+            // Já expirou enquanto o servidor estava offline: executa com leve delay escalonado
+            const staggerDelay = (totalRecovered % 20) * 200 + 1000;
+            console.log(`[AutoDestruct] Tarefa vencida ${task.stanzaId}. Disparando revogação em ${staggerDelay}ms...`);
             setTimeout(() => {
-              this.executeRevoke({
-                connectionId: msg.connectionId,
-                conversationId: msg.conversationId,
-                stanzaId: msg.stanzaId,
-                delaySeconds: seconds,
-              });
-            }, 3000);
+              this.executeRevoke(task.connectionId, task.stanzaId);
+            }, staggerDelay);
           } else {
-            console.log(`[AutoDestruct] Mensagem pendente ${msg.stanzaId} expira em ${remaining}s. Agendando autodestruição...`);
-            this.scheduleAutoDestruct({
-              connectionId: msg.connectionId,
-              conversationId: msg.conversationId,
-              stanzaId: msg.stanzaId,
-              delaySeconds: remaining,
-            });
+            // Ainda dentro do prazo: agenda timer em memória
+            console.log(`[AutoDestruct] Tarefa pendente ${task.stanzaId} expira em ${Math.round(remainingMs / 1000)}s. Agendando timer...`);
+            const timer = setTimeout(async () => {
+              this.activeTimers.delete(taskKey);
+              await this.executeRevoke(task.connectionId, task.stanzaId);
+            }, remainingMs);
+
+            this.activeTimers.set(taskKey, timer);
           }
-          totalProcessed++;
+          totalRecovered++;
         }
 
-        offset += pendingMessages.length;
-        if (pendingMessages.length < BATCH_SIZE) {
+        offset += pendingTasks.length;
+        if (pendingTasks.length < BATCH_SIZE) {
           hasMore = false;
         }
       }
 
-      console.log(`[AutoDestruct] Varredura de inicialização concluída: ${totalProcessed} mensagens temporárias processadas.`);
+      console.log(`[AutoDestruct] Inicialização concluída: ${totalRecovered} tarefas restauradas.`);
     } catch (err: any) {
-      console.error('[AutoDestruct] Erro ao inicializar varredura de autodestruição:', err?.message || err);
+      console.error('[AutoDestruct] Erro ao restaurar tarefas de autodestruição:', err?.message || err);
     }
   }
 }

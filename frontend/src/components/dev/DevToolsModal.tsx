@@ -144,7 +144,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
 
   const [groupStatusJid, setGroupStatusJid] = useState<string>('');
   const [groupStatusCaption, setGroupStatusCaption] = useState<string>(
-    '🚀 Novidades do protocolo WhatsApp com zapo-js! https://github.com/jobasfernandes/zapo-interactive-examples'
+    '🚀 ZapTroll — WhatsApp Developer Platform & RPG! https://github.com/Yran-Olv/zaptroll.git'
   );
   const [groupStatusImageUrl, setGroupStatusImageUrl] = useState<string>(
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1080&q=80'
@@ -156,7 +156,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
 
   const [pollJid, setPollJid] = useState<string>('');
   const [pollQuestion, setPollQuestion] = useState<string>(
-    'Qual recurso do zapo-interactive-examples você achou mais inovador?'
+    'Qual recurso do ZapTroll você achou mais inovador?'
   );
   const [pollOptions, setPollOptions] = useState<string[]>([
     '🤖 Meta AI (/ai) com Selo Nativo "IA"',
@@ -1842,7 +1842,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
               <div className="p-4 bg-cyan-950/20 border border-cyan-500/30 rounded-2xl flex items-center gap-3">
                 <Code2 className="w-5 h-5 text-cyan-400 shrink-0" />
                 <p className="text-xs text-cyan-300 font-sans">
-                  Exemplos nativos do repositório comunitário <strong>zapo-interactive-examples</strong>: Botões Rápidos, PIX Copia e Cola Nativo, Formulários A2UI e Catálogo!
+                  Exemplos nativos de protocolo com <strong>zapo-js</strong>: Botões Rápidos, PIX Copia e Cola Nativo, Formulários A2UI e Catálogo!
                 </p>
               </div>
 
@@ -1905,34 +1905,36 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
           {/* TAB 8: Community Features & Reverse Engineering (Jobas Fernandes) */}
           {activeTab === 'community' && (
             <div className="space-y-6 animate-fadeIn pb-8">
-              {/* Tribute Card to Jobas Fernandes */}
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-[#111927] via-[#161a29] to-[#1e1728] border-2 border-amber-400/30 shadow-[0_0_40px_rgba(251,191,36,0.12)] space-y-4">
+              {/* Card Principal: Repositório Oficial ZapTroll (Nosso Repositório) */}
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-[#0b1f14] via-[#101b26] to-[#121622] border-2 border-[#39ff14]/30 shadow-[0_0_35px_rgba(57,255,20,0.12)] space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/40 flex items-center justify-center text-amber-300 text-2xl shadow-[0_0_20px_rgba(251,191,36,0.25)] shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#39ff14]/10 border border-[#39ff14]/40 flex items-center justify-center text-[#39ff14] text-2xl shadow-[0_0_20px_rgba(57,255,20,0.25)] shrink-0">
                       🚀
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-bold border border-amber-400/40">
-                          Créditos & Engenharia Reversa
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-[#39ff14]/20 text-[#39ff14] font-bold border border-[#39ff14]/40">
+                          Repositório Oficial
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                          zapo-js 1.10+
+                          Yran-Olv / zaptroll
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                          v1.2.0 Open Source
                         </span>
                       </div>
                       <h4 className="text-base sm:text-lg font-black text-white font-sans mt-0.5 flex items-center gap-2">
-                        <span>zapo-interactive-examples</span>
-                        <span className="text-xs font-normal text-amber-300">por Jobas Fernandes</span>
+                        <span>ZapTroll — WhatsApp Developer Platform & RPG Arena</span>
                       </h4>
                     </div>
                   </div>
 
                   <a
-                    href="https://github.com/jobasfernandes/zapo-interactive-examples"
+                    href="https://github.com/Yran-Olv/zaptroll.git"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs transition shadow-[0_0_20px_rgba(251,191,36,0.3)] shrink-0"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#39ff14] to-emerald-400 hover:from-[#32e011] hover:to-emerald-300 text-black font-black text-xs transition shadow-[0_0_20px_rgba(57,255,20,0.3)] shrink-0"
                   >
                     <span>Repositório GitHub</span>
                     <ExternalLink className="w-3.5 h-3.5 text-black" />
@@ -1940,43 +1942,71 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
                 </div>
 
                 <p className="text-xs text-gray-300 leading-relaxed font-sans">
-                  Implementações de ponta do protocolo WhatsApp descobertas e compartilhadas por <strong>Jobas Fernandes</strong>.
-                  Inclui suporte aos novos avisos de privacidade da Meta, prompts nativos ao Meta AI com selo "IA" e visualização rica (tabelas e blocos de código),
-                  postagem de status/stories em grupos e enquetes interativas.
+                  Plataforma completa de conexões WhatsApp, gerenciamento de instâncias, automações avançadas de protocolo, download permanente de mídias de visualização única e RPG de luta política interativo.
                 </p>
+              </div>
 
-                {/* Feature Tags */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+              {/* Créditos Compactos & Engenharia Reversa */}
+              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-md bg-amber-400/15 text-amber-300 font-bold border border-amber-400/30">
+                      Créditos & Bibliotecas
+                    </span>
+                    <span className="text-xs text-gray-400 font-sans">
+                      Tecnologias e implementações de ponta integradas ao projeto:
+                    </span>
+                  </div>
+
+                  <a
+                    href="https://github.com/jobasfernandes/zapo-interactive-examples"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] text-amber-300 hover:text-amber-200 underline shrink-0 font-medium"
+                  >
+                    <span>zapo-interactive-examples (Jobas Fernandes)</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="text-[11px] text-gray-400 leading-relaxed font-sans flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span>• <strong className="text-gray-300">zapo-js 1.10+</strong> (Engine WhatsApp)</span>
+                  <span>• <strong className="text-gray-300">zapo-interactive-examples</strong> por Jobas Fernandes (Exemplos de Banners Meta, Meta AI nativo, Status e Enquetes)</span>
+                  <span>• <strong className="text-gray-300">Stack:</strong> React, Express, PostgreSQL, Docker, Socket.IO</span>
+                </div>
+
+                {/* Feature Tags Compactas */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/5">
+                  <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 space-y-0.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
                       <Building2 className="w-3.5 h-3.5" />
                       <span>Banner Meta</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">Transição de atores para fixar aviso de chat hospedado.</p>
+                    <p className="text-[10px] text-gray-400 leading-tight">Transição de atores para aviso nativo.</p>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 space-y-0.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                       <Bot className="w-3.5 h-3.5" />
                       <span>Meta AI (/ai)</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">Selo oficial "IA" nativo, streaming e edição de placeholder.</p>
+                    <p className="text-[10px] text-gray-400 leading-tight">Selo oficial "IA" nativo e streaming.</p>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 space-y-0.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
                       <Radio className="w-3.5 h-3.5" />
                       <span>Status de Grupo</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">groupStatusMessageV2 com o anel verde no avatar do grupo.</p>
+                    <p className="text-[10px] text-gray-400 leading-tight">groupStatusMessageV2 no grupo.</p>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                  <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 space-y-0.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300">
                       <Vote className="w-3.5 h-3.5" />
                       <span>Enquetes (/poll)</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">Votação nativa e interativa dentro dos chats e grupos.</p>
+                    <p className="text-[10px] text-gray-400 leading-tight">Votação nativa nos chats e grupos.</p>
                   </div>
                 </div>
               </div>

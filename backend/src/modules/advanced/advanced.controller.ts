@@ -123,6 +123,10 @@ export class AdvancedController {
         mentionAll,
         imageUrl,
         imageBase64,
+        videoUrl,
+        videoBase64,
+        videoMimetype,
+        seconds,
         alsoPostToPersonal,
       } = req.body;
       if (!connectionId) {
@@ -130,7 +134,7 @@ export class AdvancedController {
         return;
       }
       const result = await StatusService.postStatus(connectionId, {
-        type: type || 'text',
+        type: type || (videoBase64 || videoUrl ? 'video' : 'text'),
         text,
         caption,
         backgroundColor,
@@ -140,6 +144,10 @@ export class AdvancedController {
         mentionAll: Boolean(mentionAll),
         imageUrl,
         imageBase64,
+        videoUrl,
+        videoBase64,
+        videoMimetype,
+        seconds: seconds ? Number(seconds) : undefined,
         alsoPostToPersonal: Boolean(alsoPostToPersonal),
       });
       res.json(result);
@@ -630,12 +638,20 @@ export class AdvancedController {
     }
   }
 
-  // 10. Créditos da Comunidade (Jobas Fernandes)
+  // 10. Créditos do Projeto & Comunidade
   static async getCommunityCredits(req: AuthRequest, res: Response): Promise<void> {
     res.json({
-      author: 'Jobas Fernandes',
-      repoUrl: 'https://github.com/jobasfernandes/zapo-interactive-examples',
-      description: 'Exemplos interativos de WhatsApp com zapo-js e engenharia reversa de recursos avançados do protocolo.',
+      project: {
+        name: 'ZapTroll',
+        repoUrl: 'https://github.com/Yran-Olv/zaptroll.git',
+        description: 'Plataforma oficial WhatsApp Developer Platform, Testes Avançados e RPG de Luta Política.',
+      },
+      credits: {
+        author: 'Jobas Fernandes',
+        repoUrl: 'https://github.com/jobasfernandes/zapo-interactive-examples',
+        engine: 'zapo-js',
+        description: 'Implementações e referências de engenharia reversa do protocolo WhatsApp com zapo-js.',
+      },
       features: [
         {
           name: 'Banner "Meta hospedou este chat"',

@@ -100,6 +100,7 @@ export class RpgController {
             priority: c.priority,
             emoji: c.emoji,
             isBluff: c.isBluff,
+            image: c.image || `/rpg/cards/${c.id}.webp`,
           }));
         } else {
           // Oponente ou espectador: apenas quantidade de cartas na mão (anti-trapaça!)
@@ -482,6 +483,7 @@ export class RpgController {
             priority: c.priority,
             emoji: c.emoji,
             isBluff: c.isBluff,
+            image: c.image || `/rpg/cards/${c.id}.webp`,
           }));
         } else {
           // Oponente ou espectador: cartas ocultas (anti-trapaça estrito)

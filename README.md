@@ -1,5 +1,7 @@
 # 🚀 Zaptroll — WhatsApp Developer Platform & Testing Lab
 
+> 📦 **Repositório Oficial:** [https://github.com/Yran-Olv/zaptroll.git](https://github.com/Yran-Olv/zaptroll.git)
+
 Plataforma Web (PWA) moderna, gratuita e independente do Whaticket para desenvolvedores conectarem números do WhatsApp e testarem recursos convencionais e avançados da biblioteca **[Zapo](https://zapo.to)** (`zapo-js` v1.10.0+), com PostgreSQL, Docker Compose e interface inspirada no **WhatsApp para iOS**.
 
 ---
@@ -139,6 +141,13 @@ O arquivo SQL será salvo em `./backups/zaptroll_db_YYYYMMDD_HHMMSS.sql`.
   ```
 - **Aviso sobre mensagens temporárias após leitura (`afterReadDuration`):**
   O protocolo oficial do WhatsApp define expirações em nível de conversa (`EPHEMERAL_SETTING`) ou por mensagem (`expirationSeconds`). Parâmetros proprietários como `afterReadDuration` são enviados no payload de contexto para fins de teste e desenvolvimento, mas clientes padrão do WhatsApp podem não disparar o timer até que a mensagem atinja o TTL global.
+
+---
+
+## 👏 Créditos & Bibliotecas
+- **Repositório Oficial:** [ZapTroll no GitHub](https://github.com/Yran-Olv/zaptroll.git) por Yran-Olv.
+- **Engine WhatsApp:** [`zapo-js`](https://zapo.to) (v1.10.0+).
+- **Engenharia Reversa Comunitária:** [`zapo-interactive-examples`](https://github.com/jobasfernandes/zapo-interactive-examples) por Jobas Fernandes (pesquisa e implementações do protocolo WhatsApp: Meta AI com selo nativo, Banners de Privacidade, Status de Grupos e Enquetes).
 
 ---
 

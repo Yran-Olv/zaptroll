@@ -461,7 +461,11 @@ export class RpgSeedService {
       ];
 
       for (const card of cards) {
-        await RpgCard.findOrCreate({ where: { id: card.id }, defaults: card as any });
+        const cardWithImage = { ...card, image: `/rpg/cards/${card.id}.webp` };
+        const [existing, created] = await RpgCard.findOrCreate({ where: { id: card.id }, defaults: cardWithImage as any });
+        if (!created && !existing.image) {
+          await existing.update({ image: `/rpg/cards/${card.id}.webp` });
+        }
       }
 
       // 4. Itens da Loja

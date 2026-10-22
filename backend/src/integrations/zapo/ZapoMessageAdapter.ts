@@ -707,6 +707,97 @@ export class ZapoMessageAdapter {
     } as any);
   }
 
+  // 15b. Send Video Group Status / Stories (groupStatusMessageV2)
+  static async sendGroupStatusVideo(
+    client: WaClient,
+    groupJid: string,
+    mediaBytes: Uint8Array | Buffer,
+    caption?: string,
+    options?: {
+      mimetype?: string;
+      seconds?: number;
+      jpegThumbnail?: Uint8Array;
+      mentionedJids?: string[];
+    }
+  ) {
+    if (!groupJid.endsWith('@g.us')) {
+      throw new Error(`Status de grupo deve ser enviado para um JID de grupo (@g.us). Recebido: ${groupJid}`);
+    }
+
+    const upload = await client.message.upload(mediaBytes, { type: 'video', mimetype: options?.mimetype || 'video/mp4' });
+    const payload = {
+      messageContextInfo: { messageSecret: randomBytes(32) },
+      groupStatusMessageV2: {
+        message: {
+          videoMessage: {
+            url: upload.url,
+            directPath: upload.directPath,
+            mediaKey: upload.mediaKey,
+            fileSha256: upload.fileSha256,
+            fileEncSha256: upload.fileEncSha256,
+            fileLength: upload.fileLength,
+            mediaKeyTimestamp: upload.mediaKeyTimestamp,
+            mimetype: upload.mimetype || options?.mimetype || 'video/mp4',
+            seconds: options?.seconds || 15,
+            caption: caption || '',
+            ...(options?.jpegThumbnail ? { jpegThumbnail: options.jpegThumbnail } : {}),
+            contextInfo: {
+              isGroupStatus: true,
+              ...(options?.mentionedJids && options.mentionedJids.length > 0
+                ? { mentionedJid: options.mentionedJids }
+                : {}),
+            },
+          },
+        },
+      },
+    };
+
+    return client.message.send(groupJid, payload as any, {
+      customNodes: [{ tag: 'meta', attrs: { is_group_status: 'true', origin: 'group_status' }, content: undefined }],
+      disableGroupEphemeralAutoInject: true,
+      ackTimeoutMs: 30000,
+    } as any);
+  }
+
+  // 15c. Send Personal Status Video to status@broadcast
+  static async sendStatusVideo(
+    client: WaClient,
+    recipients: string[],
+    media: Buffer | Uint8Array | string,
+    caption?: string,
+    options?: { mimetype?: string; seconds?: number }
+  ) {
+    if (client.status && typeof client.status.send === 'function') {
+      return client.status.send({
+        content: {
+          type: 'video',
+          media,
+          mimetype: options?.mimetype || 'video/mp4',
+          caption: caption || '',
+          seconds: options?.seconds,
+        } as any,
+        recipients,
+        statusSetting: 'contacts',
+      });
+    }
+
+    const upload = await client.message.upload(media, { type: 'video', mimetype: options?.mimetype || 'video/mp4' });
+    return client.message.send('status@broadcast', {
+      videoMessage: {
+        url: upload.url,
+        directPath: upload.directPath,
+        mediaKey: upload.mediaKey,
+        fileSha256: upload.fileSha256,
+        fileEncSha256: upload.fileEncSha256,
+        fileLength: upload.fileLength,
+        mediaKeyTimestamp: upload.mediaKeyTimestamp,
+        mimetype: upload.mimetype || options?.mimetype || 'video/mp4',
+        caption: caption || '',
+        seconds: options?.seconds || 15,
+      },
+    } as any);
+  }
+
   // 16. Send Native WhatsApp Poll (Inspirado no zapo-interactive-examples por Jobas Fernandes)
   static async sendPoll(
     client: WaClient,

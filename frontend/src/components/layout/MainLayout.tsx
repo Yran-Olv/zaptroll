@@ -541,17 +541,17 @@ export const MainLayout: React.FC = () => {
     <div className="h-full w-full max-w-full flex bg-[#0b0e14] overflow-hidden text-white">
       {/* LEFT PANEL / SIDEBAR (Conversations, Navigation) */}
       <div
-        className={`w-full md:w-[380px] lg:w-[420px] bg-[#131722] border-r border-[#2a3346] flex flex-col h-full shrink-0 ${
+        className={`w-full md:w-[440px] lg:w-[460px] xl:w-[490px] bg-[#131722] border-r border-[#2a3346] flex flex-col h-full shrink-0 ${
           selectedConversation ? 'hidden md:flex' : 'flex'
         }`}
       >
         {/* Top Header */}
-        <div className="lab-glass px-4 py-3 border-b border-[#2a3346] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
+        <div className="lab-glass px-3.5 py-2.5 border-b border-[#2a3346] flex items-center justify-between shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
             {/* Trollface Logo with Click Easter Egg */}
             <div
               onClick={triggerEasterEgg}
-              className={`w-9 h-9 rounded-2xl bg-[#161922] border border-[#39ff14]/50 flex items-center justify-center p-1.5 shadow-[0_0_12px_rgba(57,255,20,0.3)] cursor-pointer transition-transform ${
+              className={`w-9 h-9 rounded-2xl bg-[#161922] border border-[#39ff14]/50 flex items-center justify-center p-1.5 shadow-[0_0_12px_rgba(57,255,20,0.3)] cursor-pointer transition-transform shrink-0 ${
                 easterEggActive ? 'rotate-[360deg] scale-125 duration-700' : 'hover:scale-105'
               }`}
               title="Clique para testar o Easter Egg do Trollface!"
@@ -559,7 +559,7 @@ export const MainLayout: React.FC = () => {
               <TrollfaceSvg className="w-full h-full object-contain filter drop-shadow" />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-sm font-black font-mono tracking-tight text-white leading-none">
                   ZAPTROLL
@@ -574,64 +574,26 @@ export const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {/* Dev Tools Shortcut Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setDevToolsInitialQuery('');
-                setShowDevToolsModal(true);
-              }}
-              className="px-2.5 py-1.5 text-gray-300 hover:text-[#39ff14] bg-[#141824] hover:bg-[#1e2535] rounded-xl transition border border-[#2a3346] hover:border-[#39ff14]/50 flex items-center gap-1.5 shadow-sm"
-              title="Ferramentas de Desenvolvedor (JID, LID, Resolver, Grupos)"
-            >
-              <Terminal className="w-4 h-4 text-[#39ff14]" />
-              <span className="hidden sm:inline text-xs font-mono font-bold text-gray-200">Dev Tools</span>
-            </button>
-
-            {/* Status & Stories Quick Header Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setDevToolsInitialTab('status_stories');
-                setShowDevToolsModal(true);
-              }}
-              className="px-2.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/70 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-              title="Abrir Status & Stories do WhatsApp (Ver e Postar)"
-            >
-              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span>Status</span>
-            </button>
-
-            {/* Meme Gallery Shortcut Button */}
-            <button
-              type="button"
-              onClick={() => setShowGalleryModal(true)}
-              className="p-1.5 text-gray-300 hover:text-[#39ff14] hover:bg-[#1a202c] rounded-xl transition border border-transparent hover:border-[#2a3346]"
-              title="Abrir Galeria de Memes & Stickers"
-            >
-              <Laugh className="w-4 h-4" />
-            </button>
-
-            {/* Zaptroll RPG Admin Shortcut Button */}
-            <button
-              type="button"
-              onClick={() => setShowRpgModal(true)}
-              className="p-1.5 text-gray-300 hover:text-emerald-400 hover:bg-[#1a202c] rounded-xl transition border border-transparent hover:border-emerald-500/30"
-              title="Abrir Painel do RPG Parlamentar (Arquétipos, Flags e Lutas)"
-            >
-              <Swords className="w-4 h-4 text-emerald-400" />
-            </button>
-
-            <div className="text-right mr-1 hidden sm:block">
-              <div className="text-xs font-semibold text-gray-200 leading-none">{user?.name}</div>
-              <div className="text-[9px] text-[#39ff14] font-mono capitalize mt-0.5">{user?.role}</div>
+          {/* Right Header Area: User profile & Logout */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-[#161922] border border-[#2a3346] shadow-sm">
+              <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-[#39ff14] border border-[#39ff14]/30 flex items-center justify-center text-xs font-mono font-black shrink-0">
+                {user?.name ? user.name[0].toUpperCase() : 'U'}
+              </div>
+              <div className="text-left hidden sm:block max-w-[85px] lg:max-w-[120px] min-w-0">
+                <div className="text-xs font-semibold text-gray-200 truncate leading-none" title={user?.name}>
+                  {user?.name}
+                </div>
+                <div className="text-[9px] text-[#39ff14] font-mono capitalize leading-none mt-0.5">
+                  {user?.role}
+                </div>
+              </div>
             </div>
 
             <button
               onClick={logout}
               title="Sair do Laboratório"
-              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-950/40 rounded-xl transition"
+              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-950/40 rounded-xl transition border border-transparent hover:border-red-500/30 cursor-pointer shrink-0"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -698,83 +660,141 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab Navigation Menu (Desktop Sidebar Tabs) */}
-        <div className="hidden md:flex border-b border-[#2a3346] bg-[#10141e] px-2 py-1.5 gap-1 shrink-0 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setCurrentTab('conversations')}
-            className={`flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
-              currentTab === 'conversations'
-                ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-[#161922]'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Conversas</span>
-          </button>
-          <button
-            onClick={() => setCurrentTab('contacts')}
-            className={`flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
-              currentTab === 'contacts'
-                ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-[#161922]'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>Contatos</span>
-          </button>
-          <button
-            onClick={() => setCurrentTab('groups')}
-            className={`flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
-              currentTab === 'groups'
-                ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-[#161922]'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Grupos</span>
-          </button>
-          <button
-            onClick={() => {
-              setDevToolsInitialTab('status_stories');
-              setShowDevToolsModal(true);
-            }}
-            className="flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap text-emerald-400 hover:text-emerald-300 hover:bg-[#161922] border border-transparent hover:border-emerald-500/40 cursor-pointer"
-            title="Ver e Postar Status / Stories no WhatsApp"
-          >
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Status</span>
-          </button>
-          <button
-            onClick={() => setCurrentTab('connections')}
-            className={`flex-1 py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
-              currentTab === 'connections'
-                ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-[#161922]'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Sessões</span>
-          </button>
-          <button
-            onClick={() => setShowGalleryModal(true)}
-            className="py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition text-purple-400 hover:text-purple-300 hover:bg-[#161922] border border-transparent hover:border-purple-500/30"
-            title="Galeria de Memes"
-          >
-            <Laugh className="w-3.5 h-3.5" />
-          </button>
-          {isAdmin && (
+        {/* Quick Tools & Modals Bar (Dev Tools, Status, Memes, RPG) */}
+        <div className="px-3 py-1.5 bg-[#0c1017] border-b border-[#2a3346] shrink-0">
+          <div className="grid grid-cols-4 gap-1.5">
+            {/* Dev Tools */}
             <button
-              onClick={() => setCurrentTab('admin')}
-              className={`py-1 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition ${
-                currentTab === 'admin'
-                  ? 'bg-purple-950/40 text-purple-300 border border-purple-500/40'
+              type="button"
+              onClick={() => {
+                setDevToolsInitialQuery('');
+                setShowDevToolsModal(true);
+              }}
+              className="py-1 px-1 bg-[#141824] hover:bg-[#1e2535] text-gray-300 hover:text-[#39ff14] border border-[#2a3346] hover:border-[#39ff14]/50 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              title="Ferramentas de Desenvolvedor (JID, LID, Resolver, Grupos)"
+            >
+              <Terminal className="w-3.5 h-3.5 text-[#39ff14] group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">Dev Tools</span>
+            </button>
+
+            {/* Status & Stories */}
+            <button
+              type="button"
+              onClick={() => {
+                setDevToolsInitialTab('status_stories');
+                setShowDevToolsModal(true);
+              }}
+              className="py-1 px-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              title="Abrir Status & Stories do WhatsApp (Ver e Postar)"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">Status</span>
+            </button>
+
+            {/* Meme Gallery */}
+            <button
+              type="button"
+              onClick={() => setShowGalleryModal(true)}
+              className="py-1 px-1 bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/40 hover:border-purple-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              title="Abrir Galeria de Memes & Stickers"
+            >
+              <Laugh className="w-3.5 h-3.5 text-purple-400 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">Memes</span>
+            </button>
+
+            {/* RPG Arena */}
+            <button
+              type="button"
+              onClick={() => setShowRpgModal(true)}
+              className="py-1 px-1 bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              title="Abrir Painel do RPG Parlamentar (Arquétipos, Flags e Lutas)"
+            >
+              <Swords className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">RPG</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Navigation Menu (Primary Sidebar Views) */}
+        <div className="hidden md:block border-b border-[#2a3346] bg-[#10141e] p-1.5 shrink-0">
+          <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1 bg-[#0b0e14] p-1 rounded-2xl border border-[#2a3346]`}>
+            {/* 1. Conversas */}
+            <button
+              type="button"
+              onClick={() => setCurrentTab('conversations')}
+              className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                currentTab === 'conversations'
+                  ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm font-bold'
                   : 'text-gray-400 hover:text-white hover:bg-[#161922]'
               }`}
-              title="Painel Administrativo"
+              title="Ver Conversas Abertas"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <span>Conversas</span>
             </button>
-          )}
+
+            {/* 2. Contatos */}
+            <button
+              type="button"
+              onClick={() => setCurrentTab('contacts')}
+              className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                currentTab === 'contacts'
+                  ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-[#161922]'
+              }`}
+              title="Lista de Contatos"
+            >
+              <UserCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>Contatos</span>
+            </button>
+
+            {/* 3. Grupos */}
+            <button
+              type="button"
+              onClick={() => setCurrentTab('groups')}
+              className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                currentTab === 'groups'
+                  ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-[#161922]'
+              }`}
+              title="Lista de Grupos"
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>Grupos</span>
+            </button>
+
+            {/* 4. Sessões */}
+            <button
+              type="button"
+              onClick={() => setCurrentTab('connections')}
+              className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                currentTab === 'connections'
+                  ? 'bg-[#1a202c] text-[#39ff14] border border-[#2a3346] shadow-sm font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-[#161922]'
+              }`}
+              title="Gerenciar Sessões e Conexões WhatsApp"
+            >
+              <Smartphone className="w-3.5 h-3.5 shrink-0" />
+              <span>Sessões</span>
+            </button>
+
+            {/* 5. Admin (se admin) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setCurrentTab('admin')}
+                className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                  currentTab === 'admin'
+                    ? 'bg-purple-950/60 text-purple-300 border border-purple-500/50 shadow-sm font-bold'
+                    : 'text-purple-400 hover:text-purple-200 hover:bg-[#161922]'
+                }`}
+                title="Painel Administrativo do Zaptroll"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>Admin</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* View Switcher based on Tab */}

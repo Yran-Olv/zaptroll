@@ -38,6 +38,7 @@ import {
   FloatingNumberInstance,
 } from './effects/CombatVfx.js';
 import { SpecialBanner } from './effects/SpecialBanner.js';
+import { RpgCombatCard, CardInspectionModal } from './RpgCombatCard.js';
 
 interface CardData {
   id: string;
@@ -51,6 +52,7 @@ interface CardData {
   emoji: string;
   isBluff?: boolean;
   hidden?: boolean;
+  image?: string;
 }
 
 interface ParticipantData {
@@ -115,6 +117,7 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ accessCode, battleId: in
   const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [inspectingCard, setInspectingCard] = useState<CardData | null>(null);
   const [isLocking, setIsLocking] = useState(false);
   const [combatLogs, setCombatLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -897,43 +900,25 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ accessCode, battleId: in
               </div>
 
               {/* Grid / Carrossel de Cartas */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {myParticipant.hand.map((card) => {
                   const isSelected = selectedCardId === card.id;
                   const canAfford = myParticipant.currentEnergy >= card.energyCost;
-                  const col = CATEGORY_COLORS[card.category] || CATEGORY_COLORS.forca;
 
                   return (
-                    <button
+                    <RpgCombatCard
                       key={card.id}
-                      disabled={isMyTurnLocked || !canAfford}
-                      onClick={() => setSelectedCardId(card.id)}
-                      className={`relative p-3 rounded-xl border text-left transition-all duration-200 flex flex-col justify-between ${
-                        col.bg
-                      } ${isSelected ? `${col.border} ${col.glow} scale-105 ring-2 ring-emerald-400` : 'border-white/10 hover:border-white/30'} ${
-                        !canAfford || isMyTurnLocked ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-2xl">{card.emoji}</span>
-                          <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-[10px] font-mono font-bold text-cyan-300">
-                            <Zap className="w-2.5 h-2.5" /> {card.energyCost}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-xs text-white leading-tight line-clamp-1">{card.name}</h4>
-                        {card.description && (
-                          <p className="text-[10px] text-gray-300 mt-1 line-clamp-2 leading-relaxed">
-                            {card.description}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-gray-400">Poder: {card.power}</span>
-                        <span className="text-gray-400">Prioridade: {card.priority}</span>
-                      </div>
-                    </button>
+                      card={card}
+                      isSelected={isSelected}
+                      disabled={isMyTurnLocked}
+                      canAfford={canAfford}
+                      isLocked={isMyTurnLocked && isSelected}
+                      onSelect={() => {
+                        rpgAudio.playCardSelect();
+                        setSelectedCardId(card.id);
+                      }}
+                      onInspect={(c) => setInspectingCard(c)}
+                    />
                   );
                 })}
               </div>
@@ -1020,6 +1005,17 @@ export const RpgArenaView: React.FC<RpgArenaProps> = ({ accessCode, battleId: in
           </div>
         </div>
       )}
+
+      {/* 5. MODAL DE INSPEÇÃO DA CARTA EM ALTA DEFINIÇÃO */}
+      <CardInspectionModal
+        card={inspectingCard}
+        onClose={() => setInspectingCard(null)}
+        canSelect={!isMyTurnLocked}
+        onSelectAndLock={(c) => {
+          setSelectedCardId(c.id);
+          rpgAudio.playCardSelect();
+        }}
+      />
     </div>
   );
 };

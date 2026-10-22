@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <radialGradient id="stageGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.9"/>
+      <stop offset="45%" stop-color="#4c1d95" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0f0728" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#ca8a04"/>
+      <stop offset="100%" stop-color="#713f12"/>
+    </linearGradient>
+    <linearGradient id="flagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="spotlight1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#c084fc" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background Stage -->
+  <rect width="600" height="600" fill="url(#stageGlow)"/>
+
+  <!-- Spotlights -->
+  <polygon points="50,0 200,450 350,450 150,0" fill="url(#spotlight1)" opacity="0.4"/>
+  <polygon points="550,0 450,450 300,450 450,0" fill="url(#spotlight1)" opacity="0.35"/>
+
+  <!-- Stadium Crowd Silhouettes -->
+  <path d="M0,480 Q50,460 100,480 T200,470 T300,485 T400,465 T500,480 T600,460 L600,600 L0,600 Z" fill="#090514"/>
+  <circle cx="80" cy="450" r="14" fill="#1e1035"/>
+  <circle cx="140" cy="445" r="12" fill="#1e1035"/>
+  <circle cx="210" cy="455" r="15" fill="#1e1035"/>
+  <circle cx="420" cy="450" r="13" fill="#1e1035"/>
+  <circle cx="490" cy="440" r="16" fill="#1e1035"/>
+  <circle cx="550" cy="455" r="14" fill="#1e1035"/>
+
+  <!-- Podiums and Microphones -->
+  <rect x="220" y="380" width="160" height="150" rx="8" fill="#1f1638" stroke="#ca8a04" stroke-width="3"/>
+  <polygon points="200,380 400,380 370,410 230,410" fill="#2d1f4e" stroke="#facc15" stroke-width="2"/>
+  
+  <!-- Microphones cluster -->
+  <line x1="260" y1="380" x2="250" y2="340" stroke="#94a3b8" stroke-width="4"/>
+  <circle cx="250" cy="336" r="8" fill="#e2e8f0" stroke="#475569" stroke-width="2"/>
+  <line x1="340" y1="380" x2="350" y2="340" stroke="#94a3b8" stroke-width="4"/>
+  <circle cx="350" cy="336" r="8" fill="#e2e8f0" stroke="#475569" stroke-width="2"/>
+
+  <!-- Leaping Substitute Hero (Silhouette / Dynamic Art) -->
+  <!-- Cape / Action Banner -->
+  <path d="M 310,210 Q 230,170 160,200 Q 220,250 290,260 Z" fill="url(#flagGrad)" opacity="0.9" filter="url(#glow)"/>
+  <path d="M 330,190 L 460,110 Q 420,170 480,210 Q 390,200 340,220 Z" fill="url(#flagGrad)" filter="url(#glow)"/>
+  <line x1="330" y1="210" x2="490" y2="80" stroke="#fef08a" stroke-width="6" stroke-linecap="round"/>
+  <polygon points="490,75 510,80 495,95" fill="#facc15"/>
+
+  <!-- Hero Body in Motion -->
+  <!-- Torso & Suit -->
+  <path d="M 270,220 L 335,215 L 345,290 L 280,295 Z" fill="#312e81" stroke="#818cf8" stroke-width="3"/>
+  <polygon points="295,220 310,220 312,255 300,265" fill="#e0e7ff"/>
+  <polygon points="302,230 308,230 305,270" fill="#ef4444"/> <!-- Tie -->
+
+  <!-- Head & Hair -->
+  <circle cx="305" cy="180" r="24" fill="#fcd34d" stroke="#d97706" stroke-width="2"/>
+  <path d="M 285,175 Q 310,140 335,170 Q 320,160 300,165 Z" fill="#92400e"/>
+  
+  <!-- Raised Confident Arms -->
+  <path d="M 335,225 L 390,170 L 405,185 L 345,245 Z" fill="#312e81" stroke="#818cf8" stroke-width="2"/>
+  <circle cx="400" cy="175" r="10" fill="#fcd34d"/> <!-- Hand holding flag -->
+
+  <path d="M 275,230 L 210,185 L 195,200 L 265,250 Z" fill="#312e81" stroke="#818cf8" stroke-width="2"/>
+  <circle cx="202" cy="190" r="10" fill="#fcd34d"/> <!-- Hand waving to crowd -->
+
+  <!-- Dynamic Flying Legs -->
+  <path d="M 285,295 L 250,370 L 275,380 L 305,305 Z" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
+  <rect x="240" y="375" width="40" height="16" rx="6" fill="#0f172a"/>
+  
+  <path d="M 330,290 L 375,350 L 350,365 L 315,305 Z" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
+  <rect x="360" y="350" width="38" height="16" rx="6" fill="#0f172a"/>
+
+  <!-- Energy Burst & Confetti -->
+  <circle cx="300" cy="240" r="90" fill="none" stroke="#e879f9" stroke-width="3" stroke-dasharray="10,15" opacity="0.7"/>
+  <circle cx="300" cy="240" r="140" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="8,20" opacity="0.5"/>
+  <rect x="150" y="120" width="8" height="16" fill="#f43f5e" transform="rotate(25 150 120)"/>
+  <rect x="420" y="110" width="10" height="18" fill="#facc15" transform="rotate(-30 420 110)"/>
+  <rect x="180" y="280" width="12" height="6" fill="#38bdf8" transform="rotate(45 180 280)"/>
+  <rect x="470" y="260" width="8" height="15" fill="#a855f7" transform="rotate(15 470 260)"/>
+  <rect x="250" y="90" width="14" height="6" fill="#10b981" transform="rotate(-15 250 90)"/>
+
+  <!-- Top Banner Tag -->
+  <rect x="120" y="24" width="360" height="42" rx="10" fill="#1e1b4b" stroke="url(#goldBorder)" stroke-width="3"/>
+  <text x="300" y="52" font-family="sans-serif" font-weight="900" font-size="20" fill="#fef08a" text-anchor="middle" letter-spacing="3">CONVOCAÇÃO DE SUPLENTE</text>
+
+  <!-- Ornate Card Game Border -->
+  <rect x="12" y="12" width="576" height="576" rx="24" fill="none" stroke="url(#goldBorder)" stroke-width="12"/>
+  <rect x="24" y="24" width="552" height="552" rx="16" fill="none" stroke="#a855f7" stroke-width="3" opacity="0.6"/>
+  <!-- Corner Ornaments -->
+  <circle cx="32" cy="32" r="14" fill="#ca8a04" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="568" cy="32" r="14" fill="#ca8a04" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="32" cy="568" r="14" fill="#ca8a04" stroke="#fef08a" stroke-width="3"/>
+  <circle cx="568" cy="568" r="14" fill="#ca8a04" stroke="#fef08a" stroke-width="3"/>
+
+  <!-- Bottom Stat Label -->
+  <rect x="150" y="525" width="300" height="38" rx="8" fill="#1e1b4b" stroke="url(#goldBorder)" stroke-width="2"/>
+  <text x="300" y="550" font-family="sans-serif" font-weight="800" font-size="14" fill="#38bdf8" text-anchor="middle" letter-spacing="1.5">⚡ ESTRATÉGIA // +15% IBOPE</text>
+</svg>

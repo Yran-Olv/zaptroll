@@ -33,6 +33,7 @@ export interface RpgCardAttributes {
   isComboStarter?: boolean;
   comboFollowUp?: string | null;
   emoji: string;
+  image?: string | null;
 }
 
 export class RpgCard extends Model<RpgCardAttributes, Partial<RpgCardAttributes>> implements RpgCardAttributes {
@@ -52,6 +53,7 @@ export class RpgCard extends Model<RpgCardAttributes, Partial<RpgCardAttributes>
   declare isComboStarter: boolean;
   declare comboFollowUp: string | null;
   declare emoji: string;
+  declare image: string | null;
 
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -131,6 +133,10 @@ RpgCard.init(
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: '🃏',
+    },
+    image: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

@@ -9,6 +9,7 @@ import advancedRoutes from '../modules/advanced/advanced.routes.js';
 import adminRoutes from '../modules/admin/admin.routes.js';
 import memesRoutes from '../modules/memes/memes.routes.js';
 import rpgRoutes from '../modules/rpg/routes/rpg.routes.js';
+import flowsRoutes from '../modules/flows/routes/flows.routes.js';
 
 const apiRouter = Router();
 
@@ -22,5 +23,6 @@ apiRouter.use('/advanced', advancedRoutes);
 apiRouter.use('/admin', adminRoutes);
 apiRouter.use('/memes', memesRoutes);
 apiRouter.use('/rpg', rpgRoutes);
+apiRouter.use('/flows', flowsRoutes);
 
 export default apiRouter;
