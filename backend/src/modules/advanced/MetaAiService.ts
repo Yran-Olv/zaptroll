@@ -204,10 +204,14 @@ export class MetaAiService {
       pending.set(promptId, entry);
 
       try {
-        await client.bot.sendPrompt(WA_BOT_KNOWN_JIDS.META_AI_FBID, content, {
+        const promptRes = await client.bot.sendPrompt(WA_BOT_KNOWN_JIDS.META_AI_FBID, content, {
           aiThreadId: thread.id,
           id: promptId,
         });
+        const actualId = promptRes?.id || promptId;
+        if (actualId !== promptId) {
+          pending.set(actualId, entry);
+        }
       } catch (err: any) {
         pending.delete(promptId);
         return { ok: false, reason: 'send-failed', detail: err.message || String(err) };
@@ -274,7 +278,14 @@ export class MetaAiService {
       const placeholderRes = await client.message.send(chatJid, THINKING_TEXT, sendOptions);
       placeholderId = placeholderRes?.id;
     } catch (err: any) {
-      console.warn('[MetaAiService] Could not send Thinking placeholder:', err.message);
+      console.warn('[MetaAiService] Could not send Thinking placeholder with options, trying simple fallback:', err.message);
+      try {
+        const fallbackOpts: any = !isGroup ? { customNodes: AI_LABEL_NODE.customNodes } : {};
+        const placeholderRes = await client.message.send(chatJid, THINKING_TEXT, fallbackOpts);
+        placeholderId = placeholderRes?.id;
+      } catch (err2: any) {
+        console.warn('[MetaAiService] Could not send Thinking placeholder:', err2.message);
+      }
     }
 
     // Pergunta ao Meta AI
@@ -286,7 +297,6 @@ export class MetaAiService {
       try {
         const editRes = await client.message.send(chatJid, answerText, {
           editKey: { id: placeholderId },
-          quote: options?.quote,
         } as any);
         return { messageId: editRes?.id || placeholderId, answerText, success: answer.ok };
       } catch (editErr: any) {
@@ -294,8 +304,13 @@ export class MetaAiService {
       }
     }
 
-    // Se não editou, manda nova mensagem (com selo de IA se privado)
-    const fallbackRes = await client.message.send(chatJid, answerText, sendOptions);
-    return { messageId: fallbackRes?.id, answerText, success: answer.ok };
+    // Se não editou, manda nova mensagem (com quote ou fallback direto)
+    try {
+      const fallbackRes = await client.message.send(chatJid, answerText, sendOptions);
+      return { messageId: fallbackRes?.id, answerText, success: answer.ok };
+    } catch (sendErr: any) {
+      const simpleRes = await client.message.send(chatJid, answerText);
+      return { messageId: simpleRes?.id, answerText, success: answer.ok };
+    }
   }
 }

@@ -15,6 +15,7 @@ export interface ScheduleAutoDestructInput {
 
 export class AutoDestructService {
   private static activeTimers = new Map<string, NodeJS.Timeout>();
+  private static periodicInterval: NodeJS.Timeout | null = null;
 
   public static readonly MAX_TIMEOUT_MS = 2147483647; // ~24.85 days
   public static readonly MAX_RETRIES = 5;
@@ -39,7 +40,7 @@ export class AutoDestructService {
 
     const taskKey = this.getTaskKey(connectionId, stanzaId);
 
-    // Limpa timer em memória anterior se já existir
+    // Limpa timer em memória anterior se já existir para a mesma mensagem
     if (this.activeTimers.has(taskKey)) {
       clearTimeout(this.activeTimers.get(taskKey)!);
       this.activeTimers.delete(taskKey);
@@ -66,7 +67,7 @@ export class AutoDestructService {
       this.activeTimers.set(taskKey, timer);
     }
 
-    // Persistência assíncrona no PostgreSQL (desacoplada para nunca bloquear o timer em memória)
+    // Persistência imediata no PostgreSQL
     if (process.env.NODE_ENV !== 'test') {
       const executeAt = new Date(Date.now() + delaySeconds * 1000);
       const targetJid = input.targetJid || 'unknown@s.whatsapp.net';
@@ -92,7 +93,7 @@ export class AutoDestructService {
   }
 
   /**
-   * Executa a revogação de uma mensagem no WhatsApp com transição de estados no PostgreSQL.
+   * Executa a revogação de uma mensagem no WhatsApp com transição de estados auditáveis.
    */
   public static async executeRevoke(connectionId: string, stanzaId: string): Promise<boolean> {
     const taskKey = this.getTaskKey(connectionId, stanzaId);
@@ -102,7 +103,7 @@ export class AutoDestructService {
     } catch {}
 
     if (dbTask) {
-      if (dbTask.status === 'cancelled' || dbTask.status === 'confirmed') {
+      if (dbTask.status === 'cancelled' || dbTask.status === 'server_ack' || dbTask.status === 'confirmed') {
         return true;
       }
       try {
@@ -118,7 +119,7 @@ export class AutoDestructService {
 
     if (!client) {
       const reason = 'Cliente WhatsApp não conectado';
-      console.warn(`[AutoDestruct] ${reason} para conexão ${connectionId}. Reagendando...`);
+      console.warn(`[AutoDestruct] ${reason} para conexão ${connectionId}. Reagendando com backoff...`);
       if (dbTask) await this.handleRetry(dbTask, reason);
       return false;
     }
@@ -165,17 +166,18 @@ export class AutoDestructService {
         } catch {}
       }
 
+      // Chamada de revogação de protocolo via zapo-js
       await ZapoMessageAdapter.revokeMessage(client, targetJid, {
         stanzaId,
         fromMe: true,
       });
 
-      // Confirmação do servidor WhatsApp obtida
+      // ACK recebido com sucesso do servidor WhatsApp
       const now = new Date();
       if (dbTask) {
         try {
           await dbTask.update({
-            status: 'confirmed',
+            status: 'server_ack', // ACK do servidor (não inventa certeza de apagamento em aparelhos offline)
             confirmedAt: now,
             lastError: null,
           });
@@ -184,7 +186,7 @@ export class AutoDestructService {
 
       this.activeTimers.delete(taskKey);
 
-      // Atualiza registro da mensagem no banco local
+      // Atualiza registro local da mensagem
       try {
         const msg = await Message.findOne({ where: { connectionId, stanzaId } });
         if (msg) {
@@ -196,17 +198,17 @@ export class AutoDestructService {
         }
       } catch {}
 
-      // Emite atualização em tempo real via Socket.io
+      // Emite evento em tempo real via Socket.io
       emitToConnection(connectionId, 'message_status', {
         connectionId,
         stanzaId,
         status: 'revoked',
         isRevoked: true,
         content: '🚫 Esta mensagem foi apagada',
-        autoDestructStatus: 'confirmed',
+        autoDestructStatus: 'server_ack',
       });
 
-      console.log(`[AutoDestruct] ✅ Mensagem ${stanzaId} revogada e confirmada pelo servidor WhatsApp!`);
+      console.log(`[AutoDestruct] 📡 Mensagem ${stanzaId} revogada: ACK recebido do servidor WhatsApp (a confirmação local depende da sincronização de cada aparelho).`);
       return true;
     } catch (err: any) {
       console.error(`[AutoDestruct] Erro ao revogar mensagem ${stanzaId}:`, err?.message || err);
@@ -315,61 +317,99 @@ export class AutoDestructService {
   public static async init() {
     try {
       console.log('[AutoDestruct] Restaurando tarefas de autodestruição persistidas no banco...');
-      const BATCH_SIZE = 100;
-      let offset = 0;
-      let totalRecovered = 0;
-      let hasMore = true;
-      const now = Date.now();
+      await this.recoverPendingTasks();
 
-      while (hasMore) {
-        const pendingTasks = await AutoDestructTask.findAll({
-          where: {
-            status: ['scheduled', 'retrying'],
-          },
-          order: [['executeAt', 'ASC']],
-          limit: BATCH_SIZE,
-          offset,
-        });
-
-        if (pendingTasks.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        for (const task of pendingTasks) {
-          const taskKey = this.getTaskKey(task.connectionId, task.stanzaId);
-          const executeMs = new Date(task.executeAt).getTime();
-          const remainingMs = executeMs - now;
-
-          if (remainingMs <= 0) {
-            // Já expirou enquanto o servidor estava offline: executa com leve delay escalonado
-            const staggerDelay = (totalRecovered % 20) * 200 + 1000;
-            console.log(`[AutoDestruct] Tarefa vencida ${task.stanzaId}. Disparando revogação em ${staggerDelay}ms...`);
-            setTimeout(() => {
-              this.executeRevoke(task.connectionId, task.stanzaId);
-            }, staggerDelay);
-          } else {
-            // Ainda dentro do prazo: agenda timer em memória
-            console.log(`[AutoDestruct] Tarefa pendente ${task.stanzaId} expira em ${Math.round(remainingMs / 1000)}s. Agendando timer...`);
-            const timer = setTimeout(async () => {
-              this.activeTimers.delete(taskKey);
-              await this.executeRevoke(task.connectionId, task.stanzaId);
-            }, remainingMs);
-
-            this.activeTimers.set(taskKey, timer);
-          }
-          totalRecovered++;
-        }
-
-        offset += pendingTasks.length;
-        if (pendingTasks.length < BATCH_SIZE) {
-          hasMore = false;
-        }
-      }
-
-      console.log(`[AutoDestruct] Inicialização concluída: ${totalRecovered} tarefas restauradas.`);
+      // Inicia verificação periódica em segundo plano (cada 60 segundos) para tarefas pendentes
+      this.startPeriodicRecovery(60000);
     } catch (err: any) {
       console.error('[AutoDestruct] Erro ao restaurar tarefas de autodestruição:', err?.message || err);
+    }
+  }
+
+  /**
+   * Recupera e agenda tarefas pendentes do banco com paginação estável.
+   */
+  public static async recoverPendingTasks(): Promise<number> {
+    const BATCH_SIZE = 100;
+    let offset = 0;
+    let totalRecovered = 0;
+    let hasMore = true;
+    const now = Date.now();
+
+    while (hasMore) {
+      const pendingTasks = await AutoDestructTask.findAll({
+        where: {
+          status: ['scheduled', 'retrying'],
+        },
+        order: [['executeAt', 'ASC']],
+        limit: BATCH_SIZE,
+        offset,
+      });
+
+      if (pendingTasks.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const task of pendingTasks) {
+        const taskKey = this.getTaskKey(task.connectionId, task.stanzaId);
+
+        // Não reagenda se já estiver com timer ativo em memória
+        if (this.activeTimers.has(taskKey)) {
+          continue;
+        }
+
+        const executeMs = new Date(task.executeAt).getTime();
+        const remainingMs = executeMs - now;
+
+        if (remainingMs <= 0) {
+          // Já expirou enquanto o servidor estava offline: executa escalonado
+          const staggerDelay = (totalRecovered % 20) * 200 + 500;
+          setTimeout(() => {
+            this.executeRevoke(task.connectionId, task.stanzaId);
+          }, staggerDelay);
+        } else {
+          // Ainda dentro do prazo: agenda timer em memória
+          const timer = setTimeout(async () => {
+            this.activeTimers.delete(taskKey);
+            await this.executeRevoke(task.connectionId, task.stanzaId);
+          }, remainingMs);
+
+          this.activeTimers.set(taskKey, timer);
+        }
+        totalRecovered++;
+      }
+
+      offset += pendingTasks.length;
+      if (pendingTasks.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+    }
+
+    return totalRecovered;
+  }
+
+  /**
+   * Inicia ticker periódico de recuperação para evitar que tarefas orfãs fiquem perdidas se houver interrupções.
+   */
+  public static startPeriodicRecovery(intervalMs = 60000) {
+    if (this.periodicInterval) clearInterval(this.periodicInterval);
+    this.periodicInterval = setInterval(async () => {
+      try {
+        await this.recoverPendingTasks();
+      } catch {}
+    }, intervalMs);
+    // Garante que o intervalo não impeça o término do processo em shutdown
+    this.periodicInterval.unref();
+  }
+
+  /**
+   * Para o ticker periódico.
+   */
+  public static stopPeriodicRecovery() {
+    if (this.periodicInterval) {
+      clearInterval(this.periodicInterval);
+      this.periodicInterval = null;
     }
   }
 }

@@ -5,6 +5,7 @@ export type AutoDestructTaskStatus =
   | 'scheduled'
   | 'processing'
   | 'request_sent'
+  | 'server_ack'
   | 'confirmed'
   | 'retrying'
   | 'failed'

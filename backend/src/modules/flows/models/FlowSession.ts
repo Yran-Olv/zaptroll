@@ -10,7 +10,7 @@ export interface FlowSessionAttributes {
   connectionId: string;
   userJid: string;
   currentNodeId: string;
-  waitingFor?: string | null;
+  waitingFor?: any;
   status: FlowSessionStatus;
   variables: Record<string, any>;
   stepHistory: Array<{
@@ -37,7 +37,7 @@ export class FlowSession
   declare connectionId: string;
   declare userJid: string;
   declare currentNodeId: string;
-  declare waitingFor?: string | null;
+  declare waitingFor?: any;
   declare status: FlowSessionStatus;
   declare variables: Record<string, any>;
   declare stepHistory: Array<{
@@ -79,7 +79,7 @@ FlowSession.init(
       allowNull: false,
     },
     waitingFor: {
-      type: DataTypes.STRING,
+      type: DataTypes.JSON,
       allowNull: true,
     },
     status: {

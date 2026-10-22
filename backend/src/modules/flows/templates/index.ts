@@ -110,17 +110,17 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
           text: 'Clique no botão abaixo para abrir nosso formulário exclusivo de entrega:',
           buttonText: '📝 Preencher Pedido',
           pageType: 'form',
-          formSchema: {
+          schema: {
             title: 'Formulário de Entrega & Pedido',
             description: 'Informe seus dados para envio rápido e sem erros.',
             fields: [
-              { name: 'nome', label: 'Nome Completo', type: 'text', required: true },
-              { name: 'telefone', label: 'Telefone de Contato', type: 'tel', required: true },
-              { name: 'produto', label: 'Item Desejado', type: 'select', options: ['Combo Burger Artesanal (R$ 38)', 'Pizza Família (R$ 65)', 'Açaí Turbo 500ml (R$ 22)'], required: true },
-              { name: 'endereco', label: 'Rua e Número', type: 'text', required: true },
-              { name: 'bairro', label: 'Bairro', type: 'text', required: true },
-              { name: 'cidade', label: 'Cidade', type: 'text', required: true },
-              { name: 'observacao', label: 'Ponto de Referência / Complemento', type: 'text', required: false },
+              { id: 'nome', label: 'Nome Completo', type: 'text', required: true },
+              { id: 'telefone', label: 'Telefone de Contato', type: 'phone', required: true },
+              { id: 'produto', label: 'Item Desejado', type: 'select', options: ['Combo Burger Artesanal (R$ 38)', 'Pizza Família (R$ 65)', 'Açaí Turbo 500ml (R$ 22)'], required: true },
+              { id: 'endereco', label: 'Rua e Número', type: 'text', required: true },
+              { id: 'bairro', label: 'Bairro', type: 'text', required: true },
+              { id: 'cidade', label: 'Cidade', type: 'text', required: true },
+              { id: 'observacao', label: 'Ponto de Referência / Complemento', type: 'text', required: false },
             ],
           },
         },
@@ -157,12 +157,13 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
       },
       {
         id: 'node_pix_charge',
-        type: 'commercial_pix_payment',
+        type: 'pix_charge',
         name: 'Dados do Pix',
         position: { x: 320, y: 150 },
         data: {
           amount: '49.90',
           pixKey: 'multivus@zaptroll.local',
+          merchantName: 'ZapTroll Store',
         },
       },
       {

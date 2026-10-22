@@ -3,9 +3,8 @@ import { Flow, FlowVersion, FlowSession, FlowExecutionEvent, FormSubmission } fr
 import { ZapoConnectionManager } from '../../../integrations/zapo/ZapoConnectionManager.js';
 import { ZapoMessageAdapter } from '../../../integrations/zapo/ZapoMessageAdapter.js';
 import { SafeHttpClient } from './SafeHttpClient.js';
-import { MetaAiService } from '../../advanced/MetaAiService.js';
-import { emitToConnection } from '../../realtime/socket.js';
 import { config } from '../../../config/index.js';
+import { FlowNodeType, LegacyFlowNodeType } from '../types/index.js';
 
 export interface ExecuteFlowOptions {
   connectionId: string;
@@ -32,9 +31,12 @@ export class FlowEngine {
   }
 
   /**
-   * Tenta encontrar um gatilho de fluxo publicado correspondente à mensagem recebida.
+   * Tenta encontrar um fluxo publicado correspondente à mensagem recebida.
    */
-  public static async findTriggeredFlow(text: string, connectionId?: string): Promise<{ flow: Flow; version: FlowVersion } | null> {
+  public static async findTriggeredFlow(
+    text: string,
+    connectionId?: string
+  ): Promise<{ flow: Flow; version: FlowVersion } | null> {
     const cleanText = text.trim().toLowerCase();
     const whereClause: any = {
       status: 'published',
@@ -76,7 +78,7 @@ export class FlowEngine {
     events?: any[];
     error?: string;
   }> {
-    const { connectionId, userJid, userInput = '', inputPayload, isSimulation = false } = options;
+    const { connectionId, userJid, userInput = '', isSimulation = false } = options;
     const cleanInput = userInput.trim();
 
     // 1. Verifica se já existe uma sessão ativa aguardando resposta para este usuário
@@ -101,14 +103,14 @@ export class FlowEngine {
 
       flowVersion = triggered.version;
       const initialNode = flowVersion.nodes.find(
-        (n) => n.type.startsWith('trigger_') || n.id === 'start' || n.id === 'node_1'
+        (n) => n.type === 'trigger_keyword' || n.type.startsWith('trigger_') || n.id === 'start' || n.id === 'node_1'
       ) || flowVersion.nodes[0];
 
       if (!initialNode) {
         return { handled: false, error: 'Fluxo sem nós inicializáveis.' };
       }
 
-      // Cria nova sessão persistida
+      // Cria nova sessão persistida no banco
       session = await FlowSession.create({
         flowId: triggered.flow.id,
         flowVersionId: flowVersion.id,
@@ -127,7 +129,7 @@ export class FlowEngine {
         flowName: triggered.flow.name,
       });
 
-      // Executa a partir do nó seguinte ao gatilho
+      // Executa a partir do nó inicial (que avançará automaticamente para o próximo nó conectado)
       return this.resumeSession(session, flowVersion, options, initialNode.id);
     } else {
       // 3. Sessão existente aguardando resposta do usuário
@@ -166,24 +168,37 @@ export class FlowEngine {
         const buttons = currentNode.data.buttons || [];
         const matchedBtn = buttons.find(
           (b: any) =>
-            b.id === cleanInput ||
-            b.text?.toLowerCase() === cleanInput.toLowerCase() ||
-            b.buttonId === cleanInput
+            b.buttonId?.toLowerCase() === cleanInput.toLowerCase() ||
+            b.id?.toLowerCase() === cleanInput.toLowerCase() ||
+            b.displayText?.toLowerCase() === cleanInput.toLowerCase() ||
+            b.text?.toLowerCase() === cleanInput.toLowerCase()
         );
 
         if (matchedBtn) {
+          const btnId = matchedBtn.buttonId || matchedBtn.id;
+          const btnText = matchedBtn.displayText || matchedBtn.text || btnId;
           const edge = version.edges.find(
-            (e) => e.source === currentNode.id && (e.sourceHandle === matchedBtn.id || e.sourceHandle === matchedBtn.buttonId)
+            (e) =>
+              e.source === currentNode.id &&
+              (e.sourceHandle === btnId ||
+                e.sourceHandle === matchedBtn.id ||
+                e.label?.toLowerCase() === btnText.toLowerCase() ||
+                e.label?.toLowerCase() === btnId.toLowerCase())
           );
           targetNodeId = edge ? edge.target : null;
-          variables[currentNode.data.saveVariable || 'last_button'] = matchedBtn.text || matchedBtn.id;
+          variables[currentNode.data.saveVariable || 'last_button'] = btnText;
         }
       }
-      // 2. Captura de dados (texto, email, telefone, etc.)
-      else if (currentNode.type.startsWith('capture_')) {
+      // 2. Captura de dados (data_capture / capture_*)
+      else if (currentNode.type === 'data_capture' || currentNode.type.startsWith('capture_')) {
         const varName = currentNode.data.variableName || 'user_input';
         variables[varName] = cleanInput;
 
+        const defaultEdge = version.edges.find((e) => e.source === currentNode.id);
+        targetNodeId = defaultEdge ? defaultEdge.target : null;
+      }
+      // 3. Formulário web hospedado aguardando preenchimento
+      else if (currentNode.type === 'hosted_page_button') {
         const defaultEdge = version.edges.find((e) => e.source === currentNode.id);
         targetNodeId = defaultEdge ? defaultEdge.target : null;
       }
@@ -227,11 +242,15 @@ export class FlowEngine {
 
     const zapoManager = ZapoConnectionManager.getInstance();
     const client = !isSimulation ? zapoManager.getClient(connectionId) : null;
+    const baseUrl = (config.appUrl || 'https://zaptroll.multivus.com.br').replace(/\/+$/, '');
 
     while (currentId && stepsCount < this.MAX_STEPS_PER_RUN) {
       stepsCount++;
       const node = version.nodes.find((n) => n.id === currentId);
-      if (!node) break;
+      if (!node) {
+        console.warn(`[FlowEngine] Nó não encontrado no grafo: ID "${currentId}". Encerrando execução.`);
+        break;
+      }
 
       await session.update({ currentNodeId: node.id });
       await this.logEvent(session.id, session.flowId, node.id, 'node_enter', {
@@ -240,11 +259,16 @@ export class FlowEngine {
       });
 
       // ==========================================
-      // EXECUÇÃO DO NÓ POR TIPO
+      // EXECUÇÃO DO NÓ POR TIPO UNIFICADO
       // ==========================================
 
+      // 0. Gatilhos de Mensagem / Palavra-chave (Avança imediatamente para o nó conectado)
+      if (node.type === 'trigger_keyword' || node.type.startsWith('trigger_')) {
+        const nextEdge = version.edges.find((e) => e.source === node.id);
+        currentId = nextEdge ? nextEdge.target : null;
+      }
       // 1. Mensagem de Texto
-      if (node.type === 'message_text') {
+      else if (node.type === 'message_text') {
         const renderedText = this.interpolateVariables(node.data.text || '', session.variables);
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendText(client, userJid, renderedText);
@@ -255,75 +279,102 @@ export class FlowEngine {
         const nextEdge = version.edges.find((e) => e.source === node.id);
         currentId = nextEdge ? nextEdge.target : null;
       }
-      // 2. Botões Interativos
+      // 2. Mensagem com Mídia (Imagem, Vídeo, Áudio)
+      else if (node.type === 'message_media') {
+        const mediaType = node.data.mediaType || 'image';
+        const mediaUrl = this.interpolateVariables(node.data.mediaUrl || '', session.variables);
+        const caption = this.interpolateVariables(node.data.caption || '', session.variables);
+
+        if (client && !isSimulation && mediaUrl) {
+          if (mediaType === 'image') {
+            await ZapoMessageAdapter.sendImage(client, userJid, { url: mediaUrl, caption });
+          } else if (mediaType === 'video') {
+            await ZapoMessageAdapter.sendVideo(client, userJid, { url: mediaUrl, caption });
+          }
+        }
+
+        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { mediaType, mediaUrl, caption });
+        events.push({ type: 'message_media', mediaType, mediaUrl, caption, nodeId: node.id });
+
+        const nextEdge = version.edges.find((e) => e.source === node.id);
+        currentId = nextEdge ? nextEdge.target : null;
+      }
+      // 3. Botões Interativos
       else if (node.type === 'interactive_buttons') {
-        const renderedText = this.interpolateVariables(node.data.text || 'Escolha uma opção:', session.variables);
+        const renderedText = this.interpolateVariables(
+          node.data.content || node.data.text || 'Escolha uma das opções abaixo:',
+          session.variables
+        );
+        const headerText = this.interpolateVariables(node.data.header || '', session.variables);
+        const footerText = this.interpolateVariables(
+          node.data.footer || node.data.footerText || 'ZapTroll Flow Studio',
+          session.variables
+        );
+
         const buttons = (node.data.buttons || []).map((b: any, idx: number) => ({
-          buttonId: b.id || `btn_${idx + 1}`,
-          displayText: this.interpolateVariables(b.text || `Opção ${idx + 1}`, session.variables),
+          buttonId: b.buttonId || b.id || `btn_${idx + 1}`,
+          displayText: this.interpolateVariables(
+            b.displayText || b.text || `Opção ${idx + 1}`,
+            session.variables
+          ),
         }));
 
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendButtons(client, userJid, {
             contentText: renderedText,
-            footerText: node.data.footerText,
+            headerText,
+            footerText,
             buttons,
           });
         }
 
         await this.logEvent(session.id, session.flowId, node.id, 'message_sent', {
           text: renderedText,
-          buttonsCount: buttons.length,
+          buttons,
         });
         events.push({ type: 'interactive_buttons', text: renderedText, buttons, nodeId: node.id });
 
         // Pausa o fluxo para aguardar clique no botão
         await session.update({
           status: 'waiting_input',
-          waitingFor: 'button',
+          waitingFor: { type: 'button', validOptions: buttons.map((b: any) => b.buttonId), nodeId: node.id },
           currentNodeId: node.id,
         });
         return { handled: true, session, events };
       }
-      // 3. Botão com Página Hospedada / Formulário / Jogo / RPG
+      // 4. Formulário Web Hospedado via CTA URL
       else if (node.type === 'hosted_page_button') {
-        const renderedText = this.interpolateVariables(node.data.text || 'Acesse a experiência:', session.variables);
-        const buttonText = node.data.buttonText || 'Abrir Página';
-        const pageType = node.data.pageType || 'form'; // 'form' | 'game' | 'rpg' | 'custom'
+        const renderedText = this.interpolateVariables(
+          node.data.text || node.data.bodyText || node.data.content || 'Acesse o formulário exclusivo abaixo:',
+          session.variables
+        );
+        const buttonText = this.interpolateVariables(node.data.buttonText || 'Abrir Formulário', session.variables);
+        const formSchema = node.data.schema || node.data.formSchema || {
+          title: 'Formulário Seguro ZapTroll',
+          fields: [],
+        };
 
-        let publicUrl = '';
-        const baseUrl = config.appUrl.replace(/\/+$/, '');
+        const publicId = `form_${Buffer.from(`${session.id}_${Date.now()}`).toString('base64url').slice(0, 16)}`;
+        await FormSubmission.create({
+          formId: node.id,
+          publicId,
+          flowSessionId: session.id,
+          userJid,
+          connectionId,
+          schemaSnapshot: formSchema,
+          data: {},
+          status: 'pending',
+          expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 horas de validade
+        });
 
-        if (pageType === 'form') {
-          // Cria submissão temporária para formulário seguro
-          const publicId = `form_${Buffer.from(`${session.id}_${Date.now()}`).toString('base64url').slice(0, 16)}`;
-          await FormSubmission.create({
-            formId: node.data.formId || node.id,
-            publicId,
-            flowSessionId: session.id,
-            userJid,
-            connectionId,
-            schemaSnapshot: node.data.formSchema || {},
-            data: {},
-            status: 'pending',
-            expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 horas de validade
-          });
-          publicUrl = `${baseUrl}/r/form/${publicId}`;
-        } else if (pageType === 'game') {
-          const gameId = node.data.gameId || 'doom';
-          publicUrl = `${baseUrl}/r/jogos/${gameId}?ref=${session.id.slice(0, 8)}`;
-        } else if (pageType === 'rpg') {
-          publicUrl = `${baseUrl}/rpg`;
-        } else {
-          publicUrl = node.data.url || `${baseUrl}/r/fluxo/${session.id}`;
-        }
+        const publicUrl = `${baseUrl}/r/form/${publicId}`;
 
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendWebview(client, userJid, {
             bodyText: renderedText,
             buttonText,
             url: publicUrl,
-            footerText: 'Experiência Hospedada Zaptroll',
+            footerText: 'Formulário Seguro ZapTroll',
           });
         }
 
@@ -331,42 +382,72 @@ export class FlowEngine {
           url: publicUrl,
           buttonText,
         });
-        events.push({ type: 'hosted_page_button', text: renderedText, url: publicUrl, buttonText, nodeId: node.id });
+        events.push({
+          type: 'hosted_page_button',
+          text: renderedText,
+          url: publicUrl,
+          buttonText,
+          title: formSchema.title,
+          nodeId: node.id,
+        });
 
-        const nextEdge = version.edges.find((e) => e.source === node.id);
-        currentId = nextEdge ? nextEdge.target : null;
+        // Aguarda envio do formulário web pelo usuário
+        await session.update({
+          status: 'waiting_input',
+          waitingFor: { type: 'form', formId: publicId, nodeId: node.id },
+          currentNodeId: node.id,
+        });
+        return { handled: true, session, events };
       }
-      // 4. Captura de Entrada (Texto, Email, Telefone)
-      else if (node.type.startsWith('capture_')) {
-        const promptText = this.interpolateVariables(node.data.prompt || 'Por favor, informe a informação solicitada:', session.variables);
+      // 5. Captura de Dados (Texto, Telefone, E-mail, Número)
+      else if (node.type === 'data_capture' || node.type.startsWith('capture_')) {
+        const promptText = this.interpolateVariables(
+          node.data.promptMessage || node.data.prompt || 'Por favor, informe a informação solicitada:',
+          session.variables
+        );
+
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendText(client, userJid, promptText);
         }
 
         await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { prompt: promptText });
-        events.push({ type: 'capture_prompt', text: promptText, nodeId: node.id });
+        events.push({ type: 'data_capture', text: promptText, nodeId: node.id });
 
-        // Pausa fluxo aguardando resposta em texto
+        // Pausa fluxo aguardando resposta textual do usuário
         await session.update({
           status: 'waiting_input',
-          waitingFor: node.data.variableName || 'input',
+          waitingFor: {
+            type: 'data_capture',
+            variableName: node.data.variableName || 'input',
+            validationType: node.data.validationType || 'text',
+            nodeId: node.id,
+          },
           currentNodeId: node.id,
         });
         return { handled: true, session, events };
       }
-      // 5. Condição Lógica (IF/ELSE)
-      else if (node.type === 'logic_condition') {
+      // 6. Condição / Desvio Lógico (IF / ELSE)
+      else if (node.type === 'condition' || node.type === 'logic_condition') {
         const varName = node.data.variableName || '';
-        const operator = node.data.operator || 'equals';
-        const expectedValue = this.interpolateVariables(node.data.value || '', session.variables);
-        const actualValue = String(session.variables[varName] || '').trim();
+        const operator = node.data.operator || '==';
+        const expectedValue = this.interpolateVariables(
+          String(node.data.expectedValue ?? node.data.value ?? ''),
+          session.variables
+        );
+        const actualValue = String(session.variables[varName] ?? '').trim();
 
         let isTrue = false;
-        if (operator === 'equals') isTrue = actualValue.toLowerCase() === expectedValue.toLowerCase();
-        else if (operator === 'not_equals') isTrue = actualValue.toLowerCase() !== expectedValue.toLowerCase();
-        else if (operator === 'contains') isTrue = actualValue.toLowerCase().includes(expectedValue.toLowerCase());
-        else if (operator === 'greater_than') isTrue = parseFloat(actualValue) > parseFloat(expectedValue);
-        else if (operator === 'less_than') isTrue = parseFloat(actualValue) < parseFloat(expectedValue);
+        if (operator === '==' || operator === 'equals') {
+          isTrue = actualValue.toLowerCase() === expectedValue.toLowerCase();
+        } else if (operator === '!=' || operator === 'not_equals') {
+          isTrue = actualValue.toLowerCase() !== expectedValue.toLowerCase();
+        } else if (operator === 'contains') {
+          isTrue = actualValue.toLowerCase().includes(expectedValue.toLowerCase());
+        } else if (operator === '>' || operator === 'greater_than') {
+          isTrue = parseFloat(actualValue) > parseFloat(expectedValue);
+        } else if (operator === '<' || operator === 'less_than') {
+          isTrue = parseFloat(actualValue) < parseFloat(expectedValue);
+        }
 
         await this.logEvent(session.id, session.flowId, node.id, 'condition_eval', {
           varName,
@@ -378,14 +459,35 @@ export class FlowEngine {
 
         const handle = isTrue ? 'true' : 'false';
         const branchEdge = version.edges.find(
-          (e) => e.source === node.id && (e.sourceHandle === handle || e.label === handle)
+          (e) =>
+            e.source === node.id &&
+            (e.sourceHandle === handle ||
+              e.label?.toLowerCase() === handle ||
+              (isTrue && (e.label?.toLowerCase() === 'sim' || e.label?.toLowerCase() === 'verdadeiro')) ||
+              (!isTrue && (e.label?.toLowerCase() === 'não' || e.label?.toLowerCase() === 'nao' || e.label?.toLowerCase() === 'falso')))
         );
-        currentId = branchEdge ? branchEdge.target : null;
+
+        // Se não houver ramificação explícita, usa a aresta padrão
+        const fallbackEdge = version.edges.find((e) => e.source === node.id && !e.sourceHandle);
+        currentId = branchEdge ? branchEdge.target : fallbackEdge ? fallbackEdge.target : null;
       }
-      // 6. Requisição HTTP Segura (SSRF Protected)
-      else if (node.type === 'integration_http') {
+      // 7. Espera / Atraso (Wait Delay)
+      else if (node.type === 'wait_delay') {
+        const delaySeconds = Math.max(1, Math.min(Number(node.data.delaySeconds || 2), 60));
+        await this.logEvent(session.id, session.flowId, node.id, 'wait_delay', { delaySeconds });
+        events.push({ type: 'wait_delay', delaySeconds, nodeId: node.id });
+
+        if (!isSimulation && process.env.NODE_ENV !== 'test') {
+          await new Promise((resolve) => setTimeout(resolve, Math.min(delaySeconds, 5) * 1000));
+        }
+
+        const nextEdge = version.edges.find((e) => e.source === node.id);
+        currentId = nextEdge ? nextEdge.target : null;
+      }
+      // 8. Requisição HTTP Segura (SSRF & Rebinding Protected)
+      else if (node.type === 'http_request' || node.type === 'integration_http') {
         const rawUrl = this.interpolateVariables(node.data.url || '', session.variables);
-        const method = (node.data.method || 'GET').toUpperCase();
+        const method = (node.data.method || 'POST').toUpperCase();
         const headers = node.data.headers || {};
         let reqBody = node.data.body;
 
@@ -410,11 +512,9 @@ export class FlowEngine {
             durationMs: httpRes.durationMs,
           });
 
-          // Mapeia variáveis de resposta
-          if (node.data.saveResponseVariable) {
-            const variables = { ...session.variables, [node.data.saveResponseVariable]: httpRes.data };
-            await session.update({ variables });
-          }
+          const outVar = node.data.outputVariable || node.data.saveResponseVariable || 'api_response';
+          const variables = { ...session.variables, [outVar]: httpRes.data };
+          await session.update({ variables });
 
           const successEdge = version.edges.find(
             (e) => e.source === node.id && (e.sourceHandle === 'success' || !e.sourceHandle)
@@ -423,41 +523,86 @@ export class FlowEngine {
         } catch (httpErr: any) {
           await this.logEvent(session.id, session.flowId, node.id, 'error', {
             error: httpErr.message,
-            context: 'integration_http',
+            context: 'http_request',
           });
 
           const errorEdge = version.edges.find((e) => e.source === node.id && e.sourceHandle === 'error');
           currentId = errorEdge ? errorEdge.target : null;
         }
       }
-      // 7. Pix Comercial
-      else if (node.type === 'commercial_pix_payment') {
-        const pixKey = node.data.pixKey || 'multivus@zaptroll.local';
-        const amount = this.interpolateVariables(node.data.amount || '0.00', session.variables);
-        const pixText = `💳 *Pagamento via PIX*\nValor: *R$ ${amount}*\n\nChave Pix: \`${pixKey}\`\n\nCopie a chave acima e efetue o pagamento no seu banco.`;
+      // 9. Cobrança Pix Dinâmica
+      else if (node.type === 'pix_charge' || node.type === 'commercial_pix_payment') {
+        const pixKey = this.interpolateVariables(node.data.pixKey || 'multivus@zaptroll.local', session.variables);
+        const amount = this.interpolateVariables(String(node.data.amount || '0.00'), session.variables);
+        const merchant = this.interpolateVariables(node.data.merchantName || 'ZapTroll Store', session.variables);
+
+        const pixText = `💳 *Cobrança PIX - ${merchant}*\nValor: *R$ ${amount}*\n\nChave Pix:\n\`${pixKey}\`\n\nCopie a chave acima e efetue o pagamento no seu aplicativo bancário.`;
 
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendText(client, userJid, pixText);
         }
 
-        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { pixKey, amount });
-        events.push({ type: 'pix_payment', text: pixText, pixKey, amount, nodeId: node.id });
+        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { pixKey, amount, merchant });
+        events.push({ type: 'pix_charge', text: pixText, pixKey, amount, nodeId: node.id });
 
         const nextEdge = version.edges.find((e) => e.source === node.id);
         currentId = nextEdge ? nextEdge.target : null;
       }
-      // 8. Finalização de Fluxo
-      else if (node.type === 'logic_end') {
-        await session.update({ status: 'completed' });
-        await this.logEvent(session.id, session.flowId, node.id, 'flow_end', { reason: 'logic_end' });
-        break;
-      }
-      // 9. Gatilhos (trigger_*)
-      else if (node.type.startsWith('trigger_')) {
+      // 10. Lançador de Jogos Web (DOOM / RPG Arena)
+      else if (node.type === 'game_launcher') {
+        const gameType = node.data.gameType || 'doom_retro';
+        const gameTitle = this.interpolateVariables(
+          node.data.gameTitle || (gameType === 'rpg_arena' ? 'Arena RPG ZapTroll' : 'DOOM Sector Retrô Arcade'),
+          session.variables
+        );
+        const buttonText = this.interpolateVariables(node.data.buttonText || 'Jogar Agora 🚀', session.variables);
+
+        const gameUrl =
+          gameType === 'rpg_arena'
+            ? `${baseUrl}/rpg/batalha/${session.id}?ref=${session.id.slice(0, 8)}`
+            : `${baseUrl}/r/jogos/doom-sector?ref=${session.id.slice(0, 8)}`;
+
+        const messageText = `🎮 *${gameTitle}*\nToque no botão abaixo para abrir o jogo web no navegador móvel ou desktop:`;
+
+        if (client && !isSimulation) {
+          await ZapoMessageAdapter.sendWebview(client, userJid, {
+            bodyText: messageText,
+            buttonText,
+            url: gameUrl,
+            footerText: 'ZapTroll Web Arcade',
+          });
+        }
+
+        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { gameUrl, gameTitle });
+        events.push({ type: 'game_launcher', text: messageText, url: gameUrl, buttonText, nodeId: node.id });
+
         const nextEdge = version.edges.find((e) => e.source === node.id);
         currentId = nextEdge ? nextEdge.target : null;
-      } else {
-        // Nó genérico: avança para o próximo
+      }
+      // 11. Finalização do Atendimento (End Flow)
+      else if (node.type === 'end_flow' || node.type === 'logic_end') {
+        const finalMessage = this.interpolateVariables(node.data.finalMessage || '', session.variables);
+        if (finalMessage) {
+          if (client && !isSimulation) {
+            await ZapoMessageAdapter.sendText(client, userJid, finalMessage);
+          }
+          await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { text: finalMessage });
+          events.push({ type: 'message_text', text: finalMessage, nodeId: node.id });
+        }
+
+        await session.update({ status: 'completed' });
+        await this.logEvent(session.id, session.flowId, node.id, 'flow_end', { reason: 'end_flow' });
+        break;
+      }
+      // 12. Tipo de nó desconhecido ou não registrado
+      else {
+        console.warn(`[FlowEngine] ⚠️ Nó de tipo desconhecido detectado: "${node.type}" (ID: ${node.id}).`);
+        await this.logEvent(session.id, session.flowId, node.id, 'error', {
+          error: `Tipo de nó desconhecido: "${node.type}".`,
+          nodeType: node.type,
+        });
+
+        // Avança pela aresta padrão para não congelar o atendimento
         const nextEdge = version.edges.find((e) => e.source === node.id);
         currentId = nextEdge ? nextEdge.target : null;
       }

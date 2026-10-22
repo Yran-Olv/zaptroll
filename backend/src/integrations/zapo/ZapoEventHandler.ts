@@ -959,14 +959,34 @@ export class ZapoEventHandler {
           }
         }
 
-        // Gatilho Inteligente /ai - Meta AI no Chat (Inspirado em Jobas Fernandes / zapo-interactive-examples)
+        // Gatilho Inteligente /ai e /ia - Meta AI no Chat (Privado, Grupos, Comunidades e Mensagens Próprias)
         const rawCommandText = (caption || message.content || '').trim();
-        if (
-          created &&
-          !fromMe &&
-          (rawCommandText.startsWith('/ai ') || rawCommandText === '/ai')
-        ) {
-          const question = rawCommandText.slice(3).trim() || 'Olá! O que você pode fazer?';
+
+        // Detecta /ai, /ia, !ai, !ia, .ai, .ia, #ai, #ia ou comando avulso 'ai' / 'ia'
+        const isAiTrigger = /^([/!#.\\]\s*(ai|ia)(\s+[\s\S]*|$)|^(ai|ia)$)/i.test(rawCommandText);
+
+        const isBotResponse =
+          rawCommandText === 'Thinking…' ||
+          rawCommandText.startsWith('Thinking') ||
+          rawCommandText.startsWith('🤖') ||
+          rawCommandText.includes('🤖 [Meta AI]');
+
+        if (created && isAiTrigger && !isBotResponse) {
+          let question = rawCommandText.replace(/^([/!#.\\]\s*(ai|ia)|^(ai|ia))\s*/i, '').trim();
+
+          // Se a mensagem citou outra mensagem (em grupos, comunidades ou privado), agrega contexto
+          if (normalizedContextInfo?.quotedText) {
+            if (!question) {
+              question = `Explique ou resuma a seguinte mensagem: "${normalizedContextInfo.quotedText}"`;
+            } else {
+              question = `${question}\n\n[Mensagem citada de ${normalizedContextInfo.quotedSender || 'contato'}]: "${normalizedContextInfo.quotedText}"`;
+            }
+          }
+
+          if (!question) {
+            question = 'Olá! Sou o Meta AI integrado ao ZapTroll. Como posso te ajudar hoje? Posso responder dúvidas, redigir textos, gerar códigos, tabelas ou analisar fotos que você enviar com a legenda /ai ou /ia!';
+          }
+
           setTimeout(async () => {
             try {
               let imageObj: any = undefined;
@@ -980,13 +1000,13 @@ export class ZapoEventHandler {
                 }
               }
 
-              console.log(`[ZapoEventHandler] 🤖 /ai recebido de ${remoteJid}: "${question}"`);
+              console.log(`[ZapoEventHandler] 🤖 Meta AI acionado em ${remoteJid} (fromMe=${fromMe}): "${question}"`);
               await MetaAiService.answerWithAi(client, remoteJid, question, {
                 quote: event,
                 image: imageObj,
               });
             } catch (aiErr: any) {
-              console.error('[ZapoEventHandler] Erro ao responder /ai com Meta AI:', aiErr.message);
+              console.error('[ZapoEventHandler] Erro ao responder Meta AI:', aiErr.message);
             }
           }, 300);
         }

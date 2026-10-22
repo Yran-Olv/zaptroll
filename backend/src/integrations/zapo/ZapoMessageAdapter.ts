@@ -569,6 +569,36 @@ export class ZapoMessageAdapter {
     } as any);
   }
 
+  // 11.1 Send Image
+  static async sendImage(
+    client: WaClient,
+    jid: string,
+    data: { url?: string; media?: Buffer | string; caption?: string; mimetype?: string }
+  ) {
+    const media = data.media || data.url;
+    return client.message.send(jid, {
+      type: 'image',
+      media,
+      caption: data.caption,
+      mimetype: data.mimetype || 'image/jpeg',
+    } as any);
+  }
+
+  // 11.2 Send Video
+  static async sendVideo(
+    client: WaClient,
+    jid: string,
+    data: { url?: string; media?: Buffer | string; caption?: string; mimetype?: string }
+  ) {
+    const media = data.media || data.url;
+    return client.message.send(jid, {
+      type: 'video',
+      media,
+      caption: data.caption,
+      mimetype: data.mimetype || 'video/mp4',
+    } as any);
+  }
+
   // 12. Send Ghost Mention (Menção Fantasma / Invisível)
   static async sendGhostMention(
     client: WaClient,
