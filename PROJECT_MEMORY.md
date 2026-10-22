@@ -3,9 +3,16 @@
 
 ---
 
-## 📍 Sessão Atual (22/10/2026) — 🚀 ZAPTROLL FLOW STUDIO & CORREÇÃO COMPLETA ZAPO
+## 📍 Sessão Atual (22/10/2026) — 🚀 ZAPTROLL FLOW STUDIO, META AI EM QUALQUER LUGAR & CORREÇÃO ZAPO
 
-1. **Zaptroll Flow Studio (Construtor Visual de Fluxos WhatsApp)**:
+1. **Meta AI Integrado em Qualquer Lugar (Privado, Grupos, Comunidades e Chat Consigo Mesmo)**:
+   - Suporte aos gatilhos `/ai`, `/ia`, `!ai`, `!ia`, `.ai`, `.ia`, `#ai`, `#ia` e standalone `ai` / `ia`.
+   - Remoção do bloqueio de `fromMe`: agora funciona mesmo quando o usuário envia os comandos a partir do seu próprio celular conectado (chat de mensagens salvas, testes diretos, ou mensagens enviadas nos grupos).
+   - Inclusão inteligente de contexto citado (`[Mensagem Citada de Contato]: "..."`) quando alguém responde a uma mensagem de texto/imagem/documento com `/ia` ou `/ai`.
+   - Edição in-place com placeholder nativo `Thinking…`, fallback automático para envio de nova mensagem caso a edição seja rejeitada em grupos restritos, e selo oficial de IA em chats diretos 1:1.
+   - Proteção estrita anti-looping de mensagens da IA.
+
+2. **Zaptroll Flow Studio (Construtor Visual de Fluxos WhatsApp)**:
    - Substituição do antigo painel de payloads pelo **Flow Studio completo** inspirado no WA Flow Builder e Typebot.
    - **Canvas Visual Interativo (`FlowCanvas.tsx`)**: nós estilizados com cores por categoria, conexões Bézier SVG dinâmicas, pan, zoom (40% a 200%), arrastar/soltar, duplicar e excluir nós.
    - **Biblioteca com 11 Blocos Tipados**:

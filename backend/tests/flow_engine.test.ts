@@ -125,7 +125,7 @@ describe('FlowEngine — Graph Execution & Variables', () => {
 
     expect(res.handled).toBe(true);
     expect(mockSession.status).toBe('waiting_input');
-    expect(mockSession.waitingFor).toBe('button');
+    expect(mockSession.waitingFor).toEqual(expect.objectContaining({ type: 'button' }));
     expect(mockSession.currentNodeId).toBe('node_btn');
     expect(res.events.length).toBeGreaterThanOrEqual(2);
     expect(res.events[0].text).toBe('Bem-vindo ao teste do simulador!');
@@ -194,5 +194,194 @@ describe('FlowEngine — Graph Execution & Variables', () => {
 
     expect(res.handled).toBe(true);
     expect(res.events.some((e) => e.text === 'Você é maior de idade!')).toBe(true);
+  });
+
+  it('5. executes full end-to-end journey across all unified block types', async () => {
+    // Grafo completo com 10 nós
+    const mockNodes = [
+      {
+        id: 'n_trigger',
+        type: 'trigger_keyword',
+        name: 'Gatilho',
+        position: { x: 0, y: 0 },
+        data: { keywords: ['/iniciar'] },
+      },
+      {
+        id: 'n_msg',
+        type: 'message_text',
+        name: 'Boas-vindas',
+        position: { x: 100, y: 0 },
+        data: { text: 'Olá!' },
+      },
+      {
+        id: 'n_btn',
+        type: 'interactive_buttons',
+        name: 'Opções',
+        position: { x: 200, y: 0 },
+        data: {
+          content: 'O que deseja fazer?',
+          buttons: [
+            { buttonId: 'btn_comprar', displayText: 'Quero Comprar' },
+            { buttonId: 'btn_duvida', displayText: 'Tirar Dúvida' },
+          ],
+        },
+      },
+      {
+        id: 'n_capture',
+        type: 'data_capture',
+        name: 'Captura Nome',
+        position: { x: 300, y: 0 },
+        data: { promptMessage: 'Qual o seu nome?', variableName: 'cliente_nome' },
+      },
+      {
+        id: 'n_wait',
+        type: 'wait_delay',
+        name: 'Espera Curta',
+        position: { x: 400, y: 0 },
+        data: { delaySeconds: 1 },
+      },
+      {
+        id: 'n_pix',
+        type: 'pix_charge',
+        name: 'Cobrança Pix',
+        position: { x: 500, y: 0 },
+        data: { amount: '99.00', pixKey: 'teste@pix.local' },
+      },
+      {
+        id: 'n_game',
+        type: 'game_launcher',
+        name: 'Jogo Arcade',
+        position: { x: 600, y: 0 },
+        data: { gameType: 'doom_retro', gameTitle: 'Doom Retro' },
+      },
+      {
+        id: 'n_end',
+        type: 'end_flow',
+        name: 'Fim',
+        position: { x: 700, y: 0 },
+        data: { finalMessage: 'Atendimento concluído, {{cliente_nome}}!' },
+      },
+    ];
+
+    const mockEdges = [
+      { id: 'e1', source: 'n_trigger', target: 'n_msg' },
+      { id: 'e2', source: 'n_msg', target: 'n_btn' },
+      { id: 'e3', source: 'n_btn', sourceHandle: 'btn_comprar', target: 'n_capture' },
+      { id: 'e4', source: 'n_capture', target: 'n_wait' },
+      { id: 'e5', source: 'n_wait', target: 'n_pix' },
+      { id: 'e6', source: 'n_pix', target: 'n_game' },
+      { id: 'e7', source: 'n_game', target: 'n_end' },
+    ];
+
+    const mockVersion: any = {
+      id: 'ver-e2e',
+      flowId: 'flow-e2e',
+      nodes: mockNodes,
+      edges: mockEdges,
+    };
+
+    const mockSession: any = {
+      id: 'sess-e2e',
+      flowId: 'flow-e2e',
+      flowVersionId: 'ver-e2e',
+      currentNodeId: 'n_trigger',
+      status: 'active',
+      variables: {},
+      stepHistory: [],
+      update: vi.fn().mockImplementation((updates) => {
+        Object.assign(mockSession, updates);
+        return Promise.resolve(mockSession);
+      }),
+    };
+
+    // Passo 1: Disparo a partir do gatilho (avança até o nó de botões e pausa)
+    const step1 = await FlowEngine.resumeSession(
+      mockSession,
+      mockVersion,
+      { connectionId: 'c1', userJid: 'u1@s.wa.net', isSimulation: true },
+      'n_trigger'
+    );
+
+    expect(step1.handled).toBe(true);
+    expect(mockSession.status).toBe('waiting_input');
+    expect(mockSession.currentNodeId).toBe('n_btn');
+
+    // Passo 2: Usuário clica no botão "Quero Comprar" (por texto visível)
+    // Simula a entrada de usuário
+    const step2 = await (FlowEngine as any).handleUserInput(
+      mockSession,
+      mockVersion,
+      { connectionId: 'c1', userJid: 'u1@s.wa.net', userInput: 'Quero Comprar', isSimulation: true }
+    );
+
+    expect(step2.handled).toBe(true);
+    expect(mockSession.status).toBe('waiting_input');
+    expect(mockSession.currentNodeId).toBe('n_capture');
+
+    // Passo 3: Usuário informa o nome "Mariana"
+    const step3 = await (FlowEngine as any).handleUserInput(
+      mockSession,
+      mockVersion,
+      { connectionId: 'c1', userJid: 'u1@s.wa.net', userInput: 'Mariana', isSimulation: true }
+    );
+
+    expect(step3.handled).toBe(true);
+    expect(mockSession.variables.cliente_nome).toBe('Mariana');
+    // Deve ter percorrido wait_delay -> pix_charge -> game_launcher -> end_flow
+    expect(mockSession.status).toBe('completed');
+    expect(step3.events.some((e: any) => e.type === 'pix_charge')).toBe(true);
+    expect(step3.events.some((e: any) => e.type === 'game_launcher')).toBe(true);
+    expect(step3.events.some((e: any) => e.text === 'Atendimento concluído, Mariana!')).toBe(true);
+  });
+
+  it('6. safely logs and skips unknown node types without unhandled crash', async () => {
+    const mockNodes = [
+      {
+        id: 'unknown_1',
+        type: 'alien_quantum_node' as any,
+        name: 'Nó Desconhecido',
+        position: { x: 0, y: 0 },
+        data: {},
+      },
+      {
+        id: 'msg_after',
+        type: 'message_text',
+        name: 'Mensagem',
+        position: { x: 100, y: 0 },
+        data: { text: 'Continuando após desconhecido' },
+      },
+    ];
+
+    const mockEdges = [{ id: 'e1', source: 'unknown_1', target: 'msg_after' }];
+
+    const mockVersion: any = {
+      id: 'ver-unk',
+      flowId: 'flow-unk',
+      nodes: mockNodes,
+      edges: mockEdges,
+    };
+
+    const mockSession: any = {
+      id: 'sess-unk',
+      flowId: 'flow-unk',
+      flowVersionId: 'ver-unk',
+      currentNodeId: 'unknown_1',
+      status: 'active',
+      variables: {},
+      update: vi.fn().mockImplementation((updates) => {
+        Object.assign(mockSession, updates);
+        return Promise.resolve(mockSession);
+      }),
+    };
+
+    const res = await FlowEngine.resumeSession(
+      mockSession,
+      mockVersion,
+      { connectionId: 'c1', userJid: 'u1@s.wa.net', isSimulation: true },
+      'unknown_1'
+    );
+
+    expect(res.handled).toBe(true);
+    expect(res.events.some((e) => e.text === 'Continuando após desconhecido')).toBe(true);
   });
 });

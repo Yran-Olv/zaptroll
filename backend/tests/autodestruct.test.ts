@@ -121,4 +121,51 @@ describe('AutoDestructService Deep Scenarios & Edge Cases', () => {
       AutoDestructService.cancel('conn-bulk', `bulk-msg-${i}`);
     }
   });
+
+  it('8. updates task status to server_ack (not false client confirmed) upon successful revocation', async () => {
+    vi.spyOn(zapoManager, 'getClient').mockReturnValue({} as any);
+    vi.spyOn(ZapoMessageAdapter, 'revokeMessage').mockResolvedValue(true as any);
+
+    const updateSpy = vi.fn().mockResolvedValue(true);
+    vi.spyOn(AutoDestructTask, 'findOne').mockResolvedValue({
+      connectionId: 'conn-ack',
+      stanzaId: 'stanza-ack',
+      targetJid: '5511999999999@s.whatsapp.net',
+      status: 'scheduled',
+      attempts: 0,
+      maxAttempts: 5,
+      update: updateSpy,
+    } as any);
+
+    const result = await AutoDestructService.executeRevoke('conn-ack', 'stanza-ack');
+    expect(result).toBe(true);
+
+    // Verify it updated to server_ack
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'server_ack',
+      })
+    );
+  });
+
+  it('9. recoverPendingTasks restores and executes expired tasks', async () => {
+    const expiredTask = {
+      connectionId: 'conn-recover',
+      stanzaId: 'stanza-expired',
+      targetJid: '5511999999999@s.whatsapp.net',
+      status: 'scheduled',
+      executeAt: new Date(Date.now() - 5000), // Venceu 5s atrás
+    };
+
+    vi.spyOn(AutoDestructTask, 'findAll').mockResolvedValueOnce([expiredTask] as any).mockResolvedValueOnce([]);
+
+    const recoveredCount = await AutoDestructService.recoverPendingTasks();
+    expect(recoveredCount).toBe(1);
+  });
+
+  it('10. manages periodic recovery ticker lifecycle', () => {
+    AutoDestructService.startPeriodicRecovery(10000);
+    // Should stop cleanly
+    AutoDestructService.stopPeriodicRecovery();
+  });
 });
