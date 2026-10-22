@@ -3,9 +3,26 @@
 
 ---
 
-## 📍 Sessão Atual (22/10/2026) — 🚀 ZAPTROLL FLOW STUDIO, ALINHAMENTO DE BLOCOS, SERVER_ACK & TESTES E2E
+## 📍 Sessão Atual (22/10/2026) — 🚀 ZAPTROLL FLOW STUDIO, MULTI-FLUXOS, IMPORT/EXPORT & SUÍTE MESTRE DE TESTES
  
-1. **Alinhamento do Catálogo de Blocos (Frontend & Backend)**:
+1. **Flow Studio com Suporte a Múltiplos Fluxos, Importação/Exportação e Suíte de Testes**:
+   - **Gerenciador de Múltiplos Fluxos**:
+     - Botão `+ Novo Fluxo` destacado no cabeçalho com modal de criação rápida (nome, gatilhos, template inicial e conexão vinculada).
+     - Seletor de fluxos com busca em tempo real (`flowSearchTerm`), clonagem instantânea (`handleDuplicateFlow` via `POST /api/flows/:id/duplicate`) e exclusão segura (`handleDeleteFlow` via `DELETE /api/flows/:id`).
+   - **Importação e Exportação JSON**:
+     - **Exportar (JSON)**: Baixa arquivo `zaptroll_fluxo_{nome}.json` com estrutura completa (nós, conexões, variáveis e gatilhos) e copia para área de transferência.
+     - **Importar (JSON)**: Suporte a upload de arquivo `.json` ou colagem direta no editor com validação sintática, com opções de criar novo fluxo ou sobrescrever o canvas atual.
+   - **Suíte Mestre de Testes (`full_demo_suite`)**:
+     - Template padrão contendo todos os 11 blocos interligados: Gatilho ➔ Mensagem Boas-Vindas ➔ Botões Interativos ➔ Captura de Dados ➔ Condição Lógica ➔ Formulário Web Seguro ➔ Webhook HTTP ➔ Cobrança Pix ➔ Arcade DOOM ➔ Atraso ➔ Encerramento.
+     - Permite homologar 100% dos recursos do Flow Studio em 1 clique.
+   - **Simulador Interativo 100% Funcional**:
+     - Conversor universal de eventos (`convertEventToChatMessage`) exibindo texto, botões clicáveis, formulários com link externo, dados Pix formatados, arcade game launcher e logs em tempo real.
+   - **Configuração de Conexão WhatsApp por Fluxo**:
+     - Seletor no cabeçalho permitindo vincular o fluxo a uma conexão específica (`multivus`) ou mantê-lo global para todas as conexões com salvamento automático.
+   - **Resolução de Conflito de Interface**:
+     - `TrollNotificationToast` reposicionado para `bottom-5 right-5 z-40` e `FlowStudioModal` elevado para `z-[60]`, garantindo que os botões de ação do topo nunca sejam cobertos por alertas.
+
+2. **Alinhamento do Catálogo de Blocos (Frontend & Backend)**:
    - Contrato unificado em `backend/src/modules/flows/types/index.ts` e `frontend/src/types/flows.ts`.
    - Suporte nativo completo no `FlowEngine.ts` para todos os 11 blocos do editor:
      - `trigger_keyword`
