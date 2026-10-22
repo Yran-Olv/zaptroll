@@ -282,4 +282,149 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
       { id: 'eg2', source: 'msg_game_intro', target: 'btn_game' },
     ],
   },
+
+  full_demo_suite: {
+    id: 'full_demo_suite',
+    name: '🧪 Suíte Completa de Testes (Todos os 11 Blocos)',
+    category: 'onboarding',
+    description: 'Fluxo mestre para homologar e testar 100% dos recursos do Flow Studio: gatilhos, mensagens com {{variáveis}}, botões interativos, captura de dados, condições lógicas, formulário web hospedado, chamadas HTTP, cobrança Pix, jogo retrô, atraso e finalização.',
+    triggerKeywords: ['/teste', 'teste', 'demo', 'iniciar', 'menu'],
+    tags: ['Testes', 'Completo', 'Todos os Blocos', 'Homologação'],
+    nodes: [
+      {
+        id: 'node_trg',
+        type: 'trigger_keyword',
+        name: 'Gatilho de Início',
+        position: { x: 50, y: 150 },
+        data: { keywords: ['/teste', 'teste', 'demo', 'iniciar'] },
+      },
+      {
+        id: 'node_welcome',
+        type: 'message_text',
+        name: 'Boas-vindas',
+        position: { x: 320, y: 150 },
+        data: { text: '👋 Olá! Bem-vindo à Suíte de Testes do ZapTroll Flow Studio.\n\nEste fluxo demonstrativo executará todas as 11 funções do motor passo a passo.' },
+      },
+      {
+        id: 'node_buttons',
+        type: 'interactive_buttons',
+        name: 'Menu de Seleção',
+        position: { x: 600, y: 150 },
+        data: {
+          content: 'Selecione como deseja prosseguir com o teste:',
+          header: 'ZapTroll Flow Engine',
+          footer: 'Selecione abaixo',
+          buttons: [
+            { buttonId: 'btn_continuar', displayText: '🚀 Iniciar Teste Completo' },
+            { buttonId: 'btn_pix_direto', displayText: '⚡ Testar Cobrança Pix' },
+          ],
+        },
+      },
+      {
+        id: 'node_capture',
+        type: 'data_capture',
+        name: 'Captura de Nome',
+        position: { x: 920, y: 80 },
+        data: {
+          promptMessage: 'Por favor, digite seu *Nome Completo* para testar a captura de dados e armazenamento em variáveis:',
+          variableName: 'cliente_nome',
+          validationType: 'text',
+        },
+      },
+      {
+        id: 'node_cond',
+        type: 'condition',
+        name: 'Condição Lógica',
+        position: { x: 1220, y: 80 },
+        data: {
+          variableName: 'cliente_nome',
+          operator: 'exists',
+          expectedValue: '',
+        },
+      },
+      {
+        id: 'node_form',
+        type: 'hosted_page_button',
+        name: 'Formulário Web Seguro',
+        position: { x: 1520, y: 80 },
+        data: {
+          content: 'Excelente, {{cliente_nome}}! Agora abra o Formulário Web Hospedado para testar o envio de dados externos:',
+          buttonText: '📝 Preencher Formulário Seguro',
+          schema: {
+            title: 'Cadastro de Homologação ZapTroll',
+            fields: [
+              { id: 'email', label: 'E-mail de Contato', type: 'email', required: true },
+              { id: 'cidade', label: 'Sua Cidade', type: 'text', required: true },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node_http',
+        type: 'http_request',
+        name: 'Integração Webhook HTTP',
+        position: { x: 1840, y: 80 },
+        data: {
+          url: 'https://httpbin.org/get',
+          method: 'GET',
+          saveResponseToVariable: 'api_info',
+        },
+      },
+      {
+        id: 'node_pix',
+        type: 'pix_charge',
+        name: 'Cobrança Pix Dinâmica',
+        position: { x: 2160, y: 80 },
+        data: {
+          amount: '15.00',
+          pixKey: 'contato@multivus.com.br',
+          messageTemplate: '💳 *Cobrança Pix de Homologação*: R$ {{amount}}\nChave: {{pixKey}}\n\n(Valor demonstrativo gerado pelo motor)',
+        },
+      },
+      {
+        id: 'node_game',
+        type: 'game_launcher',
+        name: 'Lançador de Jogo Retrô',
+        position: { x: 2480, y: 80 },
+        data: {
+          message: '🕹️ *Hora da Diversão!* Toque no botão para abrir o jogo retrô DOOM no navegador responsivo:',
+          buttonText: '🎮 Jogar DOOM Retrô Arcade',
+          gameId: 'retro-doom',
+        },
+      },
+      {
+        id: 'node_delay',
+        type: 'wait_delay',
+        name: 'Atraso Inteligente',
+        position: { x: 2800, y: 80 },
+        data: {
+          delaySeconds: 2,
+          delayUnit: 'seconds',
+        },
+      },
+      {
+        id: 'node_end',
+        type: 'end_flow',
+        name: 'Finalizar Atendimento',
+        position: { x: 3100, y: 80 },
+        data: {
+          finalMessage: '🏁 *Teste Concluído com Sucesso!*\nTodos os 11 blocos do ZapTroll Flow Studio foram testados e executados com integridade. Parabéns, {{cliente_nome}}!',
+        },
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'node_trg', target: 'node_welcome' },
+      { id: 'e2', source: 'node_welcome', target: 'node_buttons' },
+      { id: 'e3', source: 'node_buttons', sourceHandle: 'btn_continuar', target: 'node_capture' },
+      { id: 'e4', source: 'node_buttons', sourceHandle: 'btn_pix_direto', target: 'node_pix' },
+      { id: 'e5', source: 'node_capture', target: 'node_cond' },
+      { id: 'e6', source: 'node_cond', sourceHandle: 'yes', target: 'node_form' },
+      { id: 'e7', source: 'node_form', target: 'node_http' },
+      { id: 'e8', source: 'node_http', target: 'node_pix' },
+      { id: 'e9', source: 'node_pix', target: 'node_game' },
+      { id: 'e10', source: 'node_game', target: 'node_delay' },
+      { id: 'e11', source: 'node_delay', target: 'node_end' },
+    ],
+  },
 };
+

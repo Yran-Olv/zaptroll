@@ -26,6 +26,7 @@ router.put('/:id', FlowController.saveVersion);
 router.post('/:id/versions', FlowController.saveVersion);
 router.post('/:id/publish', FlowController.publish);
 router.post('/:id/unpublish', FlowController.unpublish);
+router.post('/:id/duplicate', FlowController.duplicate);
 router.delete('/:id', FlowController.delete);
 
 export default router;

@@ -241,6 +241,49 @@ export class FlowController {
     }
   }
 
+  // Duplicate Flow
+  static async duplicate(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const flow = await Flow.findOne({
+        where: { id, userId: req.user!.id },
+      });
+
+      if (!flow) {
+        res.status(404).json({ error: 'Fluxo não encontrado.' });
+        return;
+      }
+
+      const latestVersion = await FlowVersion.findOne({
+        where: { flowId: flow.id },
+        order: [['version', 'DESC']],
+      });
+
+      const duplicatedFlow = await Flow.create({
+        userId: req.user!.id,
+        name: `${flow.name} (Cópia)`,
+        description: flow.description,
+        status: 'draft',
+        currentVersion: 1,
+        triggerKeywords: flow.triggerKeywords ? [...flow.triggerKeywords] : ['/inicio'],
+        connectionId: flow.connectionId,
+      });
+
+      const duplicatedVersion = await FlowVersion.create({
+        flowId: duplicatedFlow.id,
+        version: 1,
+        nodes: latestVersion ? JSON.parse(JSON.stringify(latestVersion.nodes)) : [],
+        edges: latestVersion ? JSON.parse(JSON.stringify(latestVersion.edges)) : [],
+        variables: latestVersion ? JSON.parse(JSON.stringify(latestVersion.variables)) : [],
+        isPublished: false,
+      });
+
+      res.status(201).json({ flow: duplicatedFlow, version: duplicatedVersion });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   // 8. Run Flow Simulator Step
   static async simulate(req: AuthRequest, res: Response): Promise<void> {
     try {

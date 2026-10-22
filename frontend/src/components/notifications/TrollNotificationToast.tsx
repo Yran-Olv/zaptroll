@@ -84,7 +84,7 @@ export const TrollNotificationToast: React.FC<TrollNotificationToastProps> = ({
   if (!notification) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100vw-2rem)] animate-in slide-in-from-top-3 fade-in duration-300">
+    <div className="fixed bottom-5 right-5 z-40 max-w-sm w-[calc(100vw-2rem)] animate-in slide-in-from-bottom-3 fade-in duration-300">
       <div
         onClick={() => onOpenConversation(notification.conversationId)}
         className="group relative bg-[#131722]/95 backdrop-blur-2xl border-2 border-[#39ff14] rounded-2xl shadow-[0_0_30px_rgba(57,255,20,0.35)] p-3.5 cursor-pointer overflow-hidden transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(57,255,20,0.5)]"

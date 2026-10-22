@@ -71,6 +71,111 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   };
 
+  // Conversor universal de eventos do FlowEngine para mensagens do simulador
+  const convertEventToChatMessage = (ev: any): ChatMessage | null => {
+    const eventType = ev.type || ev.eventType;
+    const nodeId = ev.nodeId;
+    const timestamp = new Date().toLocaleTimeString();
+
+    if (eventType === 'message_text') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.text || ev.payload?.text,
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'interactive_buttons') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.text || ev.payload?.text || 'Escolha uma das opções abaixo:',
+        buttons: ev.buttons || ev.payload?.buttons || [],
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'data_capture') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: `📥 ${ev.prompt || ev.payload?.prompt || 'Por favor, digite a informação solicitada:'}`,
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'hosted_page_button') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.text || ev.payload?.text,
+        formUrl: ev.url || ev.payload?.url,
+        formTitle: ev.buttonText || ev.payload?.buttonText || 'Formulário Seguro',
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'pix_charge') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.text || ev.payload?.text,
+        pixData: {
+          key: ev.pixKey || ev.payload?.pixKey || '',
+          amount: ev.amount || ev.payload?.amount || '',
+          qrCode: ev.qrCode || ev.payload?.qrCode || '',
+        },
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'game_launcher') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.text || ev.payload?.text,
+        formUrl: ev.url || ev.payload?.url,
+        formTitle: ev.buttonText || ev.payload?.buttonText || '🎮 Jogar Agora',
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (eventType === 'message_media') {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: `${ev.caption ? `${ev.caption}\n` : ''}[Mídia ${ev.mediaType || 'arquivo'}: ${ev.mediaUrl}]`,
+        timestamp,
+        nodeId,
+      };
+    }
+
+    if (ev.payload?.text || ev.payload?.content) {
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sender: 'bot',
+        text: ev.payload.text || ev.payload.content,
+        buttons: ev.payload.buttons,
+        formUrl: ev.payload.url,
+        formTitle: ev.payload.title || ev.payload.buttonText,
+        pixData: ev.payload.pixKey
+          ? { key: ev.payload.pixKey, amount: ev.payload.amount, qrCode: ev.payload.qrCode }
+          : undefined,
+        timestamp,
+        nodeId,
+      };
+    }
+
+    return null;
+  };
+
   // Start or reset session
   const startSimulation = async () => {
     try {
@@ -101,22 +206,9 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
       if (events && Array.isArray(events)) {
         const newMsgs: ChatMessage[] = [];
         for (const ev of events) {
-          addLog(`Evento ${ev.eventType}: Nó ${ev.nodeId}`);
-          if (ev.eventType === 'message_sent' && ev.payload) {
-            newMsgs.push({
-              id: `msg_${Date.now()}_${Math.random()}`,
-              sender: 'bot',
-              text: ev.payload.text || ev.payload.content,
-              buttons: ev.payload.buttons,
-              formUrl: ev.payload.url,
-              formTitle: ev.payload.title,
-              pixData: ev.payload.pixKey
-                ? { key: ev.payload.pixKey, amount: ev.payload.amount, qrCode: ev.payload.qrCode }
-                : undefined,
-              timestamp: new Date().toLocaleTimeString(),
-              nodeId: ev.nodeId,
-            });
-          }
+          addLog(`[${ev.type || ev.eventType}] Nó: ${ev.nodeId || 'N/A'}`);
+          const msg = convertEventToChatMessage(ev);
+          if (msg) newMsgs.push(msg);
         }
         setMessages(newMsgs);
       }
@@ -167,22 +259,9 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
       if (events && Array.isArray(events)) {
         const newMsgs: ChatMessage[] = [];
         for (const ev of events) {
-          addLog(`Evento ${ev.eventType}: Nó ${ev.nodeId}`);
-          if (ev.eventType === 'message_sent' && ev.payload) {
-            newMsgs.push({
-              id: `msg_${Date.now()}_${Math.random()}`,
-              sender: 'bot',
-              text: ev.payload.text || ev.payload.content,
-              buttons: ev.payload.buttons,
-              formUrl: ev.payload.url,
-              formTitle: ev.payload.title,
-              pixData: ev.payload.pixKey
-                ? { key: ev.payload.pixKey, amount: ev.payload.amount, qrCode: ev.payload.qrCode }
-                : undefined,
-              timestamp: new Date().toLocaleTimeString(),
-              nodeId: ev.nodeId,
-            });
-          }
+          addLog(`[${ev.type || ev.eventType}] Nó: ${ev.nodeId || 'N/A'}`);
+          const msg = convertEventToChatMessage(ev);
+          if (msg) newMsgs.push(msg);
         }
         setMessages((prev) => [...prev, ...newMsgs]);
       }

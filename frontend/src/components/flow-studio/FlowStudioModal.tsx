@@ -27,6 +27,13 @@ import {
   QrCode,
   Gamepad2,
   CheckCircle,
+  Download,
+  Upload,
+  Copy,
+  Trash2,
+  Search,
+  FileJson,
+  Check,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Flow, FlowVersion, FlowNode, FlowEdge, FlowNodeType } from '../../types/flows.js';
@@ -209,6 +216,23 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
   const [publishing, setPublishing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Multi-Flow Creation State
+  const [showCreateFlowModal, setShowCreateFlowModal] = useState(false);
+  const [newFlowName, setNewFlowName] = useState('');
+  const [newFlowKeywords, setNewFlowKeywords] = useState('/inicio, menu');
+  const [newFlowTemplate, setNewFlowTemplate] = useState('full_demo_suite');
+  const [newFlowConnectionId, setNewFlowConnectionId] = useState('');
+  const [creatingFlow, setCreatingFlow] = useState(false);
+
+  // Search filter for flows
+  const [flowSearchTerm, setFlowSearchTerm] = useState('');
+
+  // Import / Export JSON State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [importAsNew, setImportAsNew] = useState(true);
+  const [importError, setImportError] = useState<string | null>(null);
+
   // Save history state
   const pushHistory = (newNodes: FlowNode[], newEdges: FlowEdge[]) => {
     const updated = history.slice(0, historyIndex + 1);
@@ -232,11 +256,215 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
       if (flows.length > 0) {
         loadFlowDetails(flows[0].id);
       } else {
-        // Instantiate default template if user has none
-        handleInstantiateTemplate('welcome_menu');
+        // Instantiate master test demo suite if user has none
+        handleInstantiateTemplate('full_demo_suite');
       }
     } catch (err) {
       console.error('Erro ao carregar fluxos:', err);
+    }
+  };
+
+  // Create brand new flow
+  const handleCreateNewFlow = async () => {
+    if (!newFlowName.trim()) {
+      alert('Por favor, informe o nome do fluxo.');
+      return;
+    }
+    try {
+      setCreatingFlow(true);
+      const keywords = newFlowKeywords
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      const payload: any = {
+        name: newFlowName.trim(),
+        triggerKeywords: keywords.length > 0 ? keywords : ['/inicio'],
+        connectionId: newFlowConnectionId || null,
+      };
+
+      if (newFlowTemplate && newFlowTemplate !== 'blank') {
+        payload.templateId = newFlowTemplate;
+      }
+
+      const res = await api.post('/flows', payload);
+      const { flow, version } = res.data;
+
+      setFlowsList((prev) => [flow, ...prev]);
+      setCurrentFlow(flow);
+      setCurrentVersion(version);
+      setNodes(version.nodes || []);
+      setEdges(version.edges || []);
+      setSelectedNodeId(null);
+      setHistory([{ nodes: version.nodes || [], edges: version.edges || [] }]);
+      setHistoryIndex(0);
+
+      setShowCreateFlowModal(false);
+      setNewFlowName('');
+      showToast(`✓ Fluxo "${flow.name}" criado com sucesso!`);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao criar fluxo.');
+    } finally {
+      setCreatingFlow(false);
+    }
+  };
+
+  // Duplicate an existing flow
+  const handleDuplicateFlow = async (flowId: string) => {
+    try {
+      const res = await api.post(`/flows/${flowId}/duplicate`);
+      const { flow, version } = res.data;
+      setFlowsList((prev) => [flow, ...prev]);
+      setCurrentFlow(flow);
+      setCurrentVersion(version);
+      setNodes(version.nodes || []);
+      setEdges(version.edges || []);
+      setSelectedNodeId(null);
+      setHistory([{ nodes: version.nodes || [], edges: version.edges || [] }]);
+      setHistoryIndex(0);
+      setShowFlowsMenu(false);
+      showToast(`✓ Fluxo duplicado: "${flow.name}"`);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao duplicar fluxo.');
+    }
+  };
+
+  // Delete flow
+  const handleDeleteFlow = async (flowId: string, flowName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o fluxo "${flowName}"? Esta ação removerá versões e histórico de execução associados.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/flows/${flowId}`);
+      const updatedList = flowsList.filter((f) => f.id !== flowId);
+      setFlowsList(updatedList);
+      showToast(`Fluxo "${flowName}" excluído.`);
+      setShowFlowsMenu(false);
+      if (currentFlow?.id === flowId) {
+        if (updatedList.length > 0) {
+          loadFlowDetails(updatedList[0].id);
+        } else {
+          handleInstantiateTemplate('full_demo_suite');
+        }
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao excluir fluxo.');
+    }
+  };
+
+  // Export flow as JSON file and clipboard
+  const handleExportJson = () => {
+    if (!currentFlow) return;
+    try {
+      const flowExportData = {
+        name: currentFlow.name,
+        description: currentFlow.description || '',
+        triggerKeywords: currentFlow.triggerKeywords || [],
+        connectionId: currentFlow.connectionId || null,
+        nodes,
+        edges,
+        version: currentVersion?.version || 1,
+        exportedAt: new Date().toISOString(),
+        zaptrollVersion: '1.10.0',
+      };
+
+      const jsonStr = JSON.stringify(flowExportData, null, 2);
+
+      // Download file
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = currentFlow.name.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+      link.href = url;
+      link.download = `zaptroll_fluxo_${safeName}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Copy to clipboard
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(jsonStr).catch(() => {});
+      }
+
+      showToast(`✓ Fluxo "${currentFlow.name}" exportado (.json baixado e copiado)!`);
+    } catch (err: any) {
+      alert('Erro ao exportar fluxo: ' + err.message);
+    }
+  };
+
+  // Read uploaded JSON file
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setImportJsonText(content);
+      setImportError(null);
+    };
+    reader.readAsText(file);
+  };
+
+  // Import flow from JSON
+  const handleImportJson = async () => {
+    setImportError(null);
+    try {
+      if (!importJsonText.trim()) {
+        setImportError('Por favor, cole o código JSON ou selecione um arquivo válido.');
+        return;
+      }
+
+      const parsed = JSON.parse(importJsonText);
+      if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+        setImportError('Estrutura inválida: o JSON precisa conter as propriedades "nodes" e "edges" como listas.');
+        return;
+      }
+
+      if (importAsNew) {
+        // Criar como novo fluxo no banco
+        const flowName = parsed.name ? `${parsed.name} (Importado)` : 'Novo Fluxo Importado';
+        const res = await api.post('/flows', {
+          name: flowName,
+          description: parsed.description || 'Importado via arquivo JSON',
+          triggerKeywords: parsed.triggerKeywords || ['/inicio'],
+          connectionId: parsed.connectionId || null,
+        });
+
+        const { flow } = res.data;
+        const vRes = await api.put(`/flows/${flow.id}`, {
+          nodes: parsed.nodes,
+          edges: parsed.edges,
+          name: flow.name,
+          triggerKeywords: flow.triggerKeywords,
+          connectionId: flow.connectionId,
+        });
+
+        setFlowsList((prev) => [flow, ...prev]);
+        setCurrentFlow(flow);
+        setCurrentVersion(vRes.data.version);
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+        setSelectedNodeId(null);
+        setHistory([{ nodes: parsed.nodes, edges: parsed.edges }]);
+        setHistoryIndex(0);
+
+        setShowImportModal(false);
+        setImportJsonText('');
+        showToast(`✓ Novo fluxo "${flow.name}" importado e salvo com sucesso!`);
+      } else {
+        // Substituir nós e conexões no fluxo atual
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+        setSelectedNodeId(null);
+        pushHistory(parsed.nodes, parsed.edges);
+
+        setShowImportModal(false);
+        setImportJsonText('');
+        showToast('✓ Nós e conexões importados no canvas atual! Clique em "Salvar" para gravar no banco.');
+      }
+    } catch (err: any) {
+      setImportError(`Erro de sintaxe JSON: ${err.message}`);
     }
   };
 
@@ -387,7 +615,7 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0b0e14] text-white select-none animate-in fade-in">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-[#0b0e14] text-white select-none animate-in fade-in">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#161922] border border-[#39ff14] text-[#39ff14] px-4 py-2 rounded-2xl shadow-[0_0_30px_rgba(57,255,20,0.4)] text-xs font-mono font-bold animate-in fade-in">
@@ -396,14 +624,14 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
       )}
 
       {/* TOP HEADER BAR */}
-      <header className="h-14 bg-[#11141c] border-b border-white/10 px-4 flex items-center justify-between shrink-0 z-30">
+      <header className="h-14 bg-[#11141c] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between shrink-0 z-30 gap-2 overflow-x-auto no-scrollbar">
         {/* Left: Brand & Flow Selector */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#161922] border border-[#39ff14]/40 flex items-center justify-center text-[#39ff14] shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+            <div className="w-8 h-8 rounded-xl bg-[#161922] border border-[#39ff14]/40 flex items-center justify-center text-[#39ff14] shadow-[0_0_15px_rgba(57,255,20,0.2)] shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="text-xs font-black font-mono tracking-wider text-white">
                 FLOW STUDIO
               </h1>
@@ -415,53 +643,131 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
 
           <div className="h-6 w-px bg-white/10 mx-1 hidden sm:block" />
 
-          {/* Current Flow Menu */}
+          {/* Current Flow Menu & Selector */}
           <div className="relative">
             <button
               onClick={() => setShowFlowsMenu(!showFlowsMenu)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-medium text-white transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-medium text-white transition-all max-w-[150px] sm:max-w-[200px]"
+              title="Gerenciar e Alternar entre Fluxos"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-gray-400" />
-              <span className="truncate max-w-[130px] sm:max-w-[200px]">
+              <FolderOpen className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span className="truncate">
                 {currentFlow ? currentFlow.name : 'Selecione um fluxo...'}
               </span>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+              <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
             </button>
 
             {showFlowsMenu && (
-              <div className="absolute left-0 top-11 w-64 bg-[#161922] border border-white/10 rounded-2xl shadow-2xl p-2 z-50">
-                <div className="px-3 py-1.5 text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-                  Meus Fluxos Salvos
+              <div className="absolute left-0 top-11 w-72 bg-[#161922] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in">
+                <div className="p-1 mb-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      value={flowSearchTerm}
+                      onChange={(e) => setFlowSearchTerm(e.target.value)}
+                      placeholder="Filtrar meus fluxos..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-[#0b0e14] border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#39ff14]/50 font-mono"
+                    />
+                  </div>
                 </div>
-                <div className="max-h-60 overflow-y-auto space-y-1">
-                  {flowsList.map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => {
-                        loadFlowDetails(f.id);
-                        setShowFlowsMenu(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-all ${
-                        currentFlow?.id === f.id
-                          ? 'bg-[#39ff14]/10 text-[#39ff14] font-bold'
-                          : 'text-gray-300 hover:bg-white/5'
-                      }`}
-                    >
-                      <span className="truncate">{f.name}</span>
-                      <span className="text-[10px] font-mono opacity-60">
-                        {f.status === 'published' ? '● Ativo' : 'Rascunho'}
-                      </span>
-                    </button>
-                  ))}
+
+                <div className="px-2 py-1 text-[10px] font-mono text-gray-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Fluxos Salvos ({flowsList.length})</span>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-1 my-1">
+                  {flowsList
+                    .filter((f) =>
+                      f.name.toLowerCase().includes(flowSearchTerm.toLowerCase())
+                    )
+                    .map((f) => (
+                      <div
+                        key={f.id}
+                        className={`group px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${
+                          currentFlow?.id === f.id
+                            ? 'bg-[#39ff14]/15 border border-[#39ff14]/30 text-white font-bold'
+                            : 'text-gray-300 hover:bg-white/5'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            loadFlowDetails(f.id);
+                            setShowFlowsMenu(false);
+                          }}
+                          className="flex-1 text-left truncate flex items-center gap-1.5 mr-2"
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              f.status === 'published' ? 'bg-emerald-400' : 'bg-amber-400'
+                            }`}
+                          />
+                          <span className="truncate">{f.name}</span>
+                        </button>
+
+                        <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100">
+                          {/* Botão Duplicar */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicateFlow(f.id);
+                            }}
+                            className="p-1 text-gray-400 hover:text-cyan-300 hover:bg-white/10 rounded-lg transition"
+                            title="Duplicar este fluxo"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          {/* Botão Excluir */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFlow(f.id, f.name);
+                            }}
+                            className="p-1 text-gray-400 hover:text-rose-400 hover:bg-white/10 rounded-lg transition"
+                            title="Excluir este fluxo"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="pt-2 border-t border-white/10 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFlowsMenu(false);
+                      setShowCreateFlowModal(true);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-[#39ff14]/10 hover:bg-[#39ff14]/20 border border-[#39ff14]/30 text-[#39ff14] text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Criar Novo Fluxo</span>
+                  </button>
                 </div>
               </div>
             )}
           </div>
 
+          {/* Quick "+ Novo Fluxo" button in header */}
+          <button
+            type="button"
+            onClick={() => setShowCreateFlowModal(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1 transition shadow-sm"
+            title="Criar um Novo Fluxo para o WhatsApp"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Novo</span>
+          </button>
+
           {/* Status Badge */}
           {currentFlow && (
             <span
-              className={`hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+              className={`hidden lg:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
                 currentFlow.status === 'published'
                   ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
                   : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
@@ -479,8 +785,49 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
           )}
         </div>
 
-        {/* Center / Right: Undo/Redo & Actions */}
-        <div className="flex items-center gap-2">
+        {/* Center: Conexão Vinculada & Undo/Redo */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Conexão WhatsApp selector */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#161922] border border-white/10 text-xs shadow-sm">
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="text-[10px] font-mono text-gray-400 hidden xl:inline">Conexão:</span>
+            <select
+              value={currentFlow?.connectionId || ''}
+              onChange={async (e) => {
+                const newConnId = e.target.value || null;
+                if (!currentFlow) return;
+                try {
+                  const res = await api.put(`/flows/${currentFlow.id}`, {
+                    nodes,
+                    edges,
+                    name: currentFlow.name,
+                    triggerKeywords: currentFlow.triggerKeywords,
+                    connectionId: newConnId,
+                  });
+                  setCurrentFlow(res.data.flow);
+                  showToast(
+                    newConnId
+                      ? '✓ Fluxo vinculado exclusivamente a esta conexão!'
+                      : '✓ Fluxo vinculado a Todas as Conexões WhatsApp!'
+                  );
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+              className="bg-transparent text-gray-200 text-xs font-mono focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[140px] truncate"
+              title="Vincular este fluxo a uma conexão específica ou torná-lo global"
+            >
+              <option value="" className="bg-[#161922] text-gray-300">
+                🌐 Todas as Conexões
+              </option>
+              {connections.map((conn) => (
+                <option key={conn.id} value={conn.id} className="bg-[#161922] text-emerald-300">
+                  🟢 {conn.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Undo / Redo */}
           <div className="hidden lg:flex items-center gap-1 bg-[#161922] border border-white/10 rounded-xl p-1">
             <button
@@ -500,23 +847,51 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
               <Redo2 className="w-3.5 h-3.5" />
             </button>
           </div>
+        </div>
+
+        {/* Right: Actions, Import/Export, Templates, Test & Publish */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Import JSON */}
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all"
+            title="Importar Fluxo em formato JSON"
+          >
+            <Upload className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Importar</span>
+          </button>
+
+          {/* Export JSON */}
+          <button
+            type="button"
+            onClick={handleExportJson}
+            disabled={!currentFlow}
+            className="px-2.5 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all disabled:opacity-40"
+            title="Exportar Fluxo completo em arquivo JSON e copiar código"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
 
           {/* Templates Button */}
           <button
             onClick={() => setShowTemplates(true)}
-            className="px-3 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all"
+            className="px-2.5 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all"
+            title="Abrir biblioteca de modelos prontos"
           >
             <LayoutTemplate className="w-3.5 h-3.5 text-[#39ff14]" />
-            <span className="hidden sm:inline">Modelos Prontos</span>
+            <span className="hidden md:inline">Modelos</span>
           </button>
 
           {/* Diagnostics Button */}
           <button
             onClick={() => setShowDiagnostics(true)}
-            className="px-3 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all"
+            className="px-2.5 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-white/20 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-1.5 transition-all"
+            title="Matriz de compatibilidade Zapo"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">Matriz Zapo</span>
+            <span className="hidden md:inline">Matriz</span>
           </button>
 
           {/* Save Version */}
@@ -524,16 +899,18 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
             onClick={handleSave}
             disabled={saving || !currentFlow}
             className="px-3 py-1.5 rounded-xl bg-[#161922] border border-white/10 hover:border-[#39ff14]/40 text-xs font-mono text-gray-200 hover:text-white flex items-center gap-1.5 transition-all disabled:opacity-50"
+            title="Salvar alterações no banco PostgreSQL"
           >
             <Save className="w-3.5 h-3.5 text-emerald-400" />
             <span>{saving ? 'Salvando...' : 'Salvar'}</span>
           </button>
 
-          {/* Simulator Test */}
+          {/* Simulator Test (Prominent Button) */}
           <button
             onClick={() => setShowSimulator(true)}
             disabled={!currentFlow || !currentVersion}
-            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-[0_0_15px_rgba(37,99,235,0.3)] transition-all"
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-[1.02]"
+            title="Testar fluxo em tempo real no Simulador Interativo"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Testar Fluxo</span>
@@ -548,9 +925,12 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
                 ? 'bg-amber-600/30 border border-amber-500/40 text-amber-300 hover:bg-amber-600/50'
                 : 'bg-[#39ff14] hover:bg-[#32e012] text-black shadow-[0_0_20px_rgba(57,255,20,0.3)]'
             }`}
+            title="Publicar e ativar fluxo no WhatsApp ou reverter para rascunho"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>{currentFlow?.status === 'published' ? 'Despublicar' : 'Publicar'}</span>
+            <span className="hidden sm:inline">
+              {currentFlow?.status === 'published' ? 'Despublicar' : 'Publicar'}
+            </span>
           </button>
 
           <div className="h-6 w-px bg-white/10 mx-1" />
@@ -559,6 +939,7 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+            title="Fechar Flow Studio"
           >
             <X className="w-5 h-5" />
           </button>
@@ -676,6 +1057,221 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
           isOpen={showDiagnostics}
           onClose={() => setShowDiagnostics(false)}
         />
+      )}
+
+      {/* 4. MODAL CRIAR NOVO FLUXO */}
+      {showCreateFlowModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161922] border border-[#2a3346] w-full max-w-lg rounded-3xl shadow-2xl p-6 overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-[#39ff14]/10 border border-[#39ff14]/30 text-[#39ff14]">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold font-mono text-white">Criar Novo Fluxo</h2>
+                  <p className="text-[11px] text-gray-400">Configure um novo fluxo automatizado para o WhatsApp</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateFlowModal(false)}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              <div>
+                <label className="block text-gray-300 mb-1 font-bold">Nome do Fluxo *</label>
+                <input
+                  type="text"
+                  value={newFlowName}
+                  onChange={(e) => setNewFlowName(e.target.value)}
+                  placeholder="Ex: Atendimento Suporte VIP, Vendas Delivery..."
+                  className="w-full px-3 py-2 bg-[#0b0e14] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#39ff14]"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 mb-1">Palavras-chave de Gatilho (separadas por vírgula)</label>
+                <input
+                  type="text"
+                  value={newFlowKeywords}
+                  onChange={(e) => setNewFlowKeywords(e.target.value)}
+                  placeholder="Ex: /inicio, /suporte, oi, cardapio"
+                  className="w-full px-3 py-2 bg-[#0b0e14] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#39ff14]"
+                />
+                <span className="text-[10px] text-gray-500 mt-0.5 block">
+                  Quando o cliente enviar alguma dessas palavras, este fluxo será disparado.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 mb-1">Estrutura Inicial / Modelo</label>
+                <select
+                  value={newFlowTemplate}
+                  onChange={(e) => setNewFlowTemplate(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b0e14] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#39ff14]"
+                >
+                  <option value="full_demo_suite">🧪 Suíte Completa de Testes (Todos os 11 Blocos) - Recomendado</option>
+                  <option value="welcome_menu">👋 Atendimento & Menu de Opções</option>
+                  <option value="order_delivery_form">📦 Pedido Comercial com Formulário Web</option>
+                  <option value="pix_checkout">💳 Checkout de Pagamento Pix com QR Code</option>
+                  <option value="doom_game">🕹️ Arcade Retrô DOOM no Navegador</option>
+                  <option value="rpg_arena">⚔️ Arena RPG Parlamentar</option>
+                  <option value="blank">📄 Em Branco (Apenas Gatilho e Mensagem)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 mb-1">Conexão WhatsApp Vinculada</label>
+                <select
+                  value={newFlowConnectionId}
+                  onChange={(e) => setNewFlowConnectionId(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0b0e14] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#39ff14]"
+                >
+                  <option value="">🌐 Todas as Conexões WhatsApp (Global)</option>
+                  {connections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      🟢 {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-5 border-t border-white/10 mt-5 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setShowCreateFlowModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateNewFlow}
+                disabled={creatingFlow || !newFlowName.trim()}
+                className="px-4 py-2 rounded-xl bg-[#39ff14] hover:bg-[#32e012] text-black font-bold flex items-center gap-1.5 shadow-[0_0_20px_rgba(57,255,20,0.3)] transition disabled:opacity-40"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{creatingFlow ? 'Criando...' : 'Criar Fluxo'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL IMPORTAR FLUXO JSON */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161922] border border-[#2a3346] w-full max-w-xl rounded-3xl shadow-2xl p-6 overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold font-mono text-white">Importar Fluxo JSON</h2>
+                  <p className="text-[11px] text-gray-400">Carregue um arquivo .json ou cole a estrutura do fluxo</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs font-mono">
+              {/* File Upload Option */}
+              <div className="p-4 border-2 border-dashed border-white/10 hover:border-cyan-500/50 rounded-2xl bg-[#0b0e14] text-center transition">
+                <FileJson className="w-8 h-8 text-cyan-400 mx-auto mb-2 opacity-80" />
+                <label className="cursor-pointer text-cyan-300 hover:text-cyan-200 font-bold block mb-1">
+                  Clique aqui para selecionar arquivo .json
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                <span className="text-[10px] text-gray-500">Ou cole o conteúdo JSON na área abaixo</span>
+              </div>
+
+              {/* Textarea for JSON code */}
+              <div>
+                <label className="block text-gray-300 mb-1">Código JSON do Fluxo</label>
+                <textarea
+                  value={importJsonText}
+                  onChange={(e) => {
+                    setImportJsonText(e.target.value);
+                    setImportError(null);
+                  }}
+                  rows={6}
+                  placeholder='{"name": "Meu Fluxo", "nodes": [...], "edges": [...]}'
+                  className="w-full px-3 py-2 bg-[#0b0e14] border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-400 font-mono text-[11px]"
+                />
+              </div>
+
+              {importError && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {/* Mode Selection */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                <span className="text-gray-300 font-bold block">Como deseja aplicar o fluxo?</span>
+                <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={importAsNew}
+                    onChange={() => setImportAsNew(true)}
+                    className="text-[#39ff14] focus:ring-0"
+                  />
+                  <span>Criar como um <b>Novo Fluxo</b> independente no banco</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={!importAsNew}
+                    onChange={() => setImportAsNew(false)}
+                    className="text-[#39ff14] focus:ring-0"
+                  />
+                  <span>Substituir nós e conexões no <b>Fluxo Atual ({currentFlow?.name})</b></span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-5 border-t border-white/10 mt-5 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleImportJson}
+                disabled={!importJsonText.trim()}
+                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.3)] transition disabled:opacity-40"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Importar Fluxo</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
