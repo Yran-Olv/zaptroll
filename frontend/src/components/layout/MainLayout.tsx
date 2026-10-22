@@ -45,6 +45,7 @@ import { MemeGalleryModal } from '../memes/MemeGalleryModal.js';
 import { TrollNotificationToast, TrollNotification, playTrollSound } from '../notifications/TrollNotificationToast.js';
 import { DevToolsModal } from '../dev/DevToolsModal.js';
 import { RpgAdminModal } from '../rpg/RpgAdminModal.js';
+import { FlowStudioModal } from '../flow-studio/FlowStudioModal.js';
 
 export const MainLayout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -68,6 +69,7 @@ export const MainLayout: React.FC = () => {
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showDevToolsModal, setShowDevToolsModal] = useState(false);
   const [showRpgModal, setShowRpgModal] = useState(false);
+  const [showFlowStudioModal, setShowFlowStudioModal] = useState(false);
   const [devToolsInitialQuery, setDevToolsInitialQuery] = useState('');
   const [devToolsInitialTab, setDevToolsInitialTab] = useState<
     'resolver' | 'location' | 'server_health' | 'ghost_mention' | 'status_stories' | 'groups' | 'generator'
@@ -660,9 +662,9 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Tools & Modals Bar (Dev Tools, Status, Memes, RPG) */}
+        {/* Quick Tools & Modals Bar (Dev Tools, Status, Memes, RPG, Flows) */}
         <div className="px-3 py-1.5 bg-[#0c1017] border-b border-[#2a3346] shrink-0">
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             {/* Dev Tools */}
             <button
               type="button"
@@ -674,7 +676,7 @@ export const MainLayout: React.FC = () => {
               title="Ferramentas de Desenvolvedor (JID, LID, Resolver, Grupos)"
             >
               <Terminal className="w-3.5 h-3.5 text-[#39ff14] group-hover:scale-110 transition-transform shrink-0" />
-              <span className="truncate">Dev Tools</span>
+              <span className="truncate">Dev</span>
             </button>
 
             {/* Status & Stories */}
@@ -711,6 +713,17 @@ export const MainLayout: React.FC = () => {
             >
               <Swords className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
               <span className="truncate">RPG</span>
+            </button>
+
+            {/* Flow Studio */}
+            <button
+              type="button"
+              onClick={() => setShowFlowStudioModal(true)}
+              className="py-1 px-1 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-blue-200 border border-blue-500/40 hover:border-blue-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              title="Abrir Zaptroll Flow Studio (Construtor Visual de Automações WhatsApp)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">Flows</span>
             </button>
           </div>
         </div>
@@ -1231,6 +1244,14 @@ export const MainLayout: React.FC = () => {
       <RpgAdminModal
         isOpen={showRpgModal}
         onClose={() => setShowRpgModal(false)}
+      />
+
+      {/* Zaptroll Flow Studio Modal */}
+      <FlowStudioModal
+        isOpen={showFlowStudioModal}
+        onClose={() => setShowFlowStudioModal(false)}
+        connections={connections}
+        activeConnectionId={selectedConversation?.connectionId || selectedConnection?.id}
       />
 
       {/* Modal: Confirm Close All Conversations */}

@@ -40,6 +40,7 @@ import api from '../../services/api.js';
 import { Conversation, Message, WhatsAppConnection, ContactProfile } from '../../types/index.js';
 import { useSocket } from '../../contexts/SocketContext.js';
 import { AdvancedFeaturesModal } from '../advanced-menu/AdvancedFeaturesModal.js';
+import { FlowStudioModal } from '../flow-studio/FlowStudioModal.js';
 import { MemeAvatar } from '../memes/MemeAvatar.js';
 import { MemeBackground } from '../memes/MemeBackground.js';
 import { EmptyConversationState } from '../memes/EmptyConversationState.js';
@@ -155,6 +156,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [textInput, setTextInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showAdvancedModal, setShowAdvancedModal] = useState(false);
+  const [showFlowStudioModal, setShowFlowStudioModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [contactProfilePic, setContactProfilePic] = useState<string | null>(
     conversation.profilePicUrl || null
@@ -704,6 +706,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <span className="hidden sm:inline">Fechar Conversa</span>
             </button>
           )}
+
+          <button
+            onClick={() => setShowFlowStudioModal(true)}
+            className="p-1.5 sm:px-3 sm:py-1.5 bg-blue-950/40 hover:bg-blue-900/60 text-blue-400 border border-blue-500/40 hover:border-blue-500/70 text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 shadow-[0_0_12px_rgba(37,99,235,0.2)] transition shrink-0"
+            title="Abrir Zaptroll Flow Studio (Construtor Visual de Automações)"
+          >
+            <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
+            <span className="hidden sm:inline">Flow Studio</span>
+          </button>
 
           <button
             onClick={() => setShowAdvancedModal(true)}
@@ -1683,6 +1694,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         conversationId={conversation.id}
         recipientJid={conversation.jid}
         onSuccess={() => fetchHistory()}
+      />
+
+      {/* Zaptroll Flow Studio Modal */}
+      <FlowStudioModal
+        isOpen={showFlowStudioModal}
+        onClose={() => setShowFlowStudioModal(false)}
+        activeConnectionId={connection.id}
       />
 
       {/* Revoke Confirmation Modal */}

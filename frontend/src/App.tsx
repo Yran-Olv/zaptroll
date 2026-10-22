@@ -7,6 +7,8 @@ import { TrollfaceSvg } from './components/memes/memeVectors.js';
 import { LAB_QUOTES } from './components/memes/memeData.js';
 import { RpgArenaView } from './components/rpg/RpgArenaView.js';
 import { PoseEditorView } from './components/rpg/editor/PoseEditorView.js';
+import { HostedFormView } from './components/public/HostedFormView.js';
+import { RetroGameView } from './components/public/RetroGameView.js';
 
 const AppContent: React.FC = () => {
   const pathname = window.location.pathname;
@@ -20,6 +22,18 @@ const AppContent: React.FC = () => {
   if (pathname.startsWith('/a/')) {
     const accessCode = pathname.replace('/a/', '').split('/')[0].split('?')[0];
     return <RpgArenaView accessCode={accessCode} />;
+  }
+
+  // Rota pública para Formulário Hospedado ZapTroll (/r/form/{publicId})
+  if (pathname.startsWith('/r/form/')) {
+    const publicId = pathname.replace('/r/form/', '').split('/')[0].split('?')[0];
+    return <HostedFormView publicId={publicId} />;
+  }
+
+  // Rota pública para Jogos Web e Arcade (/r/jogos/{gameId})
+  if (pathname.startsWith('/r/jogos/') || pathname.startsWith('/r/game/')) {
+    const gameId = pathname.replace(/^\/r\/(jogos|game)\//, '').split('/')[0].split('?')[0];
+    return <RetroGameView gameId={gameId} />;
   }
 
   // Rota pública para a Arena de RPG via WebView no WhatsApp
