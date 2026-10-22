@@ -131,6 +131,7 @@ export class ZapoMessageAdapter {
       footerText?: string;
       buttonText: string;
       url: string;
+      presentation?: 'full' | 'tall' | 'compact';
       expirationSeconds?: number;
     }
   ) {
@@ -149,6 +150,8 @@ export class ZapoMessageAdapter {
       sendOptions.contextInfo = ephemeralContext;
     }
 
+    const presentation = data.presentation || 'full';
+
     const payload = {
       interactiveMessage: {
         body: { text: data.bodyText },
@@ -161,6 +164,9 @@ export class ZapoMessageAdapter {
               buttonParamsJson: JSON.stringify({
                 display_text: data.buttonText,
                 url: data.url,
+                merchant_url: data.url,
+                webview_presentation: presentation,
+                webview_interaction: true,
               }),
             },
           ],
@@ -335,11 +341,15 @@ export class ZapoMessageAdapter {
             const btnType = b.type || (b.url ? 'cta_url' : 'quick_reply');
 
             if (btnType === 'cta_url' || b.url) {
+              const targetUrl = b.url || 'https://zaptroll.multivus.com.br';
               return {
                 name: 'cta_url',
                 buttonParamsJson: JSON.stringify({
                   display_text: btnText,
-                  url: b.url || 'https://zaptroll.multivus.com.br',
+                  url: targetUrl,
+                  merchant_url: targetUrl,
+                  webview_presentation: b.presentation || 'full',
+                  webview_interaction: true,
                 }),
               };
             }
@@ -409,6 +419,9 @@ export class ZapoMessageAdapter {
           buttonParamsJson: JSON.stringify({
             display_text: b.display_text,
             url: b.url,
+            merchant_url: b.url,
+            webview_presentation: 'full',
+            webview_interaction: true,
           }),
         };
       }

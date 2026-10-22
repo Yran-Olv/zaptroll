@@ -163,9 +163,22 @@ export const HostedFormView: React.FC<{ publicId: string }> = ({ publicId }) => 
               ))}
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-[#39ff14]/10 border border-[#39ff14]/20 text-xs text-[#39ff14] font-mono">
-            💬 Você já pode fechar esta aba e retornar ao WhatsApp.
+          <div className="p-3 rounded-xl bg-[#39ff14]/10 border border-[#39ff14]/20 text-xs text-[#39ff14] font-mono mb-4">
+            💬 Você já pode fechar esta tela ou tocar no botão abaixo para retornar à conversa no WhatsApp.
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.close();
+              }
+            }}
+            className="w-full py-3 bg-[#39ff14] hover:bg-[#32e012] text-black font-bold font-mono text-sm rounded-2xl shadow-[0_0_20px_rgba(57,255,20,0.3)] transition flex items-center justify-center gap-2"
+          >
+            ← Concluir e Retornar ao WhatsApp
+          </button>
         </div>
       </div>
     );

@@ -45,10 +45,16 @@
    - Ticker de recuperação periódica em segundo plano (`startPeriodicRecovery(60000)`) além da recuperação inicial no startup.
    - Cobertura de 10 testes dedicados em `backend/tests/autodestruct.test.ts`.
 
-3. **Páginas Web Hospedadas vs. Experiência no WhatsApp**:
-   - Diferenciação clara: o WhatsApp não possui WebView nativa embutida na bolha de conversa. O Zaptroll envia botões CTA URL interativos que abrem em navegador responsivo externo/in-app do aparelho:
-     - `/r/form/:publicId` (`HostedFormView.tsx`): Formulário responsivo com campos dinâmicos, validação e retomada imediata do fluxo via webhook interno.
-     - `/r/jogos/:gameId` (`RetroGameView.tsx`): DOOM Arcade Canvas 60fps com touch controls e sintetizador de som Web Audio API.
+3. **Experiência WebView In-App no WhatsApp (Sem Sair do App)**:
+   - **Correção da Abertura Externa**:
+     - Anteriormente, botões `cta_url` eram enviados apenas com `display_text` e `url`, fazendo com que o cliente móvel do WhatsApp acionasse o navegador externo padrão do sistema operacional (Chrome / Safari).
+     - Atualizado `ZapoMessageAdapter.sendWebview`, `sendCarousel` e `FlowEngine.ts` para injetar os parâmetros nativos do protocolo de interação:
+       - `webview_presentation: 'full' | 'tall' | 'compact'` (força a renderização em modal/bottom-sheet interno do WhatsApp).
+       - `webview_interaction: true` (habilita interação total do usuário, digitação em inputs e execução de scripts dentro do webview).
+       - `merchant_url: data.url` (garante o contexto de domínio verificado do comerciante).
+   - **Controle no Editor e UX**:
+     - Adicionado seletor no painel de propriedades (`NodePropertiesPanel.tsx`) permitindo escolher entre `📱 Tela Cheia (full)`, `📄 Aba Alta (tall)` ou `📑 Compacto (compact)`.
+     - `HostedFormView.tsx` atualizado com botão de ação direta "Concluir e Retornar ao WhatsApp" após a submissão dos dados.
 
 4. **Stories com Vídeo e Status**:
    - `StatusService.ts` e `ZapoMessageAdapter.ts` suportam vídeo MP4/H.264 até 16MB via `sendStatusVideo` e `sendGroupStatusVideo`.

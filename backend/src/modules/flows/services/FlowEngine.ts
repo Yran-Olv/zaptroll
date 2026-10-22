@@ -392,6 +392,7 @@ export class FlowEngine {
             bodyText: renderedText,
             buttonText,
             url: publicUrl,
+            presentation: node.data.presentation || 'full',
             footerText: 'Formulário Seguro ZapTroll',
           });
         }
@@ -587,6 +588,7 @@ export class FlowEngine {
             bodyText: messageText,
             buttonText,
             url: gameUrl,
+            presentation: 'full',
             footerText: 'ZapTroll Web Arcade',
           });
         }

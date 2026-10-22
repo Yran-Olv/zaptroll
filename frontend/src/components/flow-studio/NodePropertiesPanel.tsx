@@ -284,6 +284,19 @@ export const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
               />
             </div>
 
+            <div className="space-y-1">
+              <label className="block text-[11px] font-mono text-gray-400">Modo WebView (Dentro do WhatsApp)</label>
+              <select
+                value={data.presentation || 'full'}
+                onChange={(e) => updateData('presentation', e.target.value)}
+                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-400 text-xs font-mono"
+              >
+                <option value="full">📱 Tela Cheia (Permanece no WhatsApp)</option>
+                <option value="tall">📄 Aba Alta (Bottom Sheet / 85% da tela)</option>
+                <option value="compact">📑 Compacto (Bottom Sheet / 50% da tela)</option>
+              </select>
+            </div>
+
             {/* Dynamic fields */}
             <div className="space-y-2 pt-2 border-t border-white/5">
               <div className="flex items-center justify-between">

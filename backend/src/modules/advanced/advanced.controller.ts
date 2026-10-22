@@ -417,6 +417,9 @@ export class AdvancedController {
                     buttonParamsJson: JSON.stringify({
                       display_text: '🛍️ Ver no Catálogo',
                       url: 'https://wa.me/c/553499198782',
+                      merchant_url: 'https://wa.me/c/553499198782',
+                      webview_presentation: 'full',
+                      webview_interaction: true,
                     }),
                   },
                   {
