@@ -9,10 +9,35 @@ export class FlowController {
   // 1. List Flows
   static async list(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const flows = await Flow.findAll({
+      let flows = await Flow.findAll({
         where: { userId: req.user!.id },
         order: [['updatedAt', 'DESC']],
       });
+
+      // Se o usuário ainda não tiver nenhum fluxo, cria e publica automaticamente a Suíte Completa de Testes
+      if (flows.length === 0) {
+        const tpl = FLOW_TEMPLATES['full_demo_suite'] || FLOW_TEMPLATES['welcome_menu'];
+        const flow = await Flow.create({
+          userId: req.user!.id,
+          name: tpl?.name || '🧪 Suíte Completa de Testes (Todos os 11 Blocos)',
+          description: tpl?.description || 'Fluxo mestre para homologar e testar 100% dos recursos do Flow Studio',
+          triggerKeywords: tpl?.triggerKeywords || ['/teste', '/inicio', 'menu', 'oi'],
+          status: 'published',
+        });
+
+        const version = await FlowVersion.create({
+          flowId: flow.id,
+          version: 1,
+          nodes: tpl?.nodes || [],
+          edges: tpl?.edges || [],
+          variables: tpl?.variables || [],
+          isPublished: true,
+        });
+
+        await flow.update({ publishedVersionId: version.id });
+        flows = [flow];
+      }
+
       res.json({ flows });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

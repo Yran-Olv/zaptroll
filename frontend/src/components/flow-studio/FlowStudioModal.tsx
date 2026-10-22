@@ -48,6 +48,7 @@ interface FlowStudioModalProps {
   onClose: () => void;
   connections?: Array<{ id: string; name: string; status: string }>;
   activeConnectionId?: string;
+  initialFlowId?: string | null;
 }
 
 const PALETTE_ITEMS: Array<{
@@ -190,6 +191,7 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
   onClose,
   connections = [],
   activeConnectionId,
+  initialFlowId,
 }) => {
   if (!isOpen) return null;
 
@@ -253,7 +255,9 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
       const flows: Flow[] = res.data.flows || [];
       setFlowsList(flows);
 
-      if (flows.length > 0) {
+      if (initialFlowId && flows.some((f) => f.id === initialFlowId)) {
+        loadFlowDetails(initialFlowId);
+      } else if (flows.length > 0) {
         loadFlowDetails(flows[0].id);
       } else {
         // Instantiate master test demo suite if user has none

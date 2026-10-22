@@ -58,8 +58,20 @@ export class FlowEngine {
         return cleanText === cleanKw || cleanText.startsWith(cleanKw + ' ') || cleanText.includes(cleanKw);
       });
 
-      if (isMatched && flow.publishedVersionId) {
-        const version = await FlowVersion.findByPk(flow.publishedVersionId);
+      if (isMatched) {
+        let version: FlowVersion | null = null;
+        if (flow.publishedVersionId) {
+          version = await FlowVersion.findByPk(flow.publishedVersionId);
+        }
+        if (!version) {
+          version = await FlowVersion.findOne({
+            where: { flowId: flow.id, isPublished: true },
+            order: [['version', 'DESC']],
+          });
+          if (version && !flow.publishedVersionId) {
+            await flow.update({ publishedVersionId: version.id });
+          }
+        }
         if (version) {
           return { flow, version };
         }

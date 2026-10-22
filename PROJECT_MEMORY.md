@@ -5,22 +5,21 @@
 
 ## 📍 Sessão Atual (22/10/2026) — 🚀 ZAPTROLL FLOW STUDIO, MULTI-FLUXOS, IMPORT/EXPORT & SUÍTE MESTRE DE TESTES
  
-1. **Flow Studio com Suporte a Múltiplos Fluxos, Importação/Exportação e Suíte de Testes**:
-   - **Gerenciador de Múltiplos Fluxos**:
-     - Botão `+ Novo Fluxo` destacado no cabeçalho com modal de criação rápida (nome, gatilhos, template inicial e conexão vinculada).
-     - Seletor de fluxos com busca em tempo real (`flowSearchTerm`), clonagem instantânea (`handleDuplicateFlow` via `POST /api/flows/:id/duplicate`) e exclusão segura (`handleDeleteFlow` via `DELETE /api/flows/:id`).
-   - **Importação e Exportação JSON**:
-     - **Exportar (JSON)**: Baixa arquivo `zaptroll_fluxo_{nome}.json` com estrutura completa (nós, conexões, variáveis e gatilhos) e copia para área de transferência.
-     - **Importar (JSON)**: Suporte a upload de arquivo `.json` ou colagem direta no editor com validação sintática, com opções de criar novo fluxo ou sobrescrever o canvas atual.
-   - **Suíte Mestre de Testes (`full_demo_suite`)**:
-     - Template padrão contendo todos os 11 blocos interligados: Gatilho ➔ Mensagem Boas-Vindas ➔ Botões Interativos ➔ Captura de Dados ➔ Condição Lógica ➔ Formulário Web Seguro ➔ Webhook HTTP ➔ Cobrança Pix ➔ Arcade DOOM ➔ Atraso ➔ Encerramento.
-     - Permite homologar 100% dos recursos do Flow Studio em 1 clique.
-   - **Simulador Interativo 100% Funcional**:
-     - Conversor universal de eventos (`convertEventToChatMessage`) exibindo texto, botões clicáveis, formulários com link externo, dados Pix formatados, arcade game launcher e logs em tempo real.
-   - **Configuração de Conexão WhatsApp por Fluxo**:
-     - Seletor no cabeçalho permitindo vincular o fluxo a uma conexão específica (`multivus`) ou mantê-lo global para todas as conexões com salvamento automático.
-   - **Resolução de Conflito de Interface**:
-     - `TrollNotificationToast` reposicionado para `bottom-5 right-5 z-40` e `FlowStudioModal` elevado para `z-[60]`, garantindo que os botões de ação do topo nunca sejam cobertos por alertas.
+2. **Aba Primária "Fluxos" e Visão de Lista de Fluxos (`FlowsListView`)**:
+   - **Navegação Primária Destacada**:
+     - Adicionada a aba `Fluxos` (ícone `Sparkles`) diretamente na barra de navegação principal do menu lateral (`MainLayout.tsx`) e na barra inferior mobile (`BottomTabBar.tsx`), eliminando a necessidade de buscar por botões escondidos.
+     - Botão de ação rápida `⚡ Criar Fluxo` mantido no topo do menu lateral para abertura direta do canvas.
+   - **Visão Central de Gestão (`FlowsListView.tsx`)**:
+     - Dashboard com contadores de fluxos ativos/publicados, barra de busca por título e gatilhos de mensagem, e filtro rápido (Todos, Publicados, Rascunhos).
+     - Cards detalhados com gatilhos configurados, data de atualização e ações diretas:
+       - 1-clique para Ativar / Pausar atendimento no WhatsApp (`handleTogglePublish`).
+       - Botão `Editar no Canvas` que abre o Flow Studio já focado no fluxo selecionado (`initialFlowId`).
+       - Botão `Testar no Simulador` para homologar o percurso sem precisar de celular.
+       - Ações de duplicar fluxo e exclusão segura.
+   - **Auto-Seeding e Ativação Imediata**:
+     - Atualizado `FlowController.list` para semear e marcar como `published` automaticamente a **Suíte Completa de Testes (`full_demo_suite`)** com todos os 11 blocos para qualquer usuário que não possua fluxos criados.
+     - Auto-recuperação (self-heal) em `FlowEngine.findTriggeredFlow` para vincular automaticamente a versão publicada caso `publishedVersionId` esteja nulo.
+
 
 2. **Alinhamento do Catálogo de Blocos (Frontend & Backend)**:
    - Contrato unificado em `backend/src/modules/flows/types/index.ts` e `frontend/src/types/flows.ts`.

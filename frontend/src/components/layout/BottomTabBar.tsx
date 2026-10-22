@@ -1,8 +1,8 @@
 import React from 'react';
-import { MessageSquare, Users, Smartphone, ShieldCheck, UserCheck, Laugh } from 'lucide-react';
+import { MessageSquare, Users, Smartphone, ShieldCheck, UserCheck, Laugh, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.js';
 
-export type TabType = 'conversations' | 'contacts' | 'groups' | 'connections' | 'memes' | 'admin';
+export type TabType = 'conversations' | 'flows' | 'contacts' | 'groups' | 'connections' | 'memes' | 'admin';
 
 interface BottomTabBarProps {
   currentTab: TabType;
@@ -25,6 +25,11 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
       badge: unreadCount,
     },
     {
+      id: 'flows',
+      label: 'Fluxos',
+      icon: <Sparkles className="w-4 h-4 text-blue-400" />,
+    },
+    {
       id: 'contacts',
       label: 'Contatos',
       icon: <UserCheck className="w-4 h-4" />,
@@ -38,11 +43,6 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
       id: 'connections',
       label: 'Conexões',
       icon: <Smartphone className="w-4 h-4" />,
-    },
-    {
-      id: 'memes',
-      label: 'Memes',
-      icon: <Laugh className="w-4 h-4" />,
     },
   ];
 

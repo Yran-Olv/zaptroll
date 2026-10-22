@@ -46,12 +46,14 @@ import { TrollNotificationToast, TrollNotification, playTrollSound } from '../no
 import { DevToolsModal } from '../dev/DevToolsModal.js';
 import { RpgAdminModal } from '../rpg/RpgAdminModal.js';
 import { FlowStudioModal } from '../flow-studio/FlowStudioModal.js';
+import { FlowsListView } from '../flows/FlowsListView.js';
 
 export const MainLayout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const { socket, setActiveConnectionId } = useSocket();
 
   const [currentTab, setCurrentTab] = useState<TabType>('conversations');
+  const [selectedFlowStudioId, setSelectedFlowStudioId] = useState<string | null>(null);
   const [connections, setConnections] = useState<WhatsAppConnection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<WhatsAppConnection | null>(null);
   const [selectedConnectionFilterId, setSelectedConnectionFilterId] = useState<string>('all');
@@ -718,19 +720,22 @@ export const MainLayout: React.FC = () => {
             {/* Flow Studio */}
             <button
               type="button"
-              onClick={() => setShowFlowStudioModal(true)}
-              className="py-1 px-1 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-blue-200 border border-blue-500/40 hover:border-blue-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
+              onClick={() => {
+                setSelectedFlowStudioId(null);
+                setShowFlowStudioModal(true);
+              }}
+              className="py-1 px-1.5 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-blue-200 border border-blue-500/40 hover:border-blue-500/70 rounded-xl text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition shadow-sm group"
               title="Abrir Zaptroll Flow Studio (Construtor Visual de Automações WhatsApp)"
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
-              <span className="truncate">Flows</span>
+              <span className="truncate">Criar Fluxo</span>
             </button>
           </div>
         </div>
 
         {/* Tab Navigation Menu (Primary Sidebar Views) */}
         <div className="hidden md:block border-b border-[#2a3346] bg-[#10141e] p-1.5 shrink-0">
-          <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1 bg-[#0b0e14] p-1 rounded-2xl border border-[#2a3346]`}>
+          <div className={`grid ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'} gap-1 bg-[#0b0e14] p-1 rounded-2xl border border-[#2a3346]`}>
             {/* 1. Conversas */}
             <button
               type="button"
@@ -746,7 +751,22 @@ export const MainLayout: React.FC = () => {
               <span>Conversas</span>
             </button>
 
-            {/* 2. Contatos */}
+            {/* 2. Fluxos (Flow Studio & Bot Automations) */}
+            <button
+              type="button"
+              onClick={() => setCurrentTab('flows')}
+              className={`py-1.5 px-0.5 rounded-xl text-[11px] lg:text-xs font-semibold flex items-center justify-center gap-1 transition tracking-tight ${
+                currentTab === 'flows'
+                  ? 'bg-blue-950/60 text-blue-400 border border-blue-500/50 shadow-sm font-bold'
+                  : 'text-gray-400 hover:text-blue-300 hover:bg-[#161922]'
+              }`}
+              title="Gerenciador de Fluxos e Automações WhatsApp"
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0 text-blue-400" />
+              <span>Fluxos</span>
+            </button>
+
+            {/* 3. Contatos */}
             <button
               type="button"
               onClick={() => setCurrentTab('contacts')}
@@ -761,7 +781,7 @@ export const MainLayout: React.FC = () => {
               <span>Contatos</span>
             </button>
 
-            {/* 3. Grupos */}
+            {/* 4. Grupos */}
             <button
               type="button"
               onClick={() => setCurrentTab('groups')}
@@ -776,7 +796,7 @@ export const MainLayout: React.FC = () => {
               <span>Grupos</span>
             </button>
 
-            {/* 4. Sessões */}
+            {/* 5. Sessões */}
             <button
               type="button"
               onClick={() => setCurrentTab('connections')}
@@ -791,7 +811,7 @@ export const MainLayout: React.FC = () => {
               <span>Sessões</span>
             </button>
 
-            {/* 5. Admin (se admin) */}
+            {/* 6. Admin (se admin) */}
             {isAdmin && (
               <button
                 type="button"
@@ -811,7 +831,15 @@ export const MainLayout: React.FC = () => {
         </div>
 
         {/* View Switcher based on Tab */}
-        {currentTab === 'connections' ? (
+        {currentTab === 'flows' ? (
+          <FlowsListView
+            onOpenFlowStudio={(flowId) => {
+              setSelectedFlowStudioId(flowId || null);
+              setShowFlowStudioModal(true);
+            }}
+            connections={connections}
+          />
+        ) : currentTab === 'connections' ? (
           <ConnectionsView
             onSelectConnection={handleSelectConnection}
             selectedConnectionId={selectedConnection?.id}
@@ -1252,6 +1280,7 @@ export const MainLayout: React.FC = () => {
         onClose={() => setShowFlowStudioModal(false)}
         connections={connections}
         activeConnectionId={selectedConversation?.connectionId || selectedConnection?.id}
+        initialFlowId={selectedFlowStudioId}
       />
 
       {/* Modal: Confirm Close All Conversations */}
