@@ -3,21 +3,21 @@
 
 ---
 
-## 📍 Sessão Atual (22/10/2026)
+## 📍 Sessão Atual (22/10/2026) — ✅ DEPLOY EM PRODUÇÃO CONCLUÍDO
 
-1. **Configuração Global de Persistência de Chat na IDE**:
+1. **Deploy em Produção (`77.37.41.172`)**:
+   - Código sincronizado e containers `zaptroll_backend` e `zaptroll_frontend` recompilados e reiniciados com sucesso.
+   - Aplicação online respondendo `200 OK` em: **[https://zaptroll.multivus.com.br](https://zaptroll.multivus.com.br)**.
+
+2. **Novidades Entregues no Deploy**:
+   - **RPG Arena Web 2.5D:** 16 ilustrações oficiais de cartas colecionáveis WebP, componente [`RpgCombatCard.tsx`](frontend/src/components/rpg/RpgCombatCard.tsx) e modal de inspeção de cartas em tela cheia.
+   - **Vídeo nos Status WhatsApp:** Suporte a upload e postagem de status com vídeo (`videoUrl`, `videoBase64`, `videoMimetype`, `seconds`) no [`advanced.controller.ts`](backend/src/modules/advanced/advanced.controller.ts) e [`StatusService.ts`](backend/src/modules/advanced/StatusService.ts).
+   - **Repositório Oficial em Primeiro Lugar:** Card do Dev Tools e documentação destacando **[`https://github.com/Yran-Olv/zaptroll.git`](https://github.com/Yran-Olv/zaptroll.git)** em primeiro lugar, com créditos compactos para `zapo-interactive-examples` e `zapo-js`.
+   - **Layout da Sidebar:** Abas e botões rápidos redistribuídos para evitar que qualquer aba seja cortada ou fique invisível.
+   - **Mídias de Visualização Única:** Interceptação automática e download permanente de arquivos temporários.
+
+3. **Configuração Global de Persistência de Chat na IDE**:
    - Ajustadas as preferências globais do Antigravity IDE (`~/.config/AntigravityIDE/User/settings.json`) para restaurar automaticamente a última sessão ativa (`chat.restoreLastPanelSession: true`), exibir a lista de conversas lado a lado (`chat.viewSessions.enabled: true`, `chat.viewSessions.orientation: "sideBySide"`) e carregar regra de continuidade global (`~/.gemini/config/rules/continuity.md`).
-
-2. **Repositório Oficial em Primeiro Lugar & Créditos Compactos**:
-   - **Dev Tools ([`DevToolsModal.tsx`](frontend/src/components/dev/DevToolsModal.tsx))**:
-     - Card principal destaca agora em primeiro lugar o repositório oficial do projeto: **[`https://github.com/Yran-Olv/zaptroll.git`](https://github.com/Yran-Olv/zaptroll.git)** com botão em destaque verde neon.
-     - Seção secundária compacta e discreta dedicada aos créditos de bibliotecas e engenharia reversa comunitária: **zapo-interactive-examples** (Jobas Fernandes) e **zapo-js 1.10+**.
-     - Padrões de caption e perguntas de enquetes atualizados para o ZapTroll.
-   - **Backend API ([`advanced.controller.ts`](backend/src/modules/advanced/advanced.controller.ts))**:
-     - Endpoint de créditos atualizado para retornar o objeto do projeto oficial ZapTroll em primeiro lugar e créditos em seguida.
-   - **Documentação ([`README.md`](README.md))**:
-     - Link do repositório oficial adicionado em destaque no cabeçalho do documento.
-     - Seção limpa e concisa de "Créditos & Bibliotecas" inserida antes da licença.
 
 ---
 
