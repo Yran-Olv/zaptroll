@@ -18,6 +18,7 @@ import {
   ZoomOut,
   Maximize2,
   Plus,
+  Workflow,
 } from 'lucide-react';
 import { FlowNode, FlowEdge, FlowNodeType } from '../../types/flows.js';
 
@@ -31,6 +32,7 @@ interface FlowCanvasProps {
   onUpdateEdges: (edges: FlowEdge[]) => void;
   onDeleteNode: (nodeId: string) => void;
   onDuplicateNode: (node: FlowNode) => void;
+  onAutoLayout?: () => void;
 }
 
 const NODE_COLORS: Record<FlowNodeType, { bg: string; border: string; text: string; icon: any }> = {
@@ -58,6 +60,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   onUpdateEdges,
   onDeleteNode,
   onDuplicateNode,
+  onAutoLayout,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -161,31 +164,44 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     setPan({ x: 40, y: 40 });
   };
 
-  // Calculate Bezier path between nodes
+  // Calculate Bezier path between nodes with clean horizontal tangents
   const calculatePath = (edge: FlowEdge) => {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
     if (!sourceNode || !targetNode) return '';
 
     const nodeWidth = 260;
-    const nodeHeight = 120;
 
     let sx = sourceNode.position.x + nodeWidth;
-    let sy = sourceNode.position.y + 40;
+    let sy = sourceNode.position.y + 48; // center of output handle (top-9 is 36px + 12px)
 
     // Adjust source port Y if handle is conditional or button
-    if (edge.sourceHandle === 'true') sy = sourceNode.position.y + 60;
-    if (edge.sourceHandle === 'false') sy = sourceNode.position.y + 90;
+    if (edge.sourceHandle === 'true') sy = sourceNode.position.y + 72;
+    if (edge.sourceHandle === 'false') sy = sourceNode.position.y + 98;
     if (edge.sourceHandle?.startsWith('btn_')) {
       const btnIndex = sourceNode.data.buttons?.findIndex((b: any) => b.buttonId === edge.sourceHandle) ?? 0;
-      sy = sourceNode.position.y + 65 + btnIndex * 26;
+      sy = sourceNode.position.y + 78 + btnIndex * 30;
     }
 
-    const tx = targetNode.position.x;
-    const ty = targetNode.position.y + 40;
+    // Target point: stops right at the outer edge of target handle (-2px before card edge)
+    const tx = targetNode.position.x - 2;
+    const ty = targetNode.position.y + 48;
 
-    const dx = Math.abs(tx - sx) * 0.5;
-    return `M ${sx} ${sy} C ${sx + Math.max(dx, 40)} ${sy}, ${tx - Math.max(dx, 40)} ${ty}, ${tx} ${ty}`;
+    const dx = tx - sx;
+    const dy = ty - sy;
+
+    if (dx >= 40) {
+      // Natural forward flow: smooth horizontal cubic bezier
+      const controlDist = Math.max(Math.min(dx * 0.45, 180), 60);
+      return `M ${sx} ${sy} C ${sx + controlDist} ${sy}, ${tx - controlDist} ${ty}, ${tx} ${ty}`;
+    } else {
+      // Backwards or vertical branch: route around with clean horizontal tangents
+      const exitDist = Math.max(50, Math.min(Math.abs(dy) * 0.35, 90));
+      const entryDist = 60;
+      const midX = sx + exitDist;
+      const midY = sy + dy * 0.5;
+      return `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${midY}, ${(sx + tx) / 2} ${midY} S ${tx - entryDist} ${ty}, ${tx} ${ty}`;
+    }
   };
 
   return (
@@ -236,6 +252,20 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         >
           <Maximize2 className="w-4 h-4" />
         </button>
+        {onAutoLayout && (
+          <>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <button
+              type="button"
+              onClick={onAutoLayout}
+              className="p-2 rounded-xl text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-all flex items-center gap-1.5"
+              title="Organizar nós automaticamente (Auto-Layout)"
+            >
+              <Workflow className="w-4 h-4" />
+              <span className="text-[11px] font-mono font-bold pr-1">Organizar</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Transformable Canvas Layer */}
@@ -254,22 +284,22 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
               viewBox="0 0 10 10"
               refX="8"
               refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#4b5563" />
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
             </marker>
             <marker
               id="arrow-active"
               viewBox="0 0 10 10"
               refX="8"
               refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
+              markerWidth="8"
+              markerHeight="8"
+              orient="auto"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#39ff14" />
+              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#39ff14" />
             </marker>
           </defs>
 

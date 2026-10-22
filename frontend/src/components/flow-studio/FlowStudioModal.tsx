@@ -34,6 +34,7 @@ import {
   Search,
   FileJson,
   Check,
+  Workflow,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Flow, FlowVersion, FlowNode, FlowEdge, FlowNodeType } from '../../types/flows.js';
@@ -42,6 +43,7 @@ import { NodePropertiesPanel } from './NodePropertiesPanel.js';
 import { FlowSimulatorModal } from './FlowSimulatorModal.js';
 import { TemplateSelectorModal } from './TemplateSelectorModal.js';
 import { FlowDiagnosticsModal } from './FlowDiagnosticsModal.js';
+import { autoLayoutFlow } from './flowLayoutUtils.js';
 
 interface FlowStudioModalProps {
   isOpen: boolean;
@@ -616,6 +618,15 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
     }
   };
 
+  // Auto-organize nodes into clean DAG columns and parallel branches
+  const handleAutoLayout = () => {
+    if (nodes.length <= 1) return;
+    const reordered = autoLayoutFlow(nodes, edges);
+    setNodes(reordered);
+    pushHistory(reordered, edges);
+    showToast('✨ Nós organizados automaticamente em colunas e ramos!');
+  };
+
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
 
   return (
@@ -855,6 +866,17 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
 
         {/* Right: Actions, Import/Export, Templates, Test & Publish */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Auto Organize / Layout */}
+          <button
+            type="button"
+            onClick={handleAutoLayout}
+            className="px-2.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/40 text-purple-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm"
+            title="Organizar nós automaticamente em colunas e ramos paralelos (sem sobreposições)"
+          >
+            <Workflow className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">Organizar</span>
+          </button>
+
           {/* Import JSON */}
           <button
             type="button"
@@ -1004,6 +1026,7 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
             }}
             onDeleteNode={handleDeleteNode}
             onDuplicateNode={handleDuplicateNode}
+            onAutoLayout={handleAutoLayout}
           />
         </main>
 
