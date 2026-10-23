@@ -384,4 +384,47 @@ describe('FlowEngine — Graph Execution & Variables', () => {
     expect(res.handled).toBe(true);
     expect(res.events.some((e) => e.text === 'Continuando após desconhecido')).toBe(true);
   });
+
+  it('9. supports group sessions with senderJid, senderName and isGroup flag', async () => {
+    const mockNodes = [
+      { id: 'start', type: 'trigger_keyword', position: { x: 0, y: 0 }, data: { keywords: ['/jogo'] } },
+      { id: 'game', type: 'game_launcher', position: { x: 100, y: 0 }, data: { gameTitle: 'DOOM Retrô' } },
+    ];
+    const mockEdges = [{ id: 'e1', source: 'start', target: 'game' }];
+    const mockVersion: any = { id: 'ver-grp', flowId: 'flow-grp', nodes: mockNodes, edges: mockEdges };
+
+    const mockSession: any = {
+      id: 'sess-grp',
+      flowId: 'flow-grp',
+      flowVersionId: 'ver-grp',
+      currentNodeId: 'start',
+      status: 'active',
+      variables: {
+        isGroup: true,
+        senderJid: '5511999999999@s.whatsapp.net',
+        senderName: 'Jogador 1',
+      },
+      update: vi.fn().mockImplementation((updates) => {
+        Object.assign(mockSession, updates);
+        return Promise.resolve(mockSession);
+      }),
+    };
+
+    const res = await FlowEngine.resumeSession(
+      mockSession,
+      mockVersion,
+      {
+        connectionId: 'c1',
+        userJid: '120363410842001485@g.us',
+        senderJid: '5511999999999@s.whatsapp.net',
+        senderName: 'Jogador 1',
+        isSimulation: true,
+      },
+      'start'
+    );
+
+    expect(res.handled).toBe(true);
+    expect(mockSession.status).toBe('completed');
+    expect(res.events.some((e) => e.isGame === true)).toBe(true);
+  });
 });

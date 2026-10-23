@@ -157,18 +157,32 @@ export class FlowController {
       if (connectionId !== undefined) flow.connectionId = connectionId || null;
       await flow.save();
 
+      const lastVersion = await FlowVersion.findOne({
+        where: { flowId: flow.id },
+        order: [['version', 'DESC']],
+      });
+
       const nextVersionNum = flow.currentVersion + 1;
+      const shouldKeepPublished = flow.status === 'published';
+
+      if (shouldKeepPublished) {
+        await FlowVersion.update({ isPublished: false }, { where: { flowId: flow.id } });
+      }
 
       const newVersion = await FlowVersion.create({
         flowId: flow.id,
         version: nextVersionNum,
-        nodes: nodes || [],
-        edges: edges || [],
-        variables: variables || [],
-        isPublished: false,
+        nodes: nodes ?? lastVersion?.nodes ?? [],
+        edges: edges ?? lastVersion?.edges ?? [],
+        variables: variables ?? lastVersion?.variables ?? [],
+        isPublished: shouldKeepPublished,
+        publishedAt: shouldKeepPublished ? new Date() : null,
       });
 
-      await flow.update({ currentVersion: nextVersionNum });
+      await flow.update({
+        currentVersion: nextVersionNum,
+        publishedVersionId: shouldKeepPublished ? newVersion.id : flow.publishedVersionId,
+      });
 
       res.json({ flow, version: newVersion });
     } catch (err: any) {

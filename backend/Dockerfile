@@ -2,6 +2,8 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache ffmpeg
+
 COPY package*.json ./
 COPY scripts ./scripts
 RUN npm ci
@@ -15,6 +17,8 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+RUN apk add --no-cache ffmpeg
 
 COPY package*.json ./
 COPY scripts ./scripts

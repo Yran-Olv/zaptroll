@@ -504,14 +504,28 @@ export class AdvancedController {
     }
   }
 
-  // 7. Postar Status / Stories em Grupos (groupStatusMessageV2) (Inspirado em Jobas Fernandes)
+  // 7. Postar Status / Stories em Grupos (groupStatusMessageV2) (Foto ou Vídeo Nativo)
   static async sendGroupStatus(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { connectionId, groupJid, caption, imageBase64, imageUrl, mentionAll } = req.body;
+      const {
+        connectionId,
+        groupJid,
+        caption,
+        type,
+        imageBase64,
+        imageUrl,
+        videoBase64,
+        videoUrl,
+        videoMimetype,
+        seconds,
+        mentionAll,
+      } = req.body;
+
       if (!connectionId || !groupJid) {
         res.status(400).json({ error: 'connectionId e groupJid são obrigatórios.' });
         return;
       }
+
       const zapoManager = ZapoConnectionManager.getInstance();
       const client = zapoManager.getClient(connectionId);
       if (!client) {
@@ -519,62 +533,40 @@ export class AdvancedController {
         return;
       }
 
-      let imageBytes: Buffer;
-      let thumbBytes: Buffer | undefined;
+      // Detecção inteligente de vídeo vs imagem
+      const isVideo =
+        type === 'video' ||
+        Boolean(videoBase64) ||
+        Boolean(videoUrl) ||
+        (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:video/'));
 
-      if (imageBase64) {
-        const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-        imageBytes = Buffer.from(cleanBase64, 'base64');
-      } else if (imageUrl) {
-        try {
-          const fetchRes = await fetch(imageUrl);
-          const arrayBuf = await fetchRes.arrayBuffer();
-          imageBytes = Buffer.from(arrayBuf);
-        } catch {
-          const def = StatusService.getDefaultGroupMedia();
-          imageBytes = def.banner;
-          thumbBytes = def.thumb;
-        }
-      } else {
-        const def = StatusService.getDefaultGroupMedia();
-        imageBytes = def.banner;
-        thumbBytes = def.thumb;
-      }
+      const cleanVideoBase64 = videoBase64 || (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:video/') ? imageBase64 : undefined);
+      const cleanImageBase64 = !isVideo ? imageBase64 : undefined;
 
-      let mentionedJids: string[] = [];
-      if (mentionAll) {
-        try {
-          const meta = await client.group.queryGroupMetadata(groupJid);
-          if (meta?.participants) {
-            mentionedJids = meta.participants.map((p: any) => p.id || p.jid).filter(Boolean);
-          }
-        } catch {
-          const localGroup = await Group.findOne({ where: { connectionId, jid: groupJid } });
-          const parts = localGroup?.metadata?.participants;
-          if (parts && Array.isArray(parts)) {
-            mentionedJids = parts.map((p: any) => p.id || p.jid).filter(Boolean);
-          }
-        }
-      }
-
-      const result = await ZapoMessageAdapter.sendGroupStatus(
-        client,
-        groupJid,
-        imageBytes,
+      const result = await StatusService.postStatus(connectionId, {
+        type: isVideo ? 'video' : 'image',
+        targetGroups: [groupJid],
         caption,
-        {
-          width: 1080,
-          height: 1920,
-          jpegThumbnail: thumbBytes,
-          mentionedJids,
-        }
-      );
+        imageBase64: cleanImageBase64,
+        imageUrl: !isVideo ? imageUrl : undefined,
+        videoBase64: cleanVideoBase64,
+        videoUrl: isVideo ? (videoUrl || imageUrl) : undefined,
+        videoMimetype: videoMimetype || 'video/mp4',
+        seconds: seconds ? Number(seconds) : undefined,
+        mentionAll: Boolean(mentionAll),
+      });
+
+      const firstGroupRes = result.groupResults?.[0];
+      if (firstGroupRes?.error) {
+        throw new Error(firstGroupRes.error);
+      }
 
       res.json({
         success: true,
-        statusId: (result as any)?.id || (result as any)?.key?.id,
+        statusId: firstGroupRes?.statusId || `GRP_STATUS_${Date.now()}`,
         groupJid,
-        mentionedCount: mentionedJids.length,
+        isVideo,
+        mentionedCount: mentionAll ? 'todos' : 0,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Falha ao postar status no grupo.' });

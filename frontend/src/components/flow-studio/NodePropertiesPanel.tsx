@@ -538,8 +538,19 @@ export const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
             <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px] flex gap-2">
               <Gamepad2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                Abre um jogo web arcade retrô touch-enabled (/r/jogos) ou a Arena RPG do ZapTroll.
+                Dispara um botão interativo CTA URL no WhatsApp com WebView In-App para carregar o jogo em tela cheia sem que o usuário precise sair da conversa.
               </span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-mono text-gray-400">Título / Nome do Jogo</label>
+              <input
+                type="text"
+                value={data.gameTitle || ''}
+                onChange={(e) => updateData('gameTitle', e.target.value)}
+                placeholder="DOOM Sector Retrô Arcade"
+                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-400"
+              />
             </div>
 
             <div className="space-y-1">
@@ -547,21 +558,49 @@ export const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
               <select
                 value={data.gameType || 'doom_retro'}
                 onChange={(e) => updateData('gameType', e.target.value)}
-                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white"
+                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-400"
               >
-                <option value="doom_retro">DOOM Sector (WASM / Canvas Arcade)</option>
-                <option value="rpg_arena">ZapTroll RPG Arena (Batalha ao Vivo)</option>
+                <option value="doom_retro">🕹️ DOOM Sector (Canvas Arcade 60fps / Touch)</option>
+                <option value="rpg_arena">⚔️ ZapTroll RPG Arena (Batalha Política 2.5D)</option>
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[11px] font-mono text-gray-400">Texto do Botão CTA</label>
+              <label className="block text-[11px] font-mono text-gray-400">Texto do Botão CTA (WebView)</label>
               <input
                 type="text"
-                value={data.buttonText || 'Jogar Agora 🚀'}
+                value={data.buttonText || ''}
                 onChange={(e) => updateData('buttonText', e.target.value)}
-                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white"
+                placeholder="Jogar Agora 🚀"
+                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-400"
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-mono text-gray-400">Modo WebView (Dentro do WhatsApp)</label>
+              <select
+                value={data.presentation || 'full'}
+                onChange={(e) => updateData('presentation', e.target.value)}
+                className="w-full bg-[#0b0e14] border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-400 text-xs font-mono"
+              >
+                <option value="full">📱 Tela Cheia (Permanece no WhatsApp)</option>
+                <option value="tall">📄 Aba Alta (Bottom Sheet / 85% da tela)</option>
+                <option value="compact">📑 Compacto (Bottom Sheet / 50% da tela)</option>
+              </select>
+            </div>
+
+            {/* Visual Preview */}
+            <div className="pt-2 border-t border-white/5 space-y-1.5">
+              <span className="block text-[10px] font-mono uppercase text-gray-500">Prévia do Botão In-App</span>
+              <div className="p-2.5 rounded-xl bg-gradient-to-r from-rose-950/60 to-purple-950/50 border border-rose-500/30 flex items-center justify-between">
+                <span className="font-bold text-rose-200 text-xs flex items-center gap-1.5">
+                  <Gamepad2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>{data.buttonText || 'Jogar Agora 🚀'}</span>
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-[#39ff14] font-mono border border-emerald-500/30 font-bold">
+                  WebView In-App
+                </span>
+              </div>
             </div>
           </div>
         )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Gamepad2, Volume2, VolumeX, RotateCcw, ArrowLeft, Trophy, Shield } from 'lucide-react';
+import { Gamepad2, Volume2, VolumeX, RotateCcw, ArrowLeft, Trophy, Shield, Flame, Zap, Share2, Sparkles } from 'lucide-react';
 
 interface Particle {
   x: number;
@@ -33,13 +33,34 @@ interface Enemy {
 }
 
 export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-sector' }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const padRef = useRef<HTMLDivElement | null>(null);
+
   const [score, setScore] = useState(0);
   const [hp, setHp] = useState(100);
   const [wave, setWave] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
+  const [autoFire, setAutoFire] = useState(false);
+  const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
+
+  const [highScore, setHighScore] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem('zaptroll_doom_highscore') || '0', 10);
+    } catch {
+      return 0;
+    }
+  });
+
+  const highScoreRef = useRef(highScore);
+  const autoFireRef = useRef(autoFire);
+  const logicalDimRef = useRef({ width: 360, height: 420, dpr: 1 });
+
+  useEffect(() => {
+    autoFireRef.current = autoFire;
+  }, [autoFire]);
 
   // Audio Context synthesizer
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -94,28 +115,48 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
     let animationId: number;
 
     const resize = () => {
-      const container = canvas.parentElement;
-      if (container) {
-        const width = Math.min(container.clientWidth, 600);
-        const height = Math.min(window.innerHeight - 180, 500);
-        canvas.width = width;
-        canvas.height = height;
-        if (!gameStarted) {
-          stateRef.current.player.x = width / 2;
-          stateRef.current.player.y = height / 2;
-        }
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const width = Math.floor(rect.width);
+      const height = Math.floor(rect.height);
+      if (width <= 0 || height <= 0) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      logicalDimRef.current = { width, height, dpr };
+
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      if (!gameStarted) {
+        stateRef.current.player.x = width / 2;
+        stateRef.current.player.y = height / 2;
+      } else {
+        // Clamp player within new bounds
+        stateRef.current.player.x = Math.max(stateRef.current.player.radius, Math.min(width - stateRef.current.player.radius, stateRef.current.player.x));
+        stateRef.current.player.y = Math.max(stateRef.current.player.radius, Math.min(height - stateRef.current.player.radius, stateRef.current.player.y));
       }
     };
+
     resize();
     window.addEventListener('resize', resize);
+
+    let ro: ResizeObserver | null = null;
+    if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => resize());
+      ro.observe(containerRef.current);
+    }
 
     // Keyboard handlers
     const handleKeyDown = (e: KeyboardEvent) => {
       const k = stateRef.current.keys;
-      if (e.key === 'ArrowLeft' || e.key === 'a') k.left = true;
-      if (e.key === 'ArrowRight' || e.key === 'd') k.right = true;
-      if (e.key === 'ArrowUp' || e.key === 'w') k.up = true;
-      if (e.key === 'ArrowDown' || e.key === 's') k.down = true;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') k.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') k.right = true;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') k.up = true;
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') k.down = true;
       if (e.key === ' ' || e.key === 'Enter') {
         k.fire = true;
         e.preventDefault();
@@ -124,10 +165,10 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
 
     const handleKeyUp = (e: KeyboardEvent) => {
       const k = stateRef.current.keys;
-      if (e.key === 'ArrowLeft' || e.key === 'a') k.left = false;
-      if (e.key === 'ArrowRight' || e.key === 'd') k.right = false;
-      if (e.key === 'ArrowUp' || e.key === 'w') k.up = false;
-      if (e.key === 'ArrowDown' || e.key === 's') k.down = false;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') k.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') k.right = false;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') k.up = false;
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') k.down = false;
       if (e.key === ' ' || e.key === 'Enter') k.fire = false;
     };
 
@@ -137,8 +178,10 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
     // Main Game Loop
     const loop = (timestamp: number) => {
       const state = stateRef.current;
-      const width = canvas.width;
-      const height = canvas.height;
+      const { width, height, dpr } = logicalDimRef.current;
+
+      // Scale context for Retina display
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // Clear Canvas
       ctx.fillStyle = '#080a0f';
@@ -147,7 +190,7 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
       // Cyber Grid background
       ctx.strokeStyle = 'rgba(57, 255, 20, 0.05)';
       ctx.lineWidth = 1;
-      const gridSize = 30;
+      const gridSize = 28;
       for (let x = 0; x < width; x += gridSize) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
@@ -185,8 +228,9 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
         state.player.x = Math.max(state.player.radius, Math.min(width - state.player.radius, state.player.x));
         state.player.y = Math.max(state.player.radius, Math.min(height - state.player.radius, state.player.y));
 
-        // Fire Bullet
-        if (state.keys.fire && timestamp - state.lastFire > 160) {
+        // Fire Bullet (Manual or Auto-Fire)
+        const shouldFire = state.keys.fire || autoFireRef.current;
+        if (shouldFire && timestamp - state.lastFire > 160) {
           state.lastFire = timestamp;
           const speed = 9;
           state.bullets.push({
@@ -200,7 +244,7 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
         }
 
         // Spawn Enemies
-        if (timestamp - state.lastSpawn > Math.max(700, 2000 - state.wave * 150)) {
+        if (timestamp - state.lastSpawn > Math.max(650, 2000 - state.wave * 140)) {
           state.lastSpawn = timestamp;
           const edge = Math.floor(Math.random() * 4);
           let ex = 0;
@@ -263,6 +307,15 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
                 state.score += e.type === 'demon' ? 50 : 20;
                 setScore(state.score);
 
+                // Update High Score
+                if (state.score > highScoreRef.current) {
+                  highScoreRef.current = state.score;
+                  setHighScore(state.score);
+                  try {
+                    localStorage.setItem('zaptroll_doom_highscore', String(state.score));
+                  } catch {}
+                }
+
                 // Wave advancement every 250 points
                 if (Math.floor(state.score / 250) + 1 > state.wave) {
                   state.wave = Math.floor(state.score / 250) + 1;
@@ -307,6 +360,7 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
             state.hp -= e.type === 'demon' ? 20 : 10;
             setHp(Math.max(0, state.hp));
             playHit();
+            if (navigator.vibrate) navigator.vibrate(40);
             state.enemies.splice(i, 1);
 
             if (state.hp <= 0) {
@@ -400,6 +454,7 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
 
     return () => {
       cancelAnimationFrame(animationId);
+      if (ro) ro.disconnect();
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -407,6 +462,15 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
   }, [gameStarted]);
 
   const startGame = () => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+    } catch {}
+
     stateRef.current.hp = 100;
     stateRef.current.score = 0;
     stateRef.current.wave = 1;
@@ -421,12 +485,55 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
     setGameStarted(true);
   };
 
-  // Touch control handlers
-  const handleTouchDir = (dx: number, dy: number) => {
-    stateRef.current.touchMove = { x: dx, y: dy };
+  // Virtual Joystick & Touch Control Logic
+  const updateThumbStick = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pad = padRef.current;
+    if (!pad) return;
+    const rect = pad.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const rawDx = e.clientX - centerX;
+    const rawDy = e.clientY - centerY;
+    const maxRadius = rect.width * 0.34;
+
+    const dist = Math.hypot(rawDx, rawDy);
+    let clampedX = rawDx;
+    let clampedY = rawDy;
+
+    if (dist > maxRadius) {
+      clampedX = (rawDx / dist) * maxRadius;
+      clampedY = (rawDy / dist) * maxRadius;
+    }
+
+    setKnobPos({ x: clampedX, y: clampedY });
+
+    if (dist > 5) {
+      stateRef.current.touchMove = {
+        x: clampedX / maxRadius,
+        y: clampedY / maxRadius,
+      };
+    } else {
+      stateRef.current.touchMove = { x: 0, y: 0 };
+    }
   };
 
-  const handleTouchStop = () => {
+  const handlePadPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (navigator.vibrate) navigator.vibrate(10);
+    updateThumbStick(e);
+  };
+
+  const handlePadPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.buttons === 0) return;
+    updateThumbStick(e);
+  };
+
+  const handlePadPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    setKnobPos({ x: 0, y: 0 });
     stateRef.current.touchMove = { x: 0, y: 0 };
   };
 
@@ -434,136 +541,292 @@ export const RetroGameView: React.FC<{ gameId?: string }> = ({ gameId = 'doom-se
     stateRef.current.keys.fire = active;
   };
 
+  // Direct Touch on Canvas (Move towards touch position)
+  const steerToCanvasTouch = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const touchX = e.clientX - rect.left;
+    const touchY = e.clientY - rect.top;
+
+    const dx = touchX - stateRef.current.player.x;
+    const dy = touchY - stateRef.current.player.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 12) {
+      stateRef.current.touchMove = { x: dx / dist, y: dy / dist };
+    } else {
+      stateRef.current.touchMove = { x: 0, y: 0 };
+    }
+  };
+
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!gameStarted || gameOver) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    steerToCanvasTouch(e);
+  };
+
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!gameStarted || gameOver) return;
+    if (e.buttons === 0) return;
+    steerToCanvasTouch(e);
+  };
+
+  const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    stateRef.current.touchMove = { x: 0, y: 0 };
+  };
+
+  const handleExitToWhatsApp = () => {
+    try {
+      if (window.opener) {
+        window.close();
+        return;
+      }
+    } catch {}
+
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = 'whatsapp://app';
+    }
+  };
+
+  const handleShareScore = () => {
+    const text = `🕹️ *DOOM SECTOR • ZAPTROLL*\n🔥 Bati *${score} pontos* e sobrevivi até a Wave *${wave}*!\n\n🎮 Quem consegue bater meu recorde? Jogue agora:\n${window.location.href}`;
+    window.location.href = `whatsapp://send?text=${encodeURIComponent(text)}`;
+  };
+
   return (
-    <div className="min-h-screen bg-[#080a0f] text-white flex flex-col items-center justify-between p-3 select-none touch-none">
-      {/* Top Bar */}
-      <header className="w-full max-w-lg flex items-center justify-between py-2 border-b border-white/10">
+    <div className="h-[100dvh] max-h-[100dvh] w-full bg-[#080a0f] text-white flex flex-col items-center justify-between p-2 select-none touch-none overflow-hidden pb-safe pt-safe">
+      {/* 1. Header Superior */}
+      <header className="flex-shrink-0 w-full max-w-lg flex items-center justify-between py-1.5 px-1 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-[#161922] border border-[#39ff14]/30 text-[#39ff14]">
-            <Gamepad2 className="w-5 h-5" />
+          <div className="p-1.5 rounded-xl bg-[#161922] border border-[#39ff14]/30 text-[#39ff14] shadow-[0_0_10px_rgba(57,255,20,0.2)]">
+            <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h1 className="text-sm font-black font-mono tracking-wider text-white">
+            <h1 className="text-xs sm:text-sm font-black font-mono tracking-wider text-white">
               DOOM SECTOR • ZAPTROLL
             </h1>
-            <span className="text-[10px] text-gray-400 font-mono">WASM & Canvas Retro Arcade</span>
+            <span className="text-[10px] text-gray-400 font-mono hidden xs:inline">WASM & Canvas Retro Arcade</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-1.5 rounded-lg bg-[#161922] border border-white/10 text-gray-300 hover:text-white"
+            className="p-1.5 rounded-lg bg-[#161922] border border-white/10 text-gray-300 hover:text-white transition"
+            title="Alternar Som"
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-[#39ff14]" /> : <VolumeX className="w-4 h-4 text-gray-500" />}
           </button>
         </div>
       </header>
 
-      {/* Stats HUD */}
-      <div className="w-full max-w-lg flex items-center justify-between px-2 py-1.5 text-xs font-mono">
-        <div className="flex items-center gap-1.5 text-[#39ff14]">
+      {/* 2. HUD de Estatísticas */}
+      <div className="flex-shrink-0 w-full max-w-lg flex items-center justify-between px-2 py-1 text-xs font-mono">
+        <div className="flex items-center gap-1.5 text-[#39ff14] font-bold">
           <Shield className="w-3.5 h-3.5" />
           <span>ESCUDO: {hp}%</span>
         </div>
-        <div className="flex items-center gap-1.5 text-yellow-400">
+        <div className="flex items-center gap-1.5 text-yellow-400 font-bold">
           <Trophy className="w-3.5 h-3.5" />
           <span>SCORE: {score}</span>
         </div>
-        <div className="text-cyan-400">WAVE: {wave}</div>
+        {highScore > 0 && (
+          <div className="hidden xs:flex items-center gap-1 text-amber-400">
+            <Sparkles className="w-3 h-3 text-amber-300" />
+            <span className="text-[10px]">REC: {highScore}</span>
+          </div>
+        )}
+        <div className="text-cyan-400 font-bold">WAVE: {wave}</div>
       </div>
 
-      {/* Game Canvas Container */}
-      <div className="relative w-full max-w-lg flex-1 flex items-center justify-center min-h-[300px]">
+      {/* 3. Container do Canvas do Jogo */}
+      <div
+        ref={containerRef}
+        className="relative w-full max-w-lg flex-1 min-h-0 flex items-center justify-center my-1 overflow-hidden rounded-2xl border border-white/10 bg-[#080a0f] shadow-[0_0_30px_rgba(57,255,20,0.1)]"
+      >
         <canvas
           ref={canvasRef}
-          className="rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(57,255,20,0.15)] bg-[#080a0f] w-full"
+          onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerUp={handleCanvasPointerUp}
+          onPointerCancel={handleCanvasPointerUp}
+          className="block cursor-crosshair touch-none"
         />
 
-        {/* Start / Game Over Overlay */}
+        {/* Overlay Inicial e de Game Over */}
         {(!gameStarted || gameOver) && (
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-            <h2 className="text-2xl font-black text-white font-mono mb-2 tracking-wider">
-              {gameOver ? '💀 VOCÊ FOI DERROTADO' : '🔥 DOOM SECTOR 2026'}
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in fade-in z-10 overflow-y-auto">
+            <div className="w-12 h-12 rounded-2xl bg-[#161922] border border-[#39ff14]/40 flex items-center justify-center text-2xl mb-2 shadow-[0_0_20px_rgba(57,255,20,0.3)]">
+              {gameOver ? '💀' : '🔥'}
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-black text-white font-mono mb-1.5 tracking-wider">
+              {gameOver ? 'VOCÊ FOI DERROTADO' : 'DOOM SECTOR 2026'}
             </h2>
-            <p className="text-xs text-gray-300 max-w-xs mb-4">
+
+            <p className="text-xs text-gray-300 max-w-xs mb-3 font-sans">
               {gameOver
                 ? `Pontuação Final: ${score} pts. Sobreviveu até a Wave ${wave}.`
-                : 'Defenda a base contra as hordas cibernéticas. Controles por toque na tela ou WASD + Espaço.'}
+                : 'Defenda a base cibernética! Use o D-pad virtual, arraste o dedo na tela ou use WASD.'}
             </p>
-            <button
-              onClick={startGame}
-              className="py-3 px-8 rounded-2xl bg-[#39ff14] hover:bg-[#32e012] text-black font-bold text-sm shadow-[0_0_20px_rgba(57,255,20,0.4)] flex items-center gap-2 transition-transform hover:scale-105 active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>{gameOver ? 'Jogar Novamente' : 'Iniciar Missão'}</span>
-            </button>
+
+            {highScore > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-mono mb-4">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Recorde Pessoal: {highScore} pts</span>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <button
+                onClick={startGame}
+                className="w-full py-3 px-6 rounded-xl bg-[#39ff14] hover:bg-[#32e012] active:bg-[#28c50d] text-black font-extrabold text-sm shadow-[0_0_25px_rgba(57,255,20,0.4)] flex items-center justify-center gap-2 transition-transform active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4 text-black" />
+                <span>{gameOver ? 'Jogar Novamente' : 'Iniciar Missão 🚀'}</span>
+              </button>
+
+              {gameOver && (
+                <button
+                  onClick={handleShareScore}
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] active:bg-[#1caa52] text-white font-bold text-xs shadow-[0_0_15px_rgba(37,211,102,0.3)] flex items-center justify-center gap-2 transition-transform active:scale-95"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Compartilhar no WhatsApp</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleExitToWhatsApp}
+                className="w-full py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-mono transition"
+              >
+                ← Voltar ao Chat do WhatsApp
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Mobile Touch Controls HUD */}
-      <div className="w-full max-w-lg flex items-center justify-between px-2 pt-2 pb-1">
-        {/* Virtual D-pad */}
-        <div className="grid grid-cols-3 gap-1.5 w-32 h-32">
-          <div />
-          <button
-            onPointerDown={() => handleTouchDir(0, -1)}
-            onPointerUp={handleTouchStop}
-            className="rounded-xl bg-[#161922] active:bg-[#39ff14]/30 border border-white/10 text-white font-mono text-sm flex items-center justify-center shadow"
+      {/* 4. Deck de Controles Mobile Táteis (100% visível, sem cortes) */}
+      <div className="flex-shrink-0 w-full max-w-lg px-2 pt-1 pb-1">
+        <div className="flex items-center justify-between gap-2">
+          {/* Esquerda: D-Pad Analógico Virtual 360° com Indicadores Táteis */}
+          <div
+            ref={padRef}
+            onPointerDown={handlePadPointerDown}
+            onPointerMove={handlePadPointerMove}
+            onPointerUp={handlePadPointerUp}
+            onPointerCancel={handlePadPointerUp}
+            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#151924] to-[#0c0f16] border-2 border-white/15 shadow-[inset_0_2px_8px_rgba(0,0,0,0.8),0_0_15px_rgba(57,255,20,0.15)] flex items-center justify-center cursor-pointer select-none touch-none active:border-[#39ff14]/60 transition-colors"
           >
-            ▲
-          </button>
-          <div />
-          <button
-            onPointerDown={() => handleTouchDir(-1, 0)}
-            onPointerUp={handleTouchStop}
-            className="rounded-xl bg-[#161922] active:bg-[#39ff14]/30 border border-white/10 text-white font-mono text-sm flex items-center justify-center shadow"
-          >
-            ◀
-          </button>
-          <div className="rounded-xl bg-[#10131a] border border-white/5 flex items-center justify-center text-[10px] text-gray-500 font-mono">
-            PAD
+            {/* Linhas Guia Sutis */}
+            <div className="absolute inset-x-3 top-1/2 h-[1px] bg-white/5 pointer-events-none" />
+            <div className="absolute inset-y-3 left-1/2 w-[1px] bg-white/5 pointer-events-none" />
+
+            {/* Marcadores de Direção */}
+            <span
+              className={`absolute top-1 text-[11px] font-black transition-colors ${
+                knobPos.y < -12 ? 'text-[#39ff14] scale-125' : 'text-gray-500'
+              }`}
+            >
+              ▲
+            </span>
+            <span
+              className={`absolute bottom-1 text-[11px] font-black transition-colors ${
+                knobPos.y > 12 ? 'text-[#39ff14] scale-125' : 'text-gray-500'
+              }`}
+            >
+              ▼
+            </span>
+            <span
+              className={`absolute left-1.5 text-[11px] font-black transition-colors ${
+                knobPos.x < -12 ? 'text-[#39ff14] scale-125' : 'text-gray-500'
+              }`}
+            >
+              ◀
+            </span>
+            <span
+              className={`absolute right-1.5 text-[11px] font-black transition-colors ${
+                knobPos.x > 12 ? 'text-[#39ff14] scale-125' : 'text-gray-500'
+              }`}
+            >
+              ▶
+            </span>
+
+            {/* Manete / Botão Analógico Flutuante */}
+            <div
+              style={{
+                transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
+                transition: knobPos.x === 0 && knobPos.y === 0 ? 'transform 0.15s ease-out' : 'none',
+              }}
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1f2937] to-[#111827] border-2 border-[#39ff14] shadow-[0_0_14px_rgba(57,255,20,0.5)] flex items-center justify-center pointer-events-none"
+            >
+              <div className="w-3.5 h-3.5 rounded-full bg-[#39ff14]/80 shadow-[0_0_6px_#39ff14]" />
+            </div>
           </div>
-          <button
-            onPointerDown={() => handleTouchDir(1, 0)}
-            onPointerUp={handleTouchStop}
-            className="rounded-xl bg-[#161922] active:bg-[#39ff14]/30 border border-white/10 text-white font-mono text-sm flex items-center justify-center shadow"
-          >
-            ▶
-          </button>
-          <div />
-          <button
-            onPointerDown={() => handleTouchDir(0, 1)}
-            onPointerUp={handleTouchStop}
-            className="rounded-xl bg-[#161922] active:bg-[#39ff14]/30 border border-white/10 text-white font-mono text-sm flex items-center justify-center shadow"
-          >
-            ▼
-          </button>
-          <div />
-        </div>
 
-        {/* Info & Exit Button */}
-        <div className="flex flex-col items-center gap-2">
-          <a
-            href="whatsapp://app"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#161922] border border-white/10 text-[11px] font-mono text-gray-300 hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Voltar ao Chat</span>
-          </a>
-          <span className="text-[9px] text-gray-500 font-mono">Zaptroll Touch Arena</span>
-        </div>
+          {/* Centro: Hub de Ações Rápidas (Voltar & Auto-Fire) */}
+          <div className="flex flex-col items-center justify-center gap-2">
+            <button
+              onClick={handleExitToWhatsApp}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#161922] hover:bg-[#1e2330] active:bg-[#252c3c] border border-white/10 text-[11px] font-mono text-gray-300 hover:text-white transition shadow active:scale-95"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Voltar ao Chat</span>
+            </button>
 
-        {/* Action Button: FIRE */}
-        <div className="flex flex-col items-center justify-center">
-          <button
-            onPointerDown={() => handleTouchFire(true)}
-            onPointerUp={() => handleTouchFire(false)}
-            className="w-24 h-24 rounded-full bg-red-600 active:bg-red-500 text-white font-black font-mono text-base border-4 border-red-400/30 shadow-[0_0_25px_rgba(239,68,68,0.5)] flex items-center justify-center active:scale-95 transition-transform"
-          >
-            FIRE 🔥
-          </button>
+            <button
+              onClick={() => setAutoFire(!autoFire)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-mono font-bold transition shadow active:scale-95 ${
+                autoFire
+                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  : 'bg-[#161922] border-white/10 text-gray-400 hover:text-gray-200'
+              }`}
+              title="Disparo Contínuo Automático"
+            >
+              <Zap className={`w-3.5 h-3.5 ${autoFire ? 'text-cyan-400 animate-pulse' : 'text-gray-500'}`} />
+              <span>AUTO {autoFire ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <span className="text-[9px] text-gray-500 font-mono tracking-tight text-center hidden xs:inline">
+              Toque na tela ou no D-pad
+            </span>
+          </div>
+
+          {/* Direita: Botão de Ação Arcade FIRE */}
+          <div className="flex flex-col items-center justify-center">
+            <button
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                handleTouchFire(true);
+                if (navigator.vibrate) navigator.vibrate(15);
+              }}
+              onPointerUp={(e) => {
+                try {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                } catch {}
+                handleTouchFire(false);
+              }}
+              onPointerCancel={(e) => {
+                try {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                } catch {}
+                handleTouchFire(false);
+              }}
+              className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-red-500 via-rose-600 to-red-700 active:from-red-600 active:to-red-800 text-white font-black font-mono text-sm sm:text-base border-4 border-red-400/40 shadow-[0_0_25px_rgba(239,68,68,0.5)] flex flex-col items-center justify-center active:scale-95 transition-transform"
+            >
+              <Flame className="w-5 h-5 text-yellow-300 animate-pulse mb-0.5" />
+              <span className="tracking-wider">FIRE</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

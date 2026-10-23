@@ -16,6 +16,7 @@ import { MemeFlowService } from '../../modules/memes/MemeFlowService.js';
 import { StatusService } from '../../modules/advanced/StatusService.js';
 import { MetaAiService } from '../../modules/advanced/MetaAiService.js';
 import { RpgCommandDispatcher } from '../../modules/rpg/commands/RpgCommandDispatcher.js';
+import { VoiceCommandDispatcher } from '../../modules/voice/VoiceCommandDispatcher.js';
 import { FlowEngine } from '../../modules/flows/services/FlowEngine.js';
 import { extractMessageContent } from './ViewOnceInterceptor.js';
 import fs from 'node:fs';
@@ -481,6 +482,32 @@ export class ZapoEventHandler {
           return;
         }
 
+        // 5.1.1 Ignore pure Signal protocol key exchange / distribution stanzas
+        // In large groups (e.g. 900+ members), WhatsApp sends standalone senderKeyDistributionMessage
+        // stanzas containing only crypto keys without chat content. Do NOT store these as user messages.
+        const rawMsg = event.message;
+        if (
+          rawMsg?.senderKeyDistributionMessage &&
+          !rawMsg?.conversation &&
+          !rawMsg?.extendedTextMessage &&
+          !rawMsg?.imageMessage &&
+          !rawMsg?.videoMessage &&
+          !rawMsg?.audioMessage &&
+          !rawMsg?.documentMessage &&
+          !rawMsg?.stickerMessage &&
+          !rawMsg?.buttonsMessage &&
+          !rawMsg?.listMessage &&
+          !rawMsg?.interactiveMessage &&
+          !rawMsg?.templateButtonReplyMessage &&
+          !rawMsg?.buttonsResponseMessage &&
+          !rawMsg?.listResponseMessage &&
+          !rawMsg?.viewOnceMessage &&
+          !rawMsg?.viewOnceMessageV2 &&
+          !rawMsg?.ephemeralMessage
+        ) {
+          return;
+        }
+
         // 5.2 Extract Name for Group or Contact
         let chatName: string = remoteJid.split('@')[0];
         let contactPhone: string | null = null;
@@ -866,12 +893,26 @@ export class ZapoEventHandler {
           },
         });
 
+        const isPlaceholderContent =
+          !message.content ||
+          message.content === '[Mensagem não suportada ou formato especial]' ||
+          message.content.includes('Visualização Única') ||
+          message.content.includes('Mensagem recebida no dispositivo principal') ||
+          message.content.includes('Você enviou uma mensagem de outro dispositivo');
+
+        const isUpgradedFromPlaceholder =
+          !created &&
+          isPlaceholderContent &&
+          Boolean(textContent && textContent !== '[Mensagem não suportada ou formato especial]');
+
         // Ensure attributes are up to date if found or upgraded from unavailable placeholder
-        if (mediaUrl) {
-          message.mediaUrl = mediaUrl;
-          message.mediaMimetype = mediaMimetype;
-          message.mediaFilename = mediaFilename;
-          message.thumbnailUrl = thumbnailUrl;
+        if (!created && (mediaUrl || isUpgradedFromPlaceholder || textContent !== message.content)) {
+          if (mediaUrl) {
+            message.mediaUrl = mediaUrl;
+            message.mediaMimetype = mediaMimetype;
+            message.mediaFilename = mediaFilename;
+            message.thumbnailUrl = thumbnailUrl;
+          }
           message.caption = caption;
           message.content = textContent;
           message.messageType = messageType;
@@ -882,6 +923,8 @@ export class ZapoEventHandler {
           if (message.messageType === 'text') message.messageType = 'view_once';
           await message.save();
         }
+
+        const isNewOrUpgraded = created || isUpgradedFromPlaceholder;
 
         const messagePayload = {
           id: message.id,
@@ -940,7 +983,7 @@ export class ZapoEventHandler {
           msgText === 'jacaré';
 
         if (
-          created &&
+          isNewOrUpgraded &&
           isJacareTrigger
         ) {
           if (MemeFlowService.shouldTrigger(message.stanzaId)) {
@@ -960,7 +1003,7 @@ export class ZapoEventHandler {
         }
 
         // Gatilho Inteligente /ai e /ia - Meta AI no Chat (Privado, Grupos, Comunidades e Mensagens Próprias)
-        const rawCommandText = (caption || message.content || '').trim();
+        const rawCommandText = (caption || textContent || message.content || '').trim();
 
         // Detecta /ai, /ia, !ai, !ia, .ai, .ia, #ai, #ia ou comando avulso 'ai' / 'ia'
         const isAiTrigger = /^([/!#.\\]\s*(ai|ia)(\s+[\s\S]*|$)|^(ai|ia)$)/i.test(rawCommandText);
@@ -971,7 +1014,7 @@ export class ZapoEventHandler {
           rawCommandText.startsWith('🤖') ||
           rawCommandText.includes('🤖 [Meta AI]');
 
-        if (created && isAiTrigger && !isBotResponse) {
+        if (isNewOrUpgraded && isAiTrigger && !isBotResponse) {
           let question = rawCommandText.replace(/^([/!#.\\]\s*(ai|ia)|^(ai|ia))\s*/i, '').trim();
 
           // Se a mensagem citou outra mensagem (em grupos, comunidades ou privado), agrega contexto
@@ -1011,8 +1054,34 @@ export class ZapoEventHandler {
           }, 300);
         }
 
+        // Gatilho de Voz por IA / TTS Kordix (&vozkordix, /vozkordix, /voz, etc.)
+        if (isNewOrUpgraded && rawCommandText && VoiceCommandDispatcher.isVoiceTrigger(rawCommandText)) {
+          const clientUserId = (client as any)?.user?.id || 'me@s.whatsapp.net';
+          const effectiveSenderJid = isGroup
+            ? (event.key?.participant || event.participant || (fromMe ? clientUserId : remoteJid))
+            : (fromMe ? clientUserId : remoteJid);
+
+          setTimeout(async () => {
+            try {
+              await VoiceCommandDispatcher.handleMessage({
+                client,
+                connectionId,
+                userId,
+                remoteJid,
+                senderJid: effectiveSenderJid,
+                fromMe,
+                stanzaId: message.stanzaId,
+                text: rawCommandText,
+                rawEventKey: event.key,
+              });
+            } catch (voiceErr: any) {
+              console.error('[ZapoEventHandler] Erro no processamento de voz Kordix:', voiceErr?.message || voiceErr);
+            }
+          }, 100);
+        }
+
         // Gatilho RPG de Luta Política - Processamento de Comandos e Cartas
-        if (created && rawCommandText) {
+        if (isNewOrUpgraded && rawCommandText) {
           const clientUserId = (client as any)?.user?.id || 'me@s.whatsapp.net';
           let effectiveSenderJid = isGroup
             ? (event.key?.participant || event.participant || (fromMe ? clientUserId : remoteJid))
@@ -1051,10 +1120,23 @@ export class ZapoEventHandler {
         }
 
         // Gatilho do Motor de Fluxos Conversacionais (FlowEngine)
-        if (created && !fromMe && !isGroup && rawCommandText) {
+        // Permite mensagens privadas e também comandos explícitos em grupos (ex: /jogo, /game, /teste)
+        // Se for fromMe, permite comandos iniciados por '/' ou '!' para homologação pelo próprio dono
+        const isEligibleFlowTrigger =
+          (!fromMe || rawCommandText.trim().startsWith('/') || rawCommandText.trim().startsWith('!')) &&
+          (!isGroup || rawCommandText.trim().startsWith('/') || rawCommandText.trim().startsWith('!'));
+
+        if (isNewOrUpgraded && isEligibleFlowTrigger && rawCommandText) {
+          const clientUserId = (client as any)?.user?.id || 'me@s.whatsapp.net';
+          const effectiveSenderJid = isGroup
+            ? (event.key?.participant || event.participant || (fromMe ? clientUserId : remoteJid))
+            : (fromMe ? clientUserId : remoteJid);
+
           FlowEngine.processMessage({
             connectionId,
             userJid: remoteJid,
+            senderJid: effectiveSenderJid,
+            senderName: event.pushName || conversation.name || '',
             userInput: rawCommandText,
             inputPayload: enrichedRawPayload,
             isSimulation: false,

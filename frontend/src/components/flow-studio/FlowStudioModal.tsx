@@ -509,6 +509,9 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
       });
       setCurrentFlow(res.data.flow);
       setCurrentVersion(res.data.version);
+      setFlowsList((prev) =>
+        prev.map((f) => (f.id === res.data.flow.id ? res.data.flow : f))
+      );
       showToast('✓ Versão salva com sucesso no banco!');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Erro ao salvar fluxo.');
@@ -820,10 +823,16 @@ export const FlowStudioModal: React.FC<FlowStudioModalProps> = ({
                     connectionId: newConnId,
                   });
                   setCurrentFlow(res.data.flow);
+                  if (res.data.version) {
+                    setCurrentVersion(res.data.version);
+                  }
+                  setFlowsList((prev) =>
+                    prev.map((f) => (f.id === res.data.flow.id ? res.data.flow : f))
+                  );
                   showToast(
                     newConnId
-                      ? '✓ Fluxo vinculado exclusivamente a esta conexão!'
-                      : '✓ Fluxo vinculado a Todas as Conexões WhatsApp!'
+                      ? '✓ Conexão salva! Fluxo ativo nesta linha WhatsApp.'
+                      : '✓ Conexão salva! Fluxo ativo em Todas as Conexões.'
                   );
                 } catch (err: any) {
                   alert(err.message);

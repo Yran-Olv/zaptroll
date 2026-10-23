@@ -1,4 +1,5 @@
 import { Op } from 'sequelize';
+import { sequelize } from '../../../database/index.js';
 import { Flow, FlowVersion, FlowSession, FlowExecutionEvent, FormSubmission } from '../models/index.js';
 import { ZapoConnectionManager } from '../../../integrations/zapo/ZapoConnectionManager.js';
 import { ZapoMessageAdapter } from '../../../integrations/zapo/ZapoMessageAdapter.js';
@@ -9,6 +10,8 @@ import { FlowNodeType, LegacyFlowNodeType } from '../types/index.js';
 export interface ExecuteFlowOptions {
   connectionId: string;
   userJid: string;
+  senderJid?: string;
+  senderName?: string;
   userInput?: string;
   inputPayload?: any;
   isSimulation?: boolean;
@@ -32,6 +35,7 @@ export class FlowEngine {
 
   /**
    * Tenta encontrar um fluxo publicado correspondente à mensagem recebida.
+   * Dá prioridade máxima para fluxos vinculados especificamente à conexão WhatsApp atual.
    */
   public static async findTriggeredFlow(
     text: string,
@@ -49,7 +53,21 @@ export class FlowEngine {
       ];
     }
 
-    const flows = await Flow.findAll({ where: whereClause });
+    const safeConnId = connectionId ? connectionId.replace(/[^a-zA-Z0-9-]/g, '') : '';
+    const flows = await Flow.findAll({
+      where: whereClause,
+      order: safeConnId
+        ? [
+            [
+              sequelize.literal(
+                `CASE WHEN "Flow"."connectionId" = '${safeConnId}' THEN 0 ELSE 1 END`
+              ),
+              'ASC',
+            ],
+            ['updatedAt', 'DESC'],
+          ]
+        : [['updatedAt', 'DESC']],
+    });
 
     for (const flow of flows) {
       const keywords = Array.isArray(flow.triggerKeywords) ? flow.triggerKeywords : [];
@@ -68,11 +86,17 @@ export class FlowEngine {
             where: { flowId: flow.id, isPublished: true },
             order: [['version', 'DESC']],
           });
-          if (version && !flow.publishedVersionId) {
-            await flow.update({ publishedVersionId: version.id });
-          }
+        }
+        if (!version) {
+          version = await FlowVersion.findOne({
+            where: { flowId: flow.id },
+            order: [['version', 'DESC']],
+          });
         }
         if (version) {
+          if (flow.publishedVersionId !== version.id) {
+            await flow.update({ publishedVersionId: version.id });
+          }
           return { flow, version };
         }
       }
@@ -90,10 +114,13 @@ export class FlowEngine {
     events?: any[];
     error?: string;
   }> {
-    const { connectionId, userJid, userInput = '', isSimulation = false } = options;
+    const { connectionId, userJid, userInput = '', isSimulation = false, senderJid, senderName } = options;
     const cleanInput = userInput.trim();
 
-    // 1. Verifica se já existe uma sessão ativa aguardando resposta para este usuário
+    // 1. Verifica se a mensagem aciona um novo fluxo por comando / palavra-chave
+    const triggered = await this.findTriggeredFlow(cleanInput, connectionId);
+
+    // 2. Busca se há sessão existente ativa para este usuário/chat
     let session = await FlowSession.findOne({
       where: {
         connectionId,
@@ -106,11 +133,11 @@ export class FlowEngine {
 
     let flowVersion: FlowVersion | null = null;
 
-    if (!session) {
-      // 2. Não há sessão ativa: verifica se a mensagem aciona um novo fluxo
-      const triggered = await this.findTriggeredFlow(cleanInput, connectionId);
-      if (!triggered) {
-        return { handled: false };
+    // Se a mensagem aciona um novo fluxo (ex: /jogo, /game, /teste, /menu),
+    // cancela qualquer sessão anterior pendente para iniciar imediatamente o novo fluxo!
+    if (triggered) {
+      if (session) {
+        await session.update({ status: 'cancelled' });
       }
 
       flowVersion = triggered.version;
@@ -130,7 +157,11 @@ export class FlowEngine {
         userJid,
         currentNodeId: initialNode.id,
         status: 'active',
-        variables: {},
+        variables: {
+          senderJid: senderJid || userJid,
+          senderName: senderName || '',
+          isGroup: userJid.endsWith('@g.us'),
+        },
         stepHistory: [{ nodeId: initialNode.id, timestamp: new Date().toISOString(), action: 'trigger_started' }],
         lastInteractionAt: new Date(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
@@ -143,7 +174,7 @@ export class FlowEngine {
 
       // Executa a partir do nó inicial (que avançará automaticamente para o próximo nó conectado)
       return this.resumeSession(session, flowVersion, options, initialNode.id);
-    } else {
+    } else if (session) {
       // 3. Sessão existente aguardando resposta do usuário
       flowVersion = await FlowVersion.findByPk(session.flowVersionId);
       if (!flowVersion) {
@@ -153,6 +184,8 @@ export class FlowEngine {
 
       return this.handleUserInput(session, flowVersion, options);
     }
+
+    return { handled: false };
   }
 
   /**
@@ -581,20 +614,29 @@ export class FlowEngine {
             ? `${baseUrl}/rpg/batalha/${session.id}?ref=${session.id.slice(0, 8)}`
             : `${baseUrl}/r/jogos/doom-sector?ref=${session.id.slice(0, 8)}`;
 
-        const messageText = `🎮 *${gameTitle}*\nToque no botão abaixo para abrir o jogo web no navegador móvel ou desktop:`;
+        const presentation = node.data.presentation || 'full';
+        const messageText = `🎮 *${gameTitle}*\nToque no botão abaixo para abrir o jogo web no navegador móvel ou desktop:\n${gameUrl}`;
 
         if (client && !isSimulation) {
           await ZapoMessageAdapter.sendWebview(client, userJid, {
             bodyText: messageText,
             buttonText,
             url: gameUrl,
-            presentation: 'full',
+            presentation,
             footerText: 'ZapTroll Web Arcade',
           });
         }
 
-        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { gameUrl, gameTitle });
-        events.push({ type: 'game_launcher', text: messageText, url: gameUrl, buttonText, nodeId: node.id });
+        await this.logEvent(session.id, session.flowId, node.id, 'message_sent', { gameUrl, gameTitle, presentation });
+        events.push({
+          type: 'game_launcher',
+          text: messageText,
+          url: gameUrl,
+          buttonText,
+          gameTitle,
+          isGame: true,
+          nodeId: node.id,
+        });
 
         const nextEdge = version.edges.find((e) => e.source === node.id);
         currentId = nextEdge ? nextEdge.target : null;

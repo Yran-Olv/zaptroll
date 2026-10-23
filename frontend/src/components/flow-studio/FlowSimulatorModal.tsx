@@ -14,6 +14,7 @@ import {
   Smartphone,
   Eye,
   CheckCircle,
+  Gamepad2,
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { Flow, FlowVersion, FlowNode } from '../../types/flows.js';
@@ -25,6 +26,7 @@ interface ChatMessage {
   buttons?: Array<{ buttonId: string; displayText: string }>;
   formUrl?: string;
   formTitle?: string;
+  isGame?: boolean;
   pixData?: { key: string; amount: string; qrCode: string };
   timestamp: string;
   nodeId?: string;
@@ -141,7 +143,8 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
         sender: 'bot',
         text: ev.text || ev.payload?.text,
         formUrl: ev.url || ev.payload?.url,
-        formTitle: ev.buttonText || ev.payload?.buttonText || '🎮 Jogar Agora',
+        formTitle: ev.buttonText || ev.payload?.buttonText || '🕹️ Jogar Agora',
+        isGame: true,
         timestamp,
         nodeId,
       };
@@ -412,17 +415,30 @@ export const FlowSimulatorModal: React.FC<FlowSimulatorModalProps> = ({
                         </div>
                       )}
 
-                      {/* Form URL Link Preview */}
+                      {/* Form / Game URL Link Preview */}
                       {msg.formUrl && (
                         <div className="mt-2.5 pt-2 border-t border-white/10">
                           <a
                             href={msg.formUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] transition-all"
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl font-mono text-[11px] transition-all shadow-md ${
+                              msg.isGame
+                                ? 'bg-gradient-to-r from-rose-600/30 to-purple-600/30 hover:from-rose-600/50 hover:to-purple-600/50 border border-rose-500/50 text-rose-200'
+                                : 'bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300'
+                            }`}
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Abrir {msg.formTitle || 'Formulário Hospedado'}</span>
+                            {msg.isGame ? (
+                              <Gamepad2 className="w-3.5 h-3.5 text-rose-400" />
+                            ) : (
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            )}
+                            <span className="font-bold">
+                              {msg.formTitle || (msg.isGame ? '🕹️ Jogar Agora' : 'Abrir Formulário')}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-black/40 text-[#39ff14] border border-white/10 font-bold">
+                              WebView
+                            </span>
                           </a>
                         </div>
                       )}

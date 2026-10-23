@@ -40,6 +40,8 @@ services:
       ALLOW_DEFAULT_CREDENTIALS: ${ALLOW_DEFAULT_CREDENTIALS:-true}
       APP_URL: ${APP_URL:-https://zaptroll.multivus.com.br}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173}
+      KORDIX_API_KEY: ${KORDIX_API_KEY:-}
+      KORDIX_API_KEYS: ${KORDIX_API_KEYS:-}
     depends_on:
       postgres:
         condition: service_healthy

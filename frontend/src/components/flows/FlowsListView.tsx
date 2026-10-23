@@ -32,6 +32,35 @@ export const FlowsListView: React.FC<FlowsListViewProps> = ({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleUpdateConnection = async (flow: Flow, newConnId: string | null) => {
+    try {
+      setActionLoadingId(flow.id);
+      const res = await api.put(`/flows/${flow.id}`, {
+        name: flow.name,
+        triggerKeywords: flow.triggerKeywords,
+        connectionId: newConnId,
+      });
+      setFlows((prev) =>
+        prev.map((f) => (f.id === flow.id ? res.data.flow : f))
+      );
+      showToast(
+        newConnId
+          ? '✓ Conexão salva! Fluxo ativo nesta linha WhatsApp.'
+          : '✓ Conexão salva! Fluxo ativo em Todas as Conexões.'
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   const fetchFlows = async () => {
     try {
@@ -275,10 +304,25 @@ export const FlowsListView: React.FC<FlowsListViewProps> = ({
                     ))}
                   </div>
 
-                  {/* Bound Connection */}
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400 shrink-0">
-                    <Smartphone className="w-3 h-3 text-emerald-400" />
-                    <span>{boundConn ? `🟢 ${boundConn.name}` : '🌐 Todas as Conexões'}</span>
+                  {/* Bound Connection Selector */}
+                  <div className="flex items-center gap-1.5 bg-[#161922] border border-white/10 rounded-xl px-2 py-0.5 shrink-0">
+                    <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <select
+                      value={flow.connectionId || ''}
+                      disabled={actionLoadingId === flow.id}
+                      onChange={(e) => handleUpdateConnection(flow, e.target.value || null)}
+                      className="bg-transparent text-[11px] font-mono text-gray-200 focus:outline-none cursor-pointer max-w-[130px] truncate"
+                      title="Vincular este fluxo a uma conexão WhatsApp"
+                    >
+                      <option value="" className="bg-[#161922] text-gray-300">
+                        🌐 Todas as Conexões
+                      </option>
+                      {connections.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-[#161922] text-emerald-300">
+                          🟢 {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -342,6 +386,14 @@ export const FlowsListView: React.FC<FlowsListViewProps> = ({
           })
         )}
       </div>
+
+      {/* Floating Toast Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#161922] border border-[#39ff14]/50 shadow-[0_0_20px_rgba(57,255,20,0.3)] text-white text-xs font-mono px-4 py-2.5 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <div className="w-2 h-2 rounded-full bg-[#39ff14] animate-ping" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };

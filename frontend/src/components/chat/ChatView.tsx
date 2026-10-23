@@ -1235,15 +1235,42 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Interactive Webview Rendering if present */}
-                  {msg.rawPayload?.url && (
-                    <div className="mt-2.5 pt-2 border-t border-white/10">
-                      <div className="py-1.5 px-3 bg-[#161922]/90 rounded-xl text-center font-mono font-semibold text-[#38bdf8] text-[11px] flex items-center justify-center gap-1.5 border border-[#2a3346] shadow-sm">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>{msg.rawPayload.buttonText || 'Abrir Webview'}</span>
+                  {/* Interactive Webview / CTA URL Rendering if present */}
+                  {(() => {
+                    const raw = msg.rawPayload;
+                    let ctaButton: { url: string; text: string } | null = null;
+                    if (raw?.url) {
+                      ctaButton = { url: raw.url, text: raw.buttonText || 'Abrir Webview' };
+                    } else if (raw?.interactiveMessage?.nativeFlowMessage?.buttons) {
+                      const btn = raw.interactiveMessage.nativeFlowMessage.buttons.find(
+                        (b: any) => b.name === 'cta_url'
+                      );
+                      if (btn) {
+                        try {
+                          const p = typeof btn.buttonParamsJson === 'string' ? JSON.parse(btn.buttonParamsJson) : (btn.buttonParamsJson || {});
+                          if (p.url) {
+                            ctaButton = { url: p.url, text: p.display_text || p.displayText || 'Abrir Webview' };
+                          }
+                        } catch {}
+                      }
+                    }
+
+                    if (!ctaButton) return null;
+
+                    return (
+                      <div className="mt-2.5 pt-2 border-t border-white/10">
+                        <a
+                          href={ctaButton.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-1.5 px-3 bg-[#161922]/90 hover:bg-[#1f2533] rounded-xl text-center font-mono font-semibold text-[#38bdf8] hover:text-white text-[11px] flex items-center justify-center gap-1.5 border border-[#2a3346] shadow-sm transition block"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-[#38bdf8]" />
+                          <span>{ctaButton.text}</span>
+                        </a>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Timestamp & Status Icon */}
                   <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-gray-400 font-mono">

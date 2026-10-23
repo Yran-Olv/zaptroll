@@ -246,9 +246,9 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
     id: 'doom_game',
     name: 'Jogo Retrô Web no Navegador (HTML5 Canvas / Doom)',
     category: 'games',
-    description: 'Envia um convite com botão CTA que abre um jogo retrô 60fps leve e responsivo rodando diretamente no navegador móvel ou desktop.',
+    description: 'Envia um convite com botão CTA que abre o jogo retrô DOOM ou Arena RPG em WebView direto no WhatsApp.',
     triggerKeywords: ['/jogo', '/game', '/doom', 'jogar'],
-    tags: ['Jogos', 'HTML5', 'Retro', 'Canvas'],
+    tags: ['Jogos', 'HTML5', 'Retro', 'Canvas', 'WebView'],
     nodes: [
       {
         id: 'trg_game',
@@ -258,28 +258,20 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
         data: { keywords: ['/jogo', '/game', '/doom', 'jogar'] },
       },
       {
-        id: 'msg_game_intro',
-        type: 'message_text',
-        name: 'Apresentação do Jogo',
-        position: { x: 300, y: 150 },
-        data: { text: '🎮 *ZAPTROLL ARCADE NO NAVEGADOR!* 👾\nDesafie seus reflexos num jogo retrô com gráficos em Canvas, controles por toque no celular ou teclado no PC.' },
-      },
-      {
-        id: 'btn_game',
-        type: 'hosted_page_button',
-        name: 'Abrir Jogo Web',
-        position: { x: 580, y: 150 },
+        id: 'node_game',
+        type: 'game_launcher',
+        name: 'Jogo Web DOOM / RPG',
+        position: { x: 380, y: 150 },
         data: {
-          text: 'Toque no botão para carregar instantaneamente o jogo em tela cheia:',
+          gameType: 'doom_retro',
+          gameTitle: 'DOOM Sector Retrô Arcade',
           buttonText: '🕹️ Jogar Agora',
-          pageType: 'game',
-          gameId: 'doom',
+          presentation: 'full',
         },
       },
     ],
     edges: [
-      { id: 'eg1', source: 'trg_game', target: 'msg_game_intro' },
-      { id: 'eg2', source: 'msg_game_intro', target: 'btn_game' },
+      { id: 'eg1', source: 'trg_game', target: 'node_game' },
     ],
   },
 
@@ -387,9 +379,10 @@ export const FLOW_TEMPLATES: Record<string, FlowTemplateDefinition> = {
         name: 'Lançador de Jogo Retrô',
         position: { x: 1540, y: 280 },
         data: {
-          message: '🕹️ *Hora da Diversão!* Toque no botão para abrir o jogo retrô DOOM no navegador responsivo:',
+          gameType: 'doom_retro',
+          gameTitle: 'DOOM Sector Retrô Arcade',
           buttonText: '🎮 Jogar DOOM Retrô Arcade',
-          gameId: 'retro-doom',
+          presentation: 'full',
         },
       },
       {

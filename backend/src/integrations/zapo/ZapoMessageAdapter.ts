@@ -555,15 +555,43 @@ export class ZapoMessageAdapter {
     client: WaClient,
     jid: string,
     media: Buffer | string,
-    options?: { mimetype?: string; ptt?: boolean; seconds?: number; waveform?: Uint8Array | Buffer }
+    options?: { mimetype?: string; ptt?: boolean; seconds?: number; waveform?: Uint8Array | Buffer; quote?: any }
   ) {
+    const sendOptions: any = {};
+    if (options?.quote) {
+      sendOptions.quote = options.quote;
+    }
+    return client.message.send(
+      jid,
+      {
+        type: 'audio',
+        media,
+        mimetype: options?.mimetype || 'audio/ogg; codecs=opus',
+        ptt: options?.ptt ?? true,
+        ...(options?.seconds ? { seconds: options.seconds } : {}),
+        ...(options?.waveform ? { waveform: options.waveform } : {}),
+      } as any,
+      Object.keys(sendOptions).length ? sendOptions : undefined
+    );
+  }
+
+  // 10.1 Send Reaction to a Message
+  static async sendReaction(
+    client: WaClient,
+    jid: string,
+    emoji: string,
+    target: { id?: string; stanzaId?: string; remoteJid?: string; fromMe?: boolean; participant?: string }
+  ) {
+    const targetKey = {
+      remoteJid: target.remoteJid || jid,
+      id: target.id || target.stanzaId,
+      fromMe: target.fromMe ?? false,
+      ...(target.participant ? { participant: target.participant } : {}),
+    };
     return client.message.send(jid, {
-      type: 'audio',
-      media,
-      mimetype: options?.mimetype || 'audio/ogg; codecs=opus',
-      ptt: options?.ptt ?? true,
-      ...(options?.seconds ? { seconds: options.seconds } : {}),
-      ...(options?.waveform ? { waveform: options.waveform } : {}),
+      type: 'reaction',
+      emoji,
+      target: targetKey,
     } as any);
   }
 

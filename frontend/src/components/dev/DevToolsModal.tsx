@@ -2345,7 +2345,7 @@ export const DevToolsModal: React.FC<DevToolsModalProps> = ({
 
                       <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1.5 font-sans">
-                          URL da Imagem Vertical (1080x1920 recomendado):
+                          URL da Mídia (Imagem ou Vídeo MP4 vertical):
                         </label>
                         <input
                           type="text"
