@@ -14,7 +14,19 @@
    - **Cache em Memória LRU**: Armazena as últimas 120 sínteses com TTL de 24h. Solicitações de frases frequentes e memes em grupos respondem de forma **instantânea (< 100ms)** sem bater na API da Kordix nem reprocessar ffmpeg.
    - **Timeouts Seguros**: `AbortSignal.timeout(45000)` para a geração do áudio e `AbortSignal.timeout(30000)` para download na CDN, prevenindo requisições travadas caso a rede externa oscile.
    - **Tratamento Amigável de Chave Vencida**: Detecção automática de chave expirada com aviso orientando a renovação em `zone.api.br/store`.
-   - **Cobertura de Testes**: 105 testes unitários passando em 11 suítes de teste (100% de sucesso).
+
+3. **Sistema de Modificadores de Áudio e Efeitos Vocais (Cantar, Chorar, Meme, etc.)**:
+   - Criado o parser inteligente `parseVoiceAndEffect` suportando comandos com modificadores de estilo (ex: `&voz lula musical | letra`, `&voz bolsonaro chorando | texto`, `&voz goku estourado | frase`).
+   - **Filtros e Processamento Acústico Nativo via FFmpeg**:
+     - `musical` / `cantando`: Reverb de estúdio vocal estéreo + Chorus espacial (`aecho`, `chorus`).
+     - `chorando` / `triste`: Tremor de voz embargada/soluço (`tremolo=f=5.5:d=0.55,asetrate=48000*0.96,atempo=1.04`) com dramatização de soluços no texto.
+     - `estourado` / `bass`: Bass boost potente de meme + limiter (`bass=g=16:f=100,volume=2.2`).
+     - `esquilo` / `helio`: Gás hélio agudo / Alvin e os Esquilos.
+     - `monstro` / `demonio`: Pitch down profundo demoníaco + eco cavernoso.
+     - `radio` / `walkie`: Filtro passa-faixa estilo rádio militar / telefone antigo.
+     - `eco` / `igreja`: Eco catedralício amplo.
+   - **Reações Visuais Dinâmicas no WhatsApp**: Inicia com reações contextuais (`🎤`, `🥺`, `⚡`, `🎙️`) e finaliza com reações temáticas (`🎶`, `😭`, `💥`, `🐿️`, `👹`, `📻`, `⛪`).
+   - **Bateria de Testes**: 108 testes passando com 100% de sucesso. Deploy efetuado na VPS.
 
 ---
 

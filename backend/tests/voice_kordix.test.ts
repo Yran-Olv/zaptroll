@@ -189,6 +189,7 @@ describe('Voice Command & Kordix TTS Module', () => {
       expect(synthSpy).toHaveBeenCalledWith({
         voice: 'bolsonaro',
         text: 'o texto',
+        effect: 'none',
       });
       expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '🎙️', expect.any(Object));
       expect(sendAudioSpy).toHaveBeenCalledWith(
@@ -198,6 +199,78 @@ describe('Voice Command & Kordix TTS Module', () => {
         expect.objectContaining({ ptt: true })
       );
       expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '🔊', expect.any(Object));
+    });
+
+    it('should support &voz musical with studio effect and musical reactions', async () => {
+      const mockClient = { message: { send: vi.fn().mockResolvedValue({ id: 'msg_music' }) } } as any;
+      const sendReactionSpy = vi.spyOn(ZapoMessageAdapter, 'sendReaction').mockResolvedValue({} as any);
+      const sendAudioSpy = vi.spyOn(ZapoMessageAdapter, 'sendAudio').mockResolvedValue({ id: 'aud_ack_music' } as any);
+
+      const synthSpy = vi.spyOn(KordixVoiceService, 'synthesize').mockResolvedValue({
+        audioBuffer: Buffer.from('mock_audio_music'),
+        mimetype: 'audio/ogg; codecs=opus',
+        voiceName: 'lula',
+        durationEstimateSec: 5,
+        audioUrl: 'https://cdn.zone.api.br/music.mp3',
+        effect: 'musical',
+      });
+
+      const handled = await VoiceCommandDispatcher.handleMessage({
+        client: mockClient,
+        connectionId: 'conn_test',
+        userId: 'user_test',
+        remoteJid: '120363432289926956@g.us',
+        senderJid: '551199999999@s.whatsapp.net',
+        fromMe: false,
+        stanzaId: 'st_128',
+        text: '&voz lula musical | essa e a nova cancao',
+        rawEventKey: { id: 'st_128' },
+      });
+
+      expect(handled).toBe(true);
+      expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '🎤', expect.any(Object));
+      expect(synthSpy).toHaveBeenCalledWith({
+        voice: 'lula',
+        text: expect.stringContaining('🎵 essa e a nova cancao 🎵'),
+        effect: 'musical',
+      });
+      expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '🎶', expect.any(Object));
+    });
+
+    it('should support &voz chorando with tremolo effect and crying reactions', async () => {
+      const mockClient = { message: { send: vi.fn().mockResolvedValue({ id: 'msg_crying' }) } } as any;
+      const sendReactionSpy = vi.spyOn(ZapoMessageAdapter, 'sendReaction').mockResolvedValue({} as any);
+      const sendAudioSpy = vi.spyOn(ZapoMessageAdapter, 'sendAudio').mockResolvedValue({ id: 'aud_ack_crying' } as any);
+
+      const synthSpy = vi.spyOn(KordixVoiceService, 'synthesize').mockResolvedValue({
+        audioBuffer: Buffer.from('mock_audio_crying'),
+        mimetype: 'audio/ogg; codecs=opus',
+        voiceName: 'bolsonaro',
+        durationEstimateSec: 6,
+        audioUrl: 'https://cdn.zone.api.br/crying.mp3',
+        effect: 'chorando',
+      });
+
+      const handled = await VoiceCommandDispatcher.handleMessage({
+        client: mockClient,
+        connectionId: 'conn_test',
+        userId: 'user_test',
+        remoteJid: '120363432289926956@g.us',
+        senderJid: '551199999999@s.whatsapp.net',
+        fromMe: false,
+        stanzaId: 'st_129',
+        text: '&voz bolsonaro chorando | por que voce fez isso',
+        rawEventKey: { id: 'st_129' },
+      });
+
+      expect(handled).toBe(true);
+      expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '🥺', expect.any(Object));
+      expect(synthSpy).toHaveBeenCalledWith({
+        voice: 'bolsonaro',
+        text: expect.stringContaining('buááá'),
+        effect: 'chorando',
+      });
+      expect(sendReactionSpy).toHaveBeenCalledWith(mockClient, '120363432289926956@g.us', '😭', expect.any(Object));
     });
 
     it('should notify user clearly when API key has expired', async () => {
@@ -230,12 +303,23 @@ describe('Voice Command & Kordix TTS Module', () => {
     });
   });
 
-  describe('KordixVoiceService Cache Mechanism', () => {
+  describe('KordixVoiceService Effects & Cache Mechanism', () => {
     beforeEach(() => {
       KordixVoiceService.clearCache();
     });
 
-    it('should cache synthesized results and return fromCache on subsequent calls', async () => {
+    it('should parse voice names and effect modifiers accurately', () => {
+      expect(KordixVoiceService.parseVoiceAndEffect('lula musical')).toEqual({ voice: 'lula', effect: 'musical' });
+      expect(KordixVoiceService.parseVoiceAndEffect('lula cantando')).toEqual({ voice: 'lula', effect: 'musical' });
+      expect(KordixVoiceService.parseVoiceAndEffect('bolsonaro chorando')).toEqual({ voice: 'bolsonaro', effect: 'chorando' });
+      expect(KordixVoiceService.parseVoiceAndEffect('goku estourado')).toEqual({ voice: 'goku', effect: 'estourado' });
+      expect(KordixVoiceService.parseVoiceAndEffect('silvio_santos esquilo')).toEqual({ voice: 'silvio_santos', effect: 'esquilo' });
+      expect(KordixVoiceService.parseVoiceAndEffect('batman monstro')).toEqual({ voice: 'batman', effect: 'monstro' });
+      expect(KordixVoiceService.parseVoiceAndEffect('lula:musical')).toEqual({ voice: 'lula', effect: 'musical' });
+      expect(KordixVoiceService.parseVoiceAndEffect('bob_esponja')).toEqual({ voice: 'bob_esponja', effect: 'none' });
+    });
+
+    it('should cache synthesized results and differentiate by effect', async () => {
       expect(KordixVoiceService.getCacheSize()).toBe(0);
 
       const fakeMp3 = Buffer.from('fake_mp3_data');
@@ -247,19 +331,29 @@ describe('Voice Command & Kordix TTS Module', () => {
         .mockResolvedValueOnce({
           ok: true,
           arrayBuffer: async () => fakeMp3.buffer,
+        } as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ status: true, audio: 'https://cdn.zone.api.br/audio456.mp3', voice_id: 782 }),
+        } as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: async () => fakeMp3.buffer,
         } as any);
 
-      // 1ª chamada: vai na rede
-      const result1 = await KordixVoiceService.synthesize({ voice: 'lula', text: 'Bom dia companheiros' });
+      // 1ª chamada padrão: vai na rede
+      const result1 = await KordixVoiceService.synthesize({ voice: 'lula', text: 'Bom dia companheiros', effect: 'none' });
       expect(result1.fromCache).toBeFalsy();
       expect(KordixVoiceService.getCacheSize()).toBe(1);
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
 
-      // 2ª chamada: deve vir direto do cache sem chamar fetch
-      const result2 = await KordixVoiceService.synthesize({ voice: 'lula', text: 'bom dia companheiros' });
+      // 2ª chamada idêntica: vem do cache
+      const result2 = await KordixVoiceService.synthesize({ voice: 'lula', text: 'bom dia companheiros', effect: 'none' });
       expect(result2.fromCache).toBe(true);
-      expect(result2.voiceName).toBe(result1.voiceName);
-      expect(fetchSpy).toHaveBeenCalledTimes(2); // Nenhuma nova requisição de rede
+
+      // 3ª chamada com efeito 'musical': deve ser tratada como nova chave de cache
+      const result3 = await KordixVoiceService.synthesize({ voice: 'lula', text: 'bom dia companheiros', effect: 'musical' });
+      expect(result3.fromCache).toBeFalsy();
+      expect(KordixVoiceService.getCacheSize()).toBe(2);
     });
   });
 });

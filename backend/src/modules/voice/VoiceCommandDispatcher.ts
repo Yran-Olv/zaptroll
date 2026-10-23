@@ -93,7 +93,7 @@ export class VoiceCommandDispatcher {
       return true;
     }
 
-    // 3. Fatiamento de Personagem e Texto
+    // 3. Fatiamento de Personagem, Efeito e Texto
     // Suporta com ou sem aspas, com barra vertical "|" ou espaço simples
     let voiceParam = '';
     let speechText = '';
@@ -118,11 +118,14 @@ export class VoiceCommandDispatcher {
     voiceParam = voiceParam.replace(/^["'`]|["'`]$/g, '').trim();
     speechText = speechText.replace(/^["'`]|["'`]$/g, '').trim();
 
+    // 4. Separa a voz e o efeito de áudio solicitado (ex: "lula musical", "bolsonaro chorando", "goku estourado")
+    const { voice: parsedVoice, effect: parsedEffect } = KordixVoiceService.parseVoiceAndEffect(voiceParam);
+
     if (!speechText) {
       await ZapoMessageAdapter.sendText(
         ctx.client,
         ctx.remoteJid,
-        `⚠️ Você precisa informar o que a voz deve falar!\n\n*Exemplo:* \`&voz ${voiceParam || 'bolsonaro'} | Olá pessoal, boa noite!\``,
+        `⚠️ Você precisa informar o que a voz deve falar!\n\n*Exemplo:* \`&voz ${parsedVoice || 'bolsonaro'} | Olá pessoal, boa noite!\`\n*Com efeitos:* \`&voz ${parsedVoice || 'lula'} musical | sua música\` ou \`&voz ${parsedVoice || 'bolsonaro'} chorando | seu texto triste\``,
         {
           quote: { id: ctx.stanzaId, remoteJid: ctx.remoteJid, participant: ctx.rawEventKey?.participant },
         }
@@ -130,14 +133,44 @@ export class VoiceCommandDispatcher {
       return true;
     }
 
+    // 5. Reação contextual temática durante a gravação
+    let startReaction = '🎙️';
+    if (parsedEffect === 'musical') startReaction = '🎤';
+    else if (parsedEffect === 'chorando') startReaction = '🥺';
+    else if (parsedEffect === 'estourado') startReaction = '⚡';
+    else if (parsedEffect === 'esquilo') startReaction = '🐿️';
+    else if (parsedEffect === 'monstro') startReaction = '👹';
+
     try {
-      // 4. Executa a síntese de áudio
+      await ZapoMessageAdapter.sendReaction(ctx.client, ctx.remoteJid, startReaction, {
+        id: ctx.stanzaId,
+        remoteJid: ctx.remoteJid,
+        fromMe: ctx.fromMe,
+        participant: effectiveParticipant,
+      });
+    } catch {}
+
+    // 6. Enriquecimento dramático de texto para intensificar a emoção
+    let speechTextProcessed = speechText;
+    if (parsedEffect === 'chorando') {
+      if (!/(snif|bu[aá]|solu[çc]|chor)/i.test(speechTextProcessed)) {
+        speechTextProcessed = `(snif)... (buááá)... ${speechTextProcessed}... (snif snif)`;
+      }
+    } else if (parsedEffect === 'musical') {
+      if (!/[🎵🎶🎤]/.test(speechTextProcessed)) {
+        speechTextProcessed = `🎵 ${speechTextProcessed} 🎵`;
+      }
+    }
+
+    try {
+      // 7. Executa a síntese de áudio com os filtros de estilo selecionados
       const synthResult = await KordixVoiceService.synthesize({
-        text: speechText,
-        voice: voiceParam,
+        text: speechTextProcessed,
+        voice: parsedVoice,
+        effect: parsedEffect,
       });
 
-      // 5. Envia o áudio no WhatsApp como PTT (mensagem de voz gravada nativa compatível com iOS e Android)
+      // 8. Envia o áudio no WhatsApp como PTT (mensagem de voz gravada nativa compatível com iOS e Android)
       const isOgg = synthResult.isOgg ?? (Boolean(synthResult.mimetype?.includes('ogg')) || Boolean(synthResult.mimetype?.includes('opus')));
       const waveform = KordixVoiceService.generateWaveform(synthResult.audioBuffer);
       const audioSendResult = await ZapoMessageAdapter.sendAudio(
@@ -157,9 +190,18 @@ export class VoiceCommandDispatcher {
         }
       );
 
-      // 6. Atualiza a reação para sucesso 🔊
+      // 9. Atualiza a reação para sucesso temático
+      let successReaction = '🔊';
+      if (parsedEffect === 'musical') successReaction = '🎶';
+      else if (parsedEffect === 'chorando') successReaction = '😭';
+      else if (parsedEffect === 'estourado') successReaction = '💥';
+      else if (parsedEffect === 'esquilo') successReaction = '🐿️';
+      else if (parsedEffect === 'monstro') successReaction = '👹';
+      else if (parsedEffect === 'radio') successReaction = '📻';
+      else if (parsedEffect === 'eco') successReaction = '⛪';
+
       try {
-        await ZapoMessageAdapter.sendReaction(ctx.client, ctx.remoteJid, '🔊', {
+        await ZapoMessageAdapter.sendReaction(ctx.client, ctx.remoteJid, successReaction, {
           id: ctx.stanzaId,
           remoteJid: ctx.remoteJid,
           fromMe: ctx.fromMe,

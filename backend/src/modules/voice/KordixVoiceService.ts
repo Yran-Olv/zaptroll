@@ -43,6 +43,66 @@ export const POPULAR_VOICES: VoiceOption[] = [
   { alias: ['darth_vader', 'vader'], canonical: 'darth_vader', displayName: 'Darth Vader', category: 'pop' },
 ];
 
+export type VoiceAudioEffect =
+  | 'musical'
+  | 'chorando'
+  | 'estourado'
+  | 'esquilo'
+  | 'monstro'
+  | 'radio'
+  | 'eco'
+  | 'none';
+
+export const EFFECT_MAP: Record<string, VoiceAudioEffect> = {
+  musical: 'musical',
+  musica: 'musical',
+  musico: 'musical',
+  cantando: 'musical',
+  canta: 'musical',
+  cantar: 'musical',
+  autotune: 'musical',
+  trap: 'musical',
+  funk: 'musical',
+
+  chorando: 'chorando',
+  choro: 'chorando',
+  chorar: 'chorando',
+  triste: 'chorando',
+  tristeza: 'chorando',
+  soluco: 'chorando',
+  soluço: 'chorando',
+  depressivo: 'chorando',
+
+  estourado: 'estourado',
+  estourada: 'estourado',
+  bass: 'estourado',
+  bassboost: 'estourado',
+  meme: 'estourado',
+  estouro: 'estourado',
+
+  esquilo: 'esquilo',
+  helio: 'esquilo',
+  fina: 'esquilo',
+  fino: 'esquilo',
+  alvin: 'esquilo',
+
+  monstro: 'monstro',
+  demonio: 'monstro',
+  diabo: 'monstro',
+  grossa: 'monstro',
+  grosso: 'monstro',
+  caverna: 'monstro',
+
+  radio: 'radio',
+  walkietalkie: 'radio',
+  walkie: 'radio',
+  telefone: 'radio',
+
+  eco: 'eco',
+  igreja: 'eco',
+  catedral: 'eco',
+};
+
 export interface SynthesizeResult {
   audioBuffer: Buffer;
   mimetype: string;
@@ -51,6 +111,7 @@ export interface SynthesizeResult {
   durationEstimateSec: number;
   audioUrl?: string;
   fromCache?: boolean;
+  effect?: VoiceAudioEffect;
 }
 
 interface CachedAudioEntry extends SynthesizeResult {
@@ -90,6 +151,34 @@ export class KordixVoiceService {
   }
 
   /**
+   * Separa a voz do modificador de estilo (ex: "lula musical" -> voz: "lula", efeito: "musical")
+   */
+  static parseVoiceAndEffect(rawInput: string): { voice: string; effect: VoiceAudioEffect } {
+    if (!rawInput) return { voice: '782', effect: 'none' };
+    const clean = rawInput.trim();
+
+    // Se tiver dois pontos (ex: lula:musical ou bolsonaro:chorando)
+    if (clean.includes(':')) {
+      const [v, eff] = clean.split(':').map(s => s.trim());
+      const matchedEff = EFFECT_MAP[this.normalizeKey(eff)] || 'none';
+      return { voice: v, effect: matchedEff };
+    }
+
+    // Se tiver espaço (ex: "lula musical", "bolsonaro chorando", "goku estourado")
+    const parts = clean.split(/\s+/);
+    if (parts.length > 1) {
+      const lastWord = parts[parts.length - 1];
+      const matchedEff = EFFECT_MAP[this.normalizeKey(lastWord)];
+      if (matchedEff) {
+        const remainingVoice = parts.slice(0, -1).join(' ').trim();
+        return { voice: remainingVoice, effect: matchedEff };
+      }
+    }
+
+    return { voice: clean, effect: 'none' };
+  }
+
+  /**
    * Normaliza o nome ou apelido de personagem para o termo canônico ou ID aceito pela API
    */
   static resolveVoiceName(input: string): string {
@@ -117,23 +206,25 @@ export class KordixVoiceService {
   }
 
   /**
-   * Converte texto em fala utilizando a API TTS Kordix com rotação e fallback de chaves
+   * Converte texto em fala utilizando a API TTS Kordix com rotação de chaves e efeitos sonoros
    */
   static async synthesize({
     text,
     voice,
+    effect = 'none',
   }: {
     text: string;
     voice: string;
+    effect?: VoiceAudioEffect;
   }): Promise<SynthesizeResult> {
     const canonicalVoice = this.resolveVoiceName(voice);
     const normalizedTextKey = this.normalizeKey(text);
-    const cacheKey = `${canonicalVoice}:${normalizedTextKey}`;
+    const cacheKey = `${canonicalVoice}:${effect}:${normalizedTextKey}`;
 
-    // ⚡ 1. Otimização de Cache: Resposta instantânea se a frase já foi sintetizada recentemente
+    // ⚡ 1. Otimização de Cache: Resposta instantânea se a frase com o mesmo efeito já foi sintetizada recentemente
     const cached = this.CACHE.get(cacheKey);
     if (cached && (Date.now() - cached.cachedAt) < this.CACHE_TTL_MS) {
-      console.log(`[KordixVoiceService] ⚡ Resposta instantânea do cache para voz "${canonicalVoice}" (${cached.audioBuffer.length} bytes)`);
+      console.log(`[KordixVoiceService] ⚡ Resposta instantânea do cache para voz "${canonicalVoice}" (efeito=${effect}, ${cached.audioBuffer.length} bytes)`);
       return {
         ...cached,
         fromCache: true,
@@ -225,9 +316,9 @@ export class KordixVoiceService {
     const mp3Buffer = Buffer.from(await audioRes.arrayBuffer());
     console.log(`[KordixVoiceService] ✅ Áudio gerado com sucesso (${mp3Buffer.length} bytes, voz_id=${data.voice_id || canonicalVoice})`);
 
-    // Converte para OGG Opus no padrão estrito aceito pelo WhatsApp no iOS e Android:
+    // Converte para OGG Opus com filtros de áudio (musical, choro, estourado, esquilo, etc.)
     // 48000 Hz, canal mono (1), codec libopus, VBR ativado
-    const oggBuffer = await this.convertToOggOpusIfPossible(mp3Buffer);
+    const oggBuffer = await this.convertToOggOpusIfPossible(mp3Buffer, effect);
 
     // Estimativa de duração (~12 caracteres por segundo em média)
     const durationEstimateSec = Math.max(2, Math.round(text.length / 12));
@@ -246,6 +337,7 @@ export class KordixVoiceService {
       voiceName: resolvedName,
       durationEstimateSec,
       audioUrl: data.audio,
+      effect,
     };
 
     // ⚡ Salva no cache LRU em memória
@@ -262,10 +354,13 @@ export class KordixVoiceService {
   }
 
   /**
-   * Converte áudio MP3 para OGG Opus via ffmpeg local para garantir compatibilidade
-   * 100% nativa com o player do iOS (CoreAudio/AVFoundation) e Android
+   * Converte áudio MP3 para OGG Opus via ffmpeg aplicando efeitos estilísticos (musical, choro, etc.)
+   * e garantindo compatibilidade 100% nativa com o player do iOS (CoreAudio) e Android.
    */
-  private static async convertToOggOpusIfPossible(inputBuffer: Buffer): Promise<Buffer | null> {
+  private static async convertToOggOpusIfPossible(
+    inputBuffer: Buffer,
+    effect: VoiceAudioEffect = 'none'
+  ): Promise<Buffer | null> {
     const tmpDir = path.join('/tmp', 'zaptroll_audio');
     if (!fs.existsSync(tmpDir)) {
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -277,12 +372,51 @@ export class KordixVoiceService {
 
     try {
       fs.writeFileSync(inputPath, inputBuffer);
+
+      // Constrói cadeia de filtros de áudio conforme o efeito solicitado
+      let filterArgs = '';
+      switch (effect) {
+        case 'musical':
+          // Reverb de estúdio vocal + Chorus estéreo espacial + ganho de saída
+          filterArgs = '-af "aecho=0.8:0.88:40|60:0.3|0.25,chorus=0.6:0.8:50|60:0.4|0.3:0.25|0.2:2,volume=1.1"';
+          break;
+        case 'chorando':
+          // Tremor vocal de soluço (tremolo) + pitch levemente fúnebre + equalização melancólica
+          filterArgs = '-af "tremolo=f=5.5:d=0.55,asetrate=48000*0.96,atempo=1.04,lowpass=f=3400,volume=1.15"';
+          break;
+        case 'estourado':
+          // Bass boost meme + limiter de saturação
+          filterArgs = '-af "bass=g=16:f=100,volume=2.2,alimiter=limit=0.95"';
+          break;
+        case 'esquilo':
+          // Gás hélio / Alvin e os Esquilos
+          filterArgs = '-af "asetrate=48000*1.38,atempo=0.72"';
+          break;
+        case 'monstro':
+          // Demônio / voz cavernosa profunda
+          filterArgs = '-af "asetrate=48000*0.75,atempo=1.33,aecho=0.8:0.9:80:0.35"';
+          break;
+        case 'radio':
+          // Walkie-talkie / rádio militar / telefone antigo
+          filterArgs = '-af "highpass=f=450,lowpass=f=3000,volume=1.4"';
+          break;
+        case 'eco':
+          // Eco de catedral / igreja
+          filterArgs = '-af "aecho=0.8:0.85:600|1200:0.4|0.3"';
+          break;
+        default:
+          filterArgs = '';
+          break;
+      }
+
       // Parâmetros estritos para iOS/Android WhatsApp:
       // - -ar 48000: taxa de amostragem obrigatória para Opus no WhatsApp
-      // - -ac 1: canal mono padrão de mensagens de voz
+      // - -ac 1: canal mono padrão de mensagens de voz PTT
       // - -c:a libopus: codec nativo Opus
       // - -b:a 32k -vbr on: taxa de bits de voz cristalina
-      await execAsync(`ffmpeg -y -i "${inputPath}" -c:a libopus -b:a 32k -vbr on -compression_level 10 -ar 48000 -ac 1 "${outputPath}"`);
+      const ffmpegCmd = `ffmpeg -y -i "${inputPath}" ${filterArgs} -c:a libopus -b:a 32k -vbr on -compression_level 10 -ar 48000 -ac 1 "${outputPath}"`;
+      await execAsync(ffmpegCmd);
+
       if (fs.existsSync(outputPath)) {
         const oggBuffer = fs.readFileSync(outputPath);
         return oggBuffer;
@@ -345,14 +479,16 @@ export class KordixVoiceService {
       ``,
       `📌 *Como Usar:*`,
       `• \`&voz personagem | seu texto aqui\``,
+      `• \`&voz personagem efeito | seu texto aqui\``,
       ``,
-      `💡 *Exemplos:*`,
-      `• \`&voz bolsonaro | Olá meus amigos, boa noite a todos!\``,
-      `• \`&voz lula | Companheiros e companheiras, boa noite!\``,
-      `• \`&voz goku | Oi, eu sou o Goku e vou te derrotar!\``,
-      `• \`&voz bob_esponja | Estou pronto, estou pronto, seu Siriguejo!\``,
-      `• \`&voz silvio_santos | Quem quer dinheiro? Ma oê!\``,
-      `• \`&voz mano_brown | É desse jeito, família, paz na quebrada!\``,
+      `🎭 *Modos Especiais & Efeitos Sonoros:*`,
+      `• 🎤 *Musical / Cantando:* \`&voz lula musical | o texto da musica\``,
+      `• 😭 *Chorando / Triste:* \`&voz bolsonaro chorando | por que você fez isso?\``,
+      `• 💥 *Estourado / Bass:* \`&voz goku estourado | kamehameha!\``,
+      `• 🐿️ *Esquilo / Hélio:* \`&voz silvio_santos esquilo | quem quer dinheiro!\``,
+      `• 👹 *Monstro / Grave:* \`&voz batman monstro | eu sou a vingança\``,
+      `• 📻 *Rádio / Walkie:* \`&voz bob_esponja radio | cambio desligo\``,
+      `• ⛪ *Eco / Igreja:* \`&voz lula eco | meus companheiros\``,
       ``,
       `🌟 *Vozes Principais & Atalhos:*`,
       `🇧🇷 *Políticos:* \`bolsonaro\`, \`lula\`, \`dilma\``,
@@ -362,7 +498,7 @@ export class KordixVoiceService {
       `⚽ *Futebol:* \`cristiano_ronaldo\`, \`neymar\``,
       ``,
       `🔍 *Descobrir mais vozes:*`,
-      `• Digite \`&voz buscar <nome>\` para pesquisar no catálogo de mais de 200.000 vozes!`,
+      `• Digite \`&voz buscar <nome>\` para pesquisar no catálogo de mais de 250.000 vozes!`,
       `• Digite \`&vozes\` para ver este menu a qualquer momento.`,
       ``,
       `_Ao enviar o comando, o bot reage com 🎙️ e envia a resposta como áudio gravado nativo._`
